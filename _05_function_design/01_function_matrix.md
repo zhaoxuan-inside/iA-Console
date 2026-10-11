@@ -20,7 +20,7 @@
 | ai | — | — | — | ai_complete(IF-005)、local_engine_ensure(IF-010) |
 | modelhub | — | — | — | modelhub_install(IF-008)、modelhub_list(IF-009) |
 | 输入解析 | — | — | parse_input_marker(I-034，归属 server) | — |
-| rollback | — | diff_effects(I-036)、file_history(I-038) | — | — |
+| rollback | — | diff_effects(I-036)、file_history(I-038)、list_rollback_points(I-040) | — | — |
 | rollback（编排） | — | capture_pre_image(I-035)、rollback_to(I-037)、restore_file(I-039)（编排） | — | — |
 | snapstore | — | — | — | snapstore_put(IF-011)、snapstore_fetch(IF-012)、sweep_expired(IF-013) |
 | storage | — | — | — | storage_query(IF-001)、storage_execute(IF-002)、storage_migrate(IF-004) |
@@ -385,7 +385,7 @@
 | M4 服务与接入 | T-020~T-023 | daemon + CLI + MCP 三入口可用 |
 | M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用（含参数映射与组合闭环）；本地模型插件可装可切 |
 | M6 体验与收敛 | T-028~T-033 | 标记语言、日夜主题可用，E2E 全链路通过 → v0.1.0 |
-| M7 执行回滚（v2 → v0.2.0） | T-034~T-037 | 效果日志回滚全链路可用（point-in-time + 单文件版本 + 回收站） |
+| M7 执行回滚（v2 → v0.2.0） | T-034~T-038 | 效果日志回滚全链路可用（范围回放 + 单文件版本 + 回收站 + history 式列表） |
 
 ## 4. v2 预排任务卡（M7 执行回滚，机制见 _02 Q6-S4 效果日志方案）
 
@@ -409,15 +409,15 @@
 | 依赖任务 | T-034、T-008 |
 | 预估 | 30 分钟 |
 
-### T-036 回滚回放（US-18，AC-30/31）
+### T-036 回滚回放（US-18，AC-30/33/34）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `core/src/rollback/replay.rs`、`core/src/rollback/trash.rs` |
-| 产出方法 | `rollback_to`（I-037，orchestration：目标点逆序回放；created→trash 而非抹除；IAC-1602/1603 语义） |
-| 验收方式 | 单测：多执行点连续回放、回滚到中间位置、trash 落位、目标已回收报错、范围外条目跳过并报告 |
+| 产出方法 | `rollback_to`（I-037，orchestration：范围回放 `--to <行>` / `--from <行> [--to <行>]`；逐行倒序；created→trash 而非抹除；`--on-conflict <ask|skip|abort>` 冲突决策；IAC-1602/1603/1604 语义） |
+| 验收方式 | 单测：三种范围语义正确性（到指定行/区间/到最远）、逐行倒序顺序断言、冲突 ask/skip/abort 三策略、trash 落位、目标已回收报错、范围参数无效报 IAC-1604 |
 | 依赖任务 | T-035 |
-| 预估 | 30 分钟 |
+| 预估 | 35 分钟 |
 
 ### T-037 文件版本历史与恢复（US-18，AC-30）
 
@@ -428,3 +428,13 @@
 | 验收方式 | 单测：同一文件多次修改的版本链、恢复到任一版本内容断言、恢复动作过闸门 |
 | 依赖任务 | T-036 |
 | 预估 | 25 分钟 |
+
+### T-038 回滚点列表与日志长度控制（US-18，AC-32/33）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/rollback/list.rs` |
+| 产出方法 | `list_rollback_points`（I-040，data：history 式聚合视图=seq/时间/当时命令/可回滚标识 ✔可回滚/◐部分/✘不可+原因；rollback.max_entries 超限清退联动） |
+| 验收方式 | 单测：三态判定（引用存活/out_of_scope/引用已回收）、默认 1024 与上限 65536 配置边界、最旧执行点清退后列表与快照一致 |
+| 依赖任务 | T-035 |
+| 预估 | 20 分钟 |
