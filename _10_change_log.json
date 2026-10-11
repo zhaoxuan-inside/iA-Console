@@ -581,6 +581,30 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-021",
+      "date": "2026-10-11",
+      "requirement": "REQ-GUI-USABILITY-FIX：用户实测 ia-console 0.1.0 基本输入不可用/UI 差。修复六项：①vendor egui_term 0.1.0 入 workspace（ADR-010）——输入门槛去 contains_pointer（鼠标不在终端上丢键的根因）、单元尺寸亚像素化（cell floor 致字形逐列重叠）、逐 cell 字体克隆外提、退出 panic 改优雅收线；②app 焦点模型改点击聚焦，删每帧 request_focus/set_focus 抢占（侧栏输入框此前永远抢不到焦点）；③PTY 事件补转发：PtyWrite 应答、Title/ResetTitle 联动标签、ColorRequest（OSC 10/11）应答、ClipboardStore 接剪贴板——vim/nvim 等查询不再悬挂；④IPC 后台线程化+读写超时 300s/10s，侧栏提交不再冻结窗口，busy 跨帧可见；⑤TerminalTheme 接 14 令牌调色板（日夜同源消除色缝）；⑥侧栏输出人类可读化：提案卡条目/执行摘要/解释渲染，无选区 Ctrl+Shift+C 不再误发 ^C",
+      "changed_files": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "vendor/egui-term/Cargo.toml",
+        "vendor/egui-term/src/lib.rs",
+        "vendor/egui-term/src/backend/mod.rs",
+        "vendor/egui-term/src/view.rs",
+        "iac-gui/src/app.rs",
+        "iac-gui/src/sidebar.rs",
+        "iac-gui/src/ipc.rs",
+        "iac-gui/src/theme.rs",
+        "_03_tech_stack/ADR-010-egui-term-vendor.md",
+        "_00_project_idx.json",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }
