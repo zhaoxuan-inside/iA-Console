@@ -377,14 +377,34 @@
 | 依赖任务 | T-029、T-031 |
 | 预估 | 20 分钟 |
 
-### T-034 端到端验证与文档（P8 输入）
+### T-034 结构化渲染引擎（US-22，AC-41~43）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/common/render.rs`、`core/tests/render_test.rs` |
+| 产出方法 | `detect_format`（I-045，algorithm：JSON/YAML/XML/Markdown/代码语言解析验证检测）、`highlight`（I-046，algorithm：轻量词法 tokenizer → styled spans；规则集默认 python/shell/bat） |
+| 验收方式 | 单测：合法/畸形 JSON·YAML·XML 检测与降级、四类 token 断言、render.languages 配置扩展、64KB 性能边界、检测失败纯文本不破坏原文 |
+| 依赖任务 | T-030 |
+| 预估 | 30 分钟 |
+
+### T-035 Markdown 渲染与输出接管（US-22，AC-41）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `iac/src/tui/markdown.rs`、`iac/src/tui/output.rs`（豁免组件） |
+| 产出方法 | 豁免组件：md 元素渲染（标题/列表/表格/代码块）、命令输出回显接管（detect→highlight 接线）、双主题令牌联动 |
+| 验收方式 | 组件单测：md 元素渲染快照、输出接管检测命中/降级、day/night 令牌切换断言 |
+| 依赖任务 | T-034 |
+| 预估 | 25 分钟 |
+
+### T-036 端到端验证与文档（P8 输入）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `tests/e2e/main.rs`（或集成测试目录）、`README.md` quickstart 更新 |
 | 产出方法 | 无 |
-| 验收方式 | E2E：daemon 启动→ask(mock AI)→confirm→execute→history→session resume→方言翻译（含组合闭环）→标记解析→复制三档→MCP 工具调用全链路；输出验收清单 |
-| 依赖任务 | T-023、T-027、T-031 |
+| 验收方式 | E2E：daemon 启动→ask(mock AI)→confirm→execute→history→session resume→方言翻译（含组合闭环）→标记解析→复制三档→结构化渲染→MCP 工具调用全链路；输出验收清单 |
+| 依赖任务 | T-023、T-027、T-031、T-033~T-035 |
 | 预估 | 30 分钟 |
 
 ## 3. 里程碑
@@ -396,55 +416,13 @@
 | M3 智能域 | T-011~T-019 | ask→gate→execute→doctor 库级闭环（mock AI） |
 | M4 服务与接入 | T-020~T-023 | daemon + CLI + MCP 三入口可用 |
 | M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用（含参数映射与组合闭环）；本地模型插件可装可切 |
-| M6 体验与收敛 | T-028~T-034 | 标记语言、日夜主题、复制三档可用，E2E 全链路通过 → v0.1.0 |
-| M7 执行回滚（v2 → v0.2.0） | T-035~T-039 | 效果日志回滚全链路可用（范围回放 + 单文件版本 + 回收站 + history 式列表） |
-| M8 脚本工坊（v2 → v0.2.0） | T-040~T-043 | 命令范围→sh/bat 脚本→命名注册→`iac run @名` 全链路可用 |
-
-## 5. v2 预排任务卡（M8 脚本工坊，机制见 _02 Q9 拼接+可选精修）
-
-### T-040 范围收集与确定性装配（US-21，AC-38）
-
-| 字段 | 内容 |
-|---|---|
-| 涉及文件 | `core/src/script/collect.rs`、`core/src/common/script_assembler.rs` |
-| 产出方法 | `collect_commands`（I-041，data：任务段/行号区间统一取命令序列）、`assemble_script`（I-042，algorithm：拼接 + 平台头部，sh/PS 双版本） |
-| 验收方式 | 单测：任务段/区间两种范围、头部注入断言（set -euo pipefail / ErrorActionPreference）、方言混合原样保留、零 AI 断言 |
-| 依赖任务 | T-009、T-017 |
-| 预估 | 30 分钟 |
-
-### T-041 AI 精修（US-21，AC-40）
-
-| 字段 | 内容 |
-|---|---|
-| 涉及文件 | `core/src/script/refine.rs` |
-| 产出方法 | `refine_script`（I-043，orchestration：参数化/依赖预检/跨方言适配 → 修订 diff，确认后覆盖，原稿保留） |
-| 验收方式 | 单测（mock ai）：diff 结构、未确认不覆盖、AI 不可用时拼接稿仍可用 |
-| 依赖任务 | T-040、T-006 |
-| 预估 | 25 分钟 |
-
-### T-042 注册与运行（US-21，AC-38/39）
-
-| 字段 | 内容 |
-|---|---|
-| 涉及文件 | `core/src/script/run.rs`、`infra/src/process/mod.rs`（ProcessSpec 增 script 模式：stdin 传入 `sh -s` / `pwsh -Command -`） |
-| 产出方法 | `run_script`（I-044，orchestration：platform 选版本 → 风险评估（内部最高）→ 闸门 → 执行 → 记录+审计）；save_recipe 扩展 name 唯一注册 |
-| 验收方式 | 单测：name 唯一约束、@名 运行解析、闸门 risk=内部最高、执行记录含脚本名、回滚日志覆盖断言 |
-| 依赖任务 | T-040、T-012、T-019 |
-| 预估 | 30 分钟 |
-
-### T-043 v2 端到端（P8 输入扩充）
-
-| 字段 | 内容 |
-|---|---|
-| 涉及文件 | `tests/e2e/`（v2 用例追加） |
-| 产出方法 | 无 |
-| 验收方式 | E2E：回滚全链路（范围回放/文件恢复）+ 脚本工坊全链路（make→refine(mock)→run @名→rollback 覆盖脚本效果）；输出验收清单 |
-| 依赖任务 | T-039、T-042 |
-| 预估 | 25 分钟 |
+| M6 体验与收敛 | T-028~T-036 | 标记语言、日夜主题、复制三档可用，E2E 全链路通过 → v0.1.0 |
+| M7 执行回滚（v2 → v0.2.0） | T-037~T-041 | 效果日志回滚全链路可用（范围回放 + 单文件版本 + 回收站 + history 式列表） |
+| M8 脚本工坊（v2 → v0.2.0） | T-042~T-045 | 命令范围→sh/bat 脚本→命名注册→`iac run @名` 全链路可用 |
 
 ## 4. v2 预排任务卡（M7 执行回滚，机制见 _02 Q6-S4 效果日志方案）
 
-### T-035 快照仓库 Adapter（US-18，AC-29）
+### T-037 快照仓库 Adapter（US-18，AC-29）
 
 | 字段 | 内容 |
 |---|---|
@@ -454,42 +432,85 @@
 | 依赖任务 | T-003 |
 | 预估 | 30 分钟 |
 
-### T-036 前像捕获与效果 diff（US-18，AC-29）
+### T-038 前像捕获与效果 diff（US-18，AC-29）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `core/src/rollback/capture.rs`、`core/src/rollback/diff.rs` |
 | 产出方法 | `capture_pre_image`（I-035，orchestration：圈定范围→manifest→入库）、`diff_effects`（I-036，data：manifest vs 现况→EffectEntry 入库） |
 | 验收方式 | 单测：范围圈定（cwd 子树/显式路径/影响面并集）、created/modified/deleted/renamed 四类 diff、范围外写入标 out_of_scope |
-| 依赖任务 | T-035、T-008 |
+| 依赖任务 | T-037、T-008 |
 | 预估 | 30 分钟 |
 
-### T-037 回滚回放（US-18，AC-30/33/34）
+### T-039 回滚回放（US-18，AC-30/33/34）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `core/src/rollback/replay.rs`、`core/src/rollback/trash.rs` |
-| 产出方法 | `rollback_to`（I-037，orchestration：范围回放 `--to <行>` / `--from <行> [--to <行>]`；逐行倒序；created→trash 而非抹除；`--on-conflict <ask|skip|abort>` 冲突决策；IAC-1602/1603/1604 语义） |
+| 产出方法 | `rollback_to`（I-037，orchestration：范围回放 `--to <行>` / `--from <行> [--to <行>]`；逐行倒序；created→trash 而非抹除；`--on-conflict <ask\|skip\|abort>` 冲突决策；IAC-1602/1603/1604 语义） |
 | 验收方式 | 单测：三种范围语义正确性（到指定行/区间/到最远）、逐行倒序顺序断言、冲突 ask/skip/abort 三策略、trash 落位、目标已回收报错、范围参数无效报 IAC-1604 |
-| 依赖任务 | T-036 |
+| 依赖任务 | T-038 |
 | 预估 | 35 分钟 |
 
-### T-038 文件版本历史与恢复（US-18，AC-30）
+### T-040 文件版本历史与恢复（US-18，AC-30）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `core/src/rollback/file_history.rs` |
 | 产出方法 | `file_history`（I-038，data：路径版本列表=各次执行的效果条目）、`restore_file`（I-039，orchestration：取版本内容直接替换，过风险闸门） |
 | 验收方式 | 单测：同一文件多次修改的版本链、恢复到任一版本内容断言、恢复动作过闸门 |
-| 依赖任务 | T-037 |
+| 依赖任务 | T-039 |
 | 预估 | 25 分钟 |
 
-### T-039 回滚点列表与日志长度控制（US-18，AC-32/33）
+### T-041 回滚点列表与日志长度控制（US-18，AC-32/33）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `core/src/rollback/list.rs` |
 | 产出方法 | `list_rollback_points`（I-040，data：history 式聚合视图=seq/时间/当时命令/可回滚标识 ✔可回滚/◐部分/✘不可+原因；rollback.max_entries 超限清退联动） |
 | 验收方式 | 单测：三态判定（引用存活/out_of_scope/引用已回收）、默认 1024 与上限 65536 配置边界、最旧执行点清退后列表与快照一致 |
-| 依赖任务 | T-036 |
+| 依赖任务 | T-038 |
 | 预估 | 20 分钟 |
+
+## 5. v2 预排任务卡（M8 脚本工坊，机制见 _02 Q9 拼接+可选精修）
+
+### T-042 范围收集与确定性装配（US-21，AC-38）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/script/collect.rs`、`core/src/common/script_assembler.rs` |
+| 产出方法 | `collect_commands`（I-041，data：任务段/行号区间统一取命令序列）、`assemble_script`（I-042，algorithm：拼接 + 平台头部，sh/PS 双版本） |
+| 验收方式 | 单测：任务段/区间两种范围、头部注入断言（set -euo pipefail / ErrorActionPreference）、方言混合原样保留、零 AI 断言 |
+| 依赖任务 | T-009、T-017 |
+| 预估 | 30 分钟 |
+
+### T-043 AI 精修（US-21，AC-40）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/script/refine.rs` |
+| 产出方法 | `refine_script`（I-043，orchestration：参数化/依赖预检/跨方言适配 → 修订 diff，确认后覆盖，原稿保留） |
+| 验收方式 | 单测（mock ai）：diff 结构、未确认不覆盖、AI 不可用时拼接稿仍可用 |
+| 依赖任务 | T-042、T-006 |
+| 预估 | 25 分钟 |
+
+### T-044 注册与运行（US-21，AC-38/39）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/script/run.rs`、`infra/src/process/mod.rs`（ProcessSpec 增 script 模式：stdin 传入 `sh -s` / `pwsh -Command -`） |
+| 产出方法 | `run_script`（I-044，orchestration：platform 选版本 → 风险评估（内部最高）→ 闸门 → 执行 → 记录+审计）；save_recipe 扩展 name 唯一注册 |
+| 验收方式 | 单测：name 唯一约束、@名 运行解析、闸门 risk=内部最高、执行记录含脚本名、回滚日志覆盖断言 |
+| 依赖任务 | T-042、T-012、T-019 |
+| 预估 | 30 分钟 |
+
+### T-045 v2 端到端（P8 输入扩充）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `tests/e2e/`（v2 用例追加） |
+| 产出方法 | 无 |
+| 验收方式 | E2E：回滚全链路（范围回放/文件恢复）+ 脚本工坊全链路（make→refine(mock)→run @名→rollback 覆盖脚本效果）；输出验收清单 |
+| 依赖任务 | T-041、T-044 |
+| 预估 | 25 分钟 |
+
