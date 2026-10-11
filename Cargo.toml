@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = ["iac", "iacd", "core", "infra"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["zhaoxuan"]
+
+[workspace.dependencies]
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 错误处理
+thiserror = "2"
+anyhow = "1"
+# 异步运行时（仅接入层使用，core 保持同步）
+tokio = { version = "1", features = ["full"] }
+# CLI
+clap = { version = "4", features = ["derive"] }
+# 存储
+rusqlite = { version = "0.32", features = ["bundled"] }
+# LLM HTTP 客户端（仅 infra::ai 内）
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+# 观测
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# 工具
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+toml = "0.8"
+dirs = "5"
+
+[profile.release]
+lto = "thin"
+strip = true
