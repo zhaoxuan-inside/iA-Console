@@ -67,6 +67,17 @@ pub fn palette(mode: Mode) -> [(&'static str, &'static str); 14] {
     }
 }
 
+/// token → (R, G, B)（console 渲染用）。
+pub fn rgb(mode: Mode, token: Token) -> (u8, u8, u8) {
+    let hex = color(mode, token);
+    let h = hex.trim_start_matches('#');
+    (
+        u8::from_str_radix(&h[0..2], 16).unwrap_or(0),
+        u8::from_str_radix(&h[2..4], 16).unwrap_or(0),
+        u8::from_str_radix(&h[4..6], 16).unwrap_or(0),
+    )
+}
+
 /// token → 颜色值。
 pub fn color(mode: Mode, token: Token) -> &'static str {
     palette(mode)
@@ -186,4 +197,11 @@ mod tests {
         assert!(seq.ends_with("\x07"));
         assert_eq!(seq, "\x1b]52;c;bHM=;\x07");
     }
+}
+
+/// clap 值枚举（console --theme）。
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum ModeArg {
+    Day,
+    Night,
 }

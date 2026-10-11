@@ -489,6 +489,23 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-015",
+      "date": "2026-10-11",
+      "requirement": "REQ-CONSOLE-UI：产品形态落地——全屏 Console UI 客户端（iac console）：ratatui 备用屏界面（输出流+输入行+滚轮/翻页），标记语言完整接线（??//---/#/\\、yes/no 提案确认、yc/yt/ya 复制三档、/help /theme /history /recipe /sessions），弱提醒红字+⚠，日夜主题；桌面集成 ia-console.desktop（konsole 启动，应用菜单可见）；安装 iac/iacd 至 ~/.cargo/bin 并软链 ~/.local/bin",
+      "changed_files": [
+        "iac/src/console.rs",
+        "iac/src/main.rs",
+        "iac/src/theme.rs",
+        "iac/Cargo.toml",
+        "README.md",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }

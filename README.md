@@ -19,24 +19,30 @@ iA-console 是一个**伴生智能内核**（daemon + CLI/TUI），不替换你�
 
 跨 Linux / macOS / Windows。AI 后端可插拔（OpenAI 兼容协议：GLM / OpenAI / DeepSeek / Ollama 等）。
 
-## 快速开始（v0.1.0，Linux/macOS）
+## 快速开始（v0.1.0，已安装到本机）
+
+**主入口——全屏 Console 客户端**（应用菜单搜 "iA Console"，或任意终端）：
 
 ```bash
-cargo build --release
-./target/release/iacd --foreground        # 终端 1：守护进程
-./target/release/iac --json run "echo hello"   # 终端 2：闸门执行
-./target/release/iac history search hello --json
-./target/release/iac translate "Get-ChildItem" --from windows  # 方言翻译（零 AI）
-./target/release/iac mcp serve            # Agent 接入（MCP stdio）
+iac console        # 全屏 UI：输入区+输出流+提案卡+标记语言+日夜主题（/theme 切换）
+```
 
-# 需要 AI 能力：配置 Provider 后
-iac config path                           # 找到 config.toml
-iac ask "找出最近7天修改的10个最大文件"
+Console 内：直接敲命令；`??ls` 问 AI；`yes/no` 确认提案；`---` 新任务段；`yc/yt/ya` 复制三档；`/help` 全部标记。
+
+**服务方式**（脚本/Agent/远程）：
+
+```bash
+iacd --foreground                        # 守护进程
+iac --json run "echo hello"              # 闸门执行（结构化输出）
+iac history search hello --json          # 历史
+iac translate "Get-ChildItem" --from windows  # 方言翻译（零 AI）
+iac mcp serve                            # Agent 接入（MCP stdio）
+iac ask "找出最近7天修改的10个最大文件"     # AI 提案（配置 Provider 后）
 ```
 
 ## 状态
 
-**v0.1.0 已实现**（P7 编码完成）：M1 基础设施 / M2 记录域 / M3 智能域 / M4 服务接入 / M5 翻译+modelhub / M6 体验件。v2 预排：执行回滚（M7 效果日志）与脚本工坊（M8）。
+**v0.1.0 已实现并安装到本机**：全屏 Console 客户端（`iac console`）+ daemon + CLI/MCP 通道。M1 基础设施 / M2 记录域 / M3 智能域 / M4 服务接入 / M5 翻译+modelhub / M6 体验件。v2 预排：执行回滚（M7 效果日志）与脚本工坊（M8）。
 
 架构与流程文档从 [`_00_project_idx.json`](_00_project_idx.json) 读起；120 项自动化测试（`cargo test --workspace`）。
 

@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 iac-core = { path = "../core" }
 infra = { path = "../infra" }
+anyhow = { workspace = true }
 clap = { workspace = true }
 ratatui = { workspace = true }
 serde = { workspace = true }

@@ -72,7 +72,12 @@ enum Commands {
         #[command(subcommand)]
         action: McpAction,
     },
-    /// TUI 交互界面（M6 落地）
+    /// 全屏 Console 客户端（主界面）
+    Console {
+        #[arg(long, value_enum)]
+        theme: Option<crate::theme::ModeArg>,
+    },
+    /// 行模式对话（无备用屏）
     Chat,
     /// 习惯方言翻译（M5 落地）
     Translate {
@@ -288,6 +293,13 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
         Commands::Mcp { action } => match action {
             McpAction::Serve => mcp::serve(),
         },
+        Commands::Console { theme } => {
+            let mode = theme.map(|t| match t {
+                crate::theme::ModeArg::Day => crate::theme::Mode::Day,
+                crate::theme::ModeArg::Night => crate::theme::Mode::Night,
+            });
+            console::run(mode)
+        }
         Commands::Chat => tui::run_chat(json_mode),
         Commands::Translate { from, command } => {
             if command.is_empty() {
@@ -378,6 +390,7 @@ impl UnixStreamProbe {
     }
 }
 
+pub mod console;
 pub mod ipc;
 pub mod mcp;
 pub mod theme;
