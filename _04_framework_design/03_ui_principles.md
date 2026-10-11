@@ -26,7 +26,7 @@
 
 ## 2. 色彩系统
 
-**灰阶 5 档 + accent 1 + 语义 6**，共 12 个令牌，两主题各一张表：
+**灰阶 5 档 + accent 1 + 语义 6 + 语法 2**，共 14 个令牌，两主题各一张表：
 
 | 令牌 | day（纸） | night（墨） | 用途 |
 |---|---|---|---|
@@ -34,7 +34,7 @@
 | fg | #262A33 | #D6D8DD | 正文 |
 | fg-60 | #6B7080 | #8B8F98 | 次要文字（解释、参数说明） |
 | fg-40 | #9CA1AC | #5C6068 | 上一任务/次次要 |
-| fg-25 | #C3C7CE | #3A3E46 | 历史/装饰符号/行号 |
+| fg-25 | #C3C7CE | #3A3E46 | 历史/装饰符号/行号/结构标点/注释 |
 | accent | #316BFF | #6E9BFF | **唯一强调色**：焦点行、活动卡色条 |
 | safe | #2E7D32 | #66BB6A | 风险=安全 |
 | caution | #B26A00 | #FFB74D | 风险=留意 |
@@ -42,6 +42,8 @@
 | destructive | #B3261E | #FF5C52 | 风险=破坏性 |
 | diff-add | #2E7D32 | #66BB6A | diff 增 |
 | diff-del | #B3261E | #FF5C52 | diff 删 |
+| syn-keyword | #8250DF | #C297FF | 语法：关键字/键名（低饱和，双主题对比度达标） |
+| syn-string | #0A6E6E | #6FC7C7 | 语法：字符串 |
 
 规则：① 一屏最多一处 accent；② 语义色只出现在风险、diff、错误三类信息；③ 256 色终端降级到最近色板，16 色再降一级，布局永不因降级破坏；④ `ui.theme = day|night|auto`（auto 经 OSC 11 探测终端背景）。
 
@@ -133,6 +135,21 @@ rm -rf build → Remove-Item -Recurse -Force build   ⚠    确认 y / 取消 n 
 - **键位冲突**：待确认提示态（高危翻译/Agent）中 `y`/`n` 优先为确认语义，复制键位挂起。
 - **Agent/MCP 路径无剪贴板概念**：直接取结构化字段（`command`/`translated`），不需要复制。
 - 纯前端能力：无新增 daemon 方法。
+
+### 结构化渲染（语法高亮与格式美化，AC-41~43）
+
+| 输入 | 检测 | 渲染 |
+|---|---|---|
+| JSON | 首字符 `{`/`[` 且解析通过 | 缩进规范化；键 syn-keyword（bold）、字符串 syn-string、数字/布尔 fg-60、标点 fg-25 |
+| YAML/XML | `---`/标签解析通过 | 键/标签 syn-keyword、值分层着色、注释 fg-25 |
+| Markdown | AI 回答/解释默认按 md | 标题 bold+空行、代码块语法高亮、列表紧凑符号（·/-）、表格空格对齐（同列表规范）、强调 bold、链接 fg-40 |
+| 代码块 | ` ``` `语言标记 或 shebang | 语言在 `render.languages` 集内 → 轻量词法高亮（关键字 syn-keyword、字符串 syn-string、注释 fg-25、数字 fg-60）；集外纯文本 |
+
+- **检测 = 解析验证，非猜测**：解析失败一律纯文本，绝不破坏原文内容（AC-41）。
+- **语言集**：`render.languages`（默认 `[python, shell, bat]`，可配置扩展 java/go/rust…）；`render.output_detection = on|off`。
+- **主题联动**：语法令牌进 day/night 两张主题表，auto 跟随终端（AC-43）。
+- **克制原则不破**：语法着色只新增 2 个低饱和令牌；标点/注释/数字复用既有灰阶——高亮帮助阅读，不做彩虹。
+- **性能**：`detect_format`/`highlight` 为纯函数，64KB 输出摘要内毫秒级；只改变呈现，不改变内容。
 
 ### 列表（history / 回滚点 / 文件版本 / 方案库）
 
