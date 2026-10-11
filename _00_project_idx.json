@@ -143,7 +143,7 @@
         },
         {
           "file": "03_ui_principles.md",
-          "summary": "iA-Writer 式 UI 设计原则、主题系统（day/night/auto）、字体策略",
+          "summary": "iA Writer 设计语言完整规范：设计哲学、概念翻译表、12 色彩令牌双主题、排版节奏、无框化组件规范（提案卡/列表/对话流/诊断）、动效约束、字体策略、CLI 同语言",
           "status": "draft"
         }
       ]

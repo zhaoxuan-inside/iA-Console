@@ -172,6 +172,20 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-007",
+      "date": "2026-10-11",
+      "requirement": "REQ-IA-WRITER-UI：UI 设计语言定稿——_04/03_ui_principles.md 重写为完整 iA Writer 设计语言规范：设计哲学五条（内容即界面/减法/字重灰阶留白三要素/一支笔/同一把尺）、iA Writer 概念翻译表（Focus Mode→焦点淡出三档、语法字符弱化→命令行分层着色、引用竖线→提案卡左色条无框）、12 令牌双主题色板、间距尺与语法着色分层、无框化组件规范（提案卡/列表/对话流/错误诊断）、无动效约束、字体建议清单、CLI 输出同语言",
+      "changed_files": [
+        "_04_framework_design/03_ui_principles.md",
+        "_00_project_idx.json",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
