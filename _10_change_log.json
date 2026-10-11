@@ -377,7 +377,12 @@
         "core/src/risk/mod.rs",
         "core/src/risk/rules.rs",
         "core/src/risk/ruleset.rs",
-        "core/src/risk/assess.rs"
+        "core/src/risk/assess.rs",
+        "core/src/knowledge/mod.rs",
+        "core/src/knowledge/store.rs",
+        "core/src/common/mod.rs",
+        "core/src/common/hash.rs",
+        "core/src/common/help_parser.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -400,7 +405,10 @@
         "m-017",
         "m-018",
         "m-019",
-        "m-020"
+        "m-020",
+        "m-021",
+        "m-022",
+        "m-023"
       ],
       "author": "Agent",
       "verified": false

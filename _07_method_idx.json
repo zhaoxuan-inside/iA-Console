@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:51:50+08:00",
+  "updated_at": "2026-10-11T15:54:44+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -305,14 +305,59 @@
       "description": "I-023：装载内置规则集并调用匹配，闸门决策依据（确定性，终检可复验）",
       "reusable": true,
       "id": "m-020"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/common/help_parser.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn parse_help_text(input: &HelpText, output: &mut CommandKnowledge, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "parse_help_text",
+      "category": "algorithm",
+      "layer": "common",
+      "module": "knowledge",
+      "location": "core/src/common/help_parser.rs",
+      "description": "I-002：help 文本→参数 schema（GNU/Cobra 风格），source_hash 指纹锚定，未识别 IAC-1104",
+      "reusable": true,
+      "id": "m-021"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/knowledge_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn lookup_knowledge(input: &CommandRef, output: &mut Option<CommandKnowledge>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "lookup_knowledge",
+      "category": "data",
+      "layer": "domain",
+      "module": "knowledge",
+      "location": "core/src/knowledge/store.rs",
+      "description": "I-003：查询命令知识（source_hash 过期视为未命中）",
+      "reusable": true,
+      "id": "m-022"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/knowledge_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn cache_knowledge(input: &CommandKnowledge, output: &mut KnowledgeAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "cache_knowledge",
+      "category": "data",
+      "layer": "domain",
+      "module": "knowledge",
+      "location": "core/src/knowledge/store.rs",
+      "description": "I-004：写入/更新知识缓存（command+platform 唯一 upsert）",
+      "reusable": true,
+      "id": "m-023"
     }
   ],
   "stats": {
-    "total": 20,
+    "total": 23,
     "by_category": {
-      "algorithm": 1,
+      "algorithm": 2,
       "orchestration": 3,
-      "data": 16
+      "data": 18
     }
   }
 }
