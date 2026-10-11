@@ -471,7 +471,24 @@
         "m-047"
       ],
       "author": "Agent",
-      "verified": false
+      "verified": true
+    },
+    {
+      "id": "chg-014b",
+      "date": "2026-10-11",
+      "requirement": "P8 收敛验收（v0.1.0）：SOP 四项校验脚本通过（idx/dict/log/deps）；E2E 主链路通过；验收清单见最终报告；git push 留待人工",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_10_change_log.json",
+        "README.md",
+        "infra/tests/config_test.rs",
+        "infra/tests/modelhub_test.rs",
+        "iac/tests/e2e_test.rs"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }
