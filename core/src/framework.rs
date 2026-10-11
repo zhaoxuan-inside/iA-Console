@@ -136,6 +136,12 @@ impl Evolution {
         self.reason = Some(reason.into());
     }
 
+    /// 短路传播：以当前 reason_code 为因，追加"哪一步失败"进 cause 链。
+    pub fn propagate(&mut self, step: &str, reason: impl Into<String>) {
+        let code = self.reason_code.clone();
+        self.push_cause(step, code.as_deref(), reason);
+    }
+
     /// orchestration 短路前追加失败步骤（子方法原因已写入，这里补"哪一步"）。
     pub fn push_cause(&mut self, step: &str, reason_code: Option<&str>, reason: impl Into<String>) {
         self.cause.push(CauseLink {
@@ -185,6 +191,12 @@ impl TestEnv {
             deps: &self.deps,
             locale: &self.locale,
         }
+    }
+
+    /// 换装真实 Adapter（集成测试用）：`TestEnv::new().with_store(Box::new(Storage::open_in_memory()?))`。
+    pub fn with_store(mut self, store: Box<dyn StorePort>) -> Self {
+        self.deps.store = store;
+        self
     }
 }
 

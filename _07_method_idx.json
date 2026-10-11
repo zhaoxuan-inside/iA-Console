@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:33:57+08:00",
+  "updated_at": "2026-10-11T15:37:15+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -121,14 +121,89 @@
       "description": "IF-005：统一补全调用（OpenAI 兼容/Anthropic 原生双协议），密钥仅经环境变量，失败转译 IAC-1101/5102",
       "reusable": true,
       "id": "m-008"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/session_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn create_session(input: &NewSessionInput, output: &mut SessionInfo, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "create_session",
+      "category": "data",
+      "layer": "domain",
+      "module": "session",
+      "location": "core/src/session/store.rs",
+      "description": "I-016：创建会话（SQL randomblob 生成 ID，title 缺省自动命名）",
+      "reusable": true,
+      "id": "m-009"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/session_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn append_session_event(input: &SessionEventInput, output: &mut RecordAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "append_session_event",
+      "category": "data",
+      "layer": "domain",
+      "module": "session",
+      "location": "core/src/session/store.rs",
+      "description": "I-017：追加会话事件（seq=最大+1 单调连续，UNIQUE 保证）",
+      "reusable": true,
+      "id": "m-010"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/session_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn load_session(input: &SessionId, output: &mut Option<SessionInfo>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "load_session",
+      "category": "data",
+      "layer": "domain",
+      "module": "session",
+      "location": "core/src/session/store.rs",
+      "description": "I-018：载入会话含事件流；payload 损坏标 corrupted 不影响其余",
+      "reusable": true,
+      "id": "m-011"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/session_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn list_sessions(input: &SessionFilter, output: &mut Vec<SessionSummary>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "list_sessions",
+      "category": "data",
+      "layer": "domain",
+      "module": "session",
+      "location": "core/src/session/store.rs",
+      "description": "I-019：会话列表（updated_at 倒序 + limit）",
+      "reusable": true,
+      "id": "m-012"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/session_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn get_or_create_current(input: &CurrentSessionInput, output: &mut SessionInfo, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "get_or_create_current",
+      "category": "data",
+      "layer": "domain",
+      "module": "session",
+      "location": "core/src/session/store.rs",
+      "description": "I-020：取或建当前会话（cwd+host 活动会话复用）",
+      "reusable": true,
+      "id": "m-013"
     }
   ],
   "stats": {
-    "total": 8,
+    "total": 13,
     "by_category": {
       "algorithm": 0,
       "orchestration": 1,
-      "data": 7
+      "data": 12
     }
   }
 }

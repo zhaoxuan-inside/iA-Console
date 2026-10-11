@@ -12,3 +12,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }
+infra = { path = "../infra" }

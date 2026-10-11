@@ -366,7 +366,10 @@
         "infra/src/process/mod.rs",
         "infra/tests/process_test.rs",
         "infra/src/ai/mod.rs",
-        "infra/tests/ai_test.rs"
+        "infra/tests/ai_test.rs",
+        "core/src/session/mod.rs",
+        "core/src/session/store.rs",
+        "core/tests/session_test.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -377,7 +380,12 @@
         "m-005",
         "m-006",
         "m-007",
-        "m-008"
+        "m-008",
+        "m-009",
+        "m-010",
+        "m-011",
+        "m-012",
+        "m-013"
       ],
       "author": "Agent",
       "verified": false
