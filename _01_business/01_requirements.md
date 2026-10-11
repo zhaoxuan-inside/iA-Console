@@ -74,6 +74,7 @@ US-15 作为命令老手，我希望静态映射表覆盖官方常用命令全�
 US-16 作为用户，我希望 `??ls` 让 AI 解释 ls、`??` 加自然语言直接提问、`/config` 进入配置（终端类型、本地/远端模型地址）、`---` 开启新任务段不携带旧上下文，以便手不离键盘地掌控 AI 与配置。
 US-17 作为长时间盯屏幕的用户，我希望界面像 iA-Writer 一样留白、克制、有日夜两套主题且能跟随终端切换，以便久看不疲劳。
 US-18 作为手滑过的用户，我希望每次执行都有回滚日志：能回滚到任意执行点、能把单个文件恢复到某个版本（知道是哪条命令改的、恢复即替换）、删除的东西先进回收站自动清理，以便放心大胆地操作。
+US-19 作为熟手，我希望自己确定/已确认过的命令直接执行、不被参数解释卡打扰；要解释时再显式索要（`??`、`e` 键、`--explain`），以便界面只有我需要的信息。
 ```
 
 ## 4. 业务流程
@@ -159,7 +160,7 @@ flowchart TD
 ## 7. 验收标准（EARS）
 
 ```text
-AC-01  WHEN 用户以自然语言提交意图 THE SYSTEM SHALL 在网络正常时 10 秒内返回结构化提案：完整命令、逐参数白话解释、风险等级、影响面说明。
+AC-01  WHEN 用户以自然语言提交意图 THE SYSTEM SHALL 在网络正常时 10 秒内返回结构化提案：完整命令、一句话摘要、风险等级；逐参数白话解释与影响面**默认收起**，经 `--explain` / TUI `e` 键按需展开。
 AC-02  WHEN 用户执行 iac explain <命令> THE SYSTEM SHALL 返回参数规格表，优先本地知识缓存，未命中时经 help 解析与 AI 补全并回写缓存。
 AC-03  WHEN 命令执行退出码非零 THE SYSTEM SHALL 自动生成诊断报告：根因假设（引用 stderr 原文为证据）+ 至少一条修复提案。
 AC-04  WHEN 命令命中 destructive 规则（如 rm -rf 于系统路径、mkfs、dd 写块设备） THE SYSTEM SHALL 拒绝直接执行，展示影响面并要求显式二次确认。
@@ -177,11 +178,11 @@ AC-15  WHEN dangerous/destructive 提案被确认后执行失败 THE SYSTEM SHAL
 AC-16  WHILE daemon 运行中 THE SYSTEM SHALL 以 WAL 模式支持多客户端并发读写不互锁。
 AC-17  WHEN 用户执行 iac daemon start|stop|status THE SYSTEM SHALL 返回 daemon 生命周期操作结果与运行状态。
 AC-18  WHEN 配置多个模型后端 THE SYSTEM SHALL 可指定默认后端并可按请求切换，切换不重启 daemon。
-AC-19  WHEN 习惯方言≠主机方言且用户直接输入命令 THE SYSTEM SHALL 优先以静态映射生成主机等价命令提案（含差异说明），未命中时自动经 AI 翻译并把结果回写翻译缓存；全程不静默执行，须经确认。
+AC-19  WHEN 习惯方言≠主机方言且用户直接输入命令 THE SYSTEM SHALL 默认仅返回译文行（等价命令）经确认执行；差异说明与参数映射按需展开（`e`/`--explain`）。全程不静默执行，须经确认。
 AC-20  WHEN 用户直接输入命令且未显式唤起 AI THE SYSTEM SHALL 不产生任何模型调用（静态翻译命中时零 AI 成本）。
 AC-21  WHEN 用户安装模型插件 THE SYSTEM SHALL 从配置源（HuggingFace/魔搭/镜像）下载引擎与模型、校验 sha256、注册为 local Provider 并可设为默认后端。
 AC-22  WHEN 云后端不可用而本地引擎可用 THE SYSTEM SHALL 按配置自动降级到本地 Provider 并在结果中标注来源；两者皆不可用时返回明确错误码。
-AC-23  WHEN 翻译静态映射命中 THE SYSTEM SHALL 返回等价命令、参数级映射表（直映/改名/值变换/无等价四类及说明）与风险等级，且不产生任何模型调用。
+AC-23  WHEN 翻译静态映射命中 THE SYSTEM SHALL 返回等价命令与风险等级（参数级映射表仍计算入库，但**默认不展示**，`--explain`/`e` 键展开四类映射及说明），且不产生任何模型调用。
 AC-24  WHEN 命令无法一对一映射 THE SYSTEM SHALL 调用 AI 规划命令组合并生成平台化脚本，经用户确认后存入方案库并登记进翻译映射（后续命中零 AI 成本）。
 AC-25  WHEN 用户在 iA 输入框以 `??` 开头输入 THE SYSTEM SHALL 将其后内容作为 AI 解释或提问处理（`??ls` 解释命令、`??<自然语言>` 生成提案），不经 shell 执行。
 AC-26  WHEN 用户输入 `/` 开头的内置管理命令（如 /config） THE SYSTEM SHALL 进入对应管理界面（TUI 面板 / CLI 交互向导），未知斜杠命令报 IAC-1501 并列出可用标记；`\` 前缀转义后按字面命令执行。
@@ -193,6 +194,7 @@ AC-31  (v2) WHEN 发生删除类回滚或快照回收 THE SYSTEM SHALL 删除效
 AC-32  (v2) WHEN 回滚日志执行点数超过上限 THE SYSTEM SHALL 按配置自动清退最旧执行点（rollback.max_entries 默认 1024，可配置，上限 65536），与天数/容量策略并行生效。
 AC-33  (v2) WHEN 用户查看回滚列表 THE SYSTEM SHALL 以 history 风格展示每个执行点：行号(seq)、时间、当时命令、可回滚标识（可回滚/部分可回滚/不可回滚+原因）；并支持范围回放——回滚到指定行（其后全部逆序回放）、从指定行回滚到指定行（区间）、从指定行一直回滚到最远。
 AC-34  (v2) WHEN 逐行倒序回放遇到不可回滚条目（冲突/引用缺失/权限） THE SYSTEM SHALL 提示用户逐条决策是否跳过；--on-conflict <ask|skip|abort> 参数可改变策略（skip 即默认跳过），决策结果计入回滚报告。
+AC-35  WHEN 用户直接输入确定命令或执行方案库条目 THE SYSTEM SHALL 默认不渲染参数解释与影响面（解释仍生成入库但不铺开），闸门仅对 caution 及以上风险展示确认；解释仅在显式请求时出现：`??`、`iac explain`、TUI `e` 键、`--explain` 参数。
 ```
 
 ## 8. 未决问题
