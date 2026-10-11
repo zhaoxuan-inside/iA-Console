@@ -255,6 +255,25 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-011",
+      "date": "2026-10-11",
+      "requirement": "REQ-CLIPBOARD：评审意见——复制功能三档设计：y+c 仅复制当前命令、y+t 仅复制翻译后命令（两档纯净：无 $/行号/警告/色码/尾随换行，粘贴即执行）、y+a 复制所有（焦点对象完整可见快照：译文/提案/警告/行号/确认等，去色码）；通道 OSC 52（SSH 生效、零依赖不引剪贴板库），ui.clipboard=osc52|off；确认态 y/n 优先为确认、复制键位挂起；Agent/MCP 路径直接取结构化字段无剪贴板概念；纯前端能力无新增 daemon 方法。新增任务卡 T-033（剪贴板与复制键位），E2E 顺延 T-034，M7 回滚卡重编号 T-035~039，_06 任务引用同步",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_04_framework_design/03_ui_principles.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }

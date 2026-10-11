@@ -68,7 +68,7 @@
       "files": [
         {
           "file": "01_requirements.md",
-          "summary": "需求背景/十大痛点映射/19 条用户故事/36 条 EARS 验收标准（含方言翻译、内置模型、输入标记、主题、效果日志回滚、弱提醒与按需解释）",
+          "summary": "需求背景/十大痛点映射/20 条用户故事/37 条 EARS 验收标准（含方言翻译、内置模型、输入标记、主题、效果日志回滚、弱提醒、按需解释、复制三档）",
           "status": "draft"
         }
       ]
@@ -153,7 +153,7 @@
       "files": [
         {
           "file": "01_function_matrix.md",
-          "summary": "模块×层功能矩阵、38 张任务卡（含 v2 回滚 M7 预排）、7 个里程碑",
+          "summary": "模块×层功能矩阵、39 张任务卡（含 v2 回滚 M7 预排）、7 个里程碑",
           "status": "draft"
         }
       ]
@@ -364,7 +364,7 @@
   },
   "dictionary": {
     "path": "_09_project_dict.json",
-    "terms": 36
+    "terms": 37
   },
   "change_log": {
     "path": "_10_change_log.json",
