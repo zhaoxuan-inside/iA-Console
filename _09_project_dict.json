@@ -23,6 +23,11 @@
     { "term": "模型上下文协议", "code_name": "mcp", "definition": "面向外部 Agent 的标准工具协议，iA-console 以 stdio MCP Server 暴露 iac_ 前缀工具集", "aliases": ["MCP", "Agent接口"], "domain": "接入", "related_terms": ["进程间通信"], "source": "_03_tech_stack/ADR-005-access-mcp-ipc.md" },
     { "term": "模型后端", "code_name": "AiProvider", "definition": "一个可调用的 LLM 服务配置档案：名称、base_url、模型、鉴权来源；走 OpenAI 兼容协议，可插拔切换", "aliases": ["AI后端", "供应商"], "domain": "智能", "related_terms": ["模型调用"], "source": "_03_tech_stack/ADR-006-llm-openai-compatible.md" },
     { "term": "模型调用", "code_name": "AiRequest", "definition": "对模型后端的一次补全请求：system+messages、温度、超时；返回统一 LlmResponse", "aliases": ["补全请求"], "domain": "智能", "related_terms": ["模型后端"], "source": "_06_interface_design/02_internal_interfaces.md" },
-    { "term": "平台", "code_name": "Platform", "definition": "目标操作系统三值：linux|macos|windows（方案库另有 all），决定 shell 语法与提案生成目标", "aliases": ["操作系统"], "domain": "全局", "related_terms": ["方案"], "source": "_01_business/01_requirements.md" }
+    { "term": "平台", "code_name": "Platform", "definition": "目标操作系统三值：linux|macos|windows（方案库另有 all），决定 shell 语法与提案生成目标", "aliases": ["操作系统"], "domain": "全局", "related_terms": ["方案", "习惯方言"], "source": "_01_business/01_requirements.md" },
+    { "term": "习惯方言", "code_name": "HabitDialect", "definition": "用户配置的偏好命令方言（linux|macos|windows），直接输入命令时作为翻译源方言；等于主机平台时不翻译", "aliases": ["偏好方言"], "domain": "翻译", "related_terms": ["平台", "命令翻译"], "source": "_01_business/01_requirements.md" },
+    { "term": "命令翻译", "code_name": "CommandTranslation", "definition": "把习惯方言命令映射为主机平台等价命令：静态映射表优先（零 AI 成本），未命中 AI 兜底并回写缓存；结果以提案呈现，不静默执行", "aliases": ["方言翻译", "命令转换"], "domain": "翻译", "related_terms": ["习惯方言", "提案"], "source": "_02_principle/01_candidates.md" },
+    { "term": "模型插件", "code_name": "ModelPlugin", "definition": "可下载安装的本地推理资产包：引擎二进制（llama-server）+ GGUF 模型权重 + 清单（sha256/大小/上下文长度），来源为 HuggingFace/魔搭/镜像", "aliases": ["模型包"], "domain": "智能", "related_terms": ["模型仓库", "本地引擎"], "source": "_03_tech_stack/ADR-007-local-model-plugin.md" },
+    { "term": "模型仓库", "code_name": "modelhub", "definition": "infra 模块：模型插件的下载、校验（sha256、断点续传）、安装、列表与删除", "aliases": ["插件中心"], "domain": "智能", "related_terms": ["模型插件"], "source": "_04_framework_design/01_architecture.md" },
+    { "term": "本地引擎", "code_name": "LocalEngine", "definition": "modelhub 安装的 llama-server 子进程，提供 OpenAI 兼容本地端点，注册为 Provider 档案 local-builtin，对 core 与云后端无差别", "aliases": ["内置引擎", "local-builtin"], "domain": "智能", "related_terms": ["模型插件", "模型后端"], "source": "_03_tech_stack/ADR-007-local-model-plugin.md" }
   ]
 }

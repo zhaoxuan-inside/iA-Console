@@ -21,8 +21,8 @@
     { "order": 10, "path": "iA-console/", "purpose": "实际代码（最后阅读）" }
   ],
   "documents": {
-    "_01_business": { "path": "_01_business/", "files": [{ "file": "01_requirements.md", "summary": "需求背景/十大痛点映射/用户故事/EARS验收标准", "status": "draft" }] },
-    "_02_principle": { "path": "_02_principle/", "files": [{ "file": "01_candidates.md", "summary": "意图生成/错误诊断/存储/Agent接入/跨平台执行六问的候选方案原理对比", "status": "draft" }] },
+    "_01_business": { "path": "_01_business/", "files": [{ "file": "01_requirements.md", "summary": "需求背景/十大痛点映射/14 条用户故事/22 条 EARS 验收标准（含习惯方言翻译与内置模型）", "status": "draft" }] },
+    "_02_principle": { "path": "_02_principle/", "files": [{ "file": "01_candidates.md", "summary": "意图生成/错误诊断/存储/Agent接入/跨平台执行/本地推理/跨方言翻译八问的候选方案原理对比", "status": "draft" }] },
     "_03_tech_stack": { "path": "_03_tech_stack/", "files": [
       { "file": "01_selection.md", "summary": "选型清单与依赖版本约束", "status": "draft" },
       { "file": "ADR-001-language-rust.md", "summary": "开发语言选 Rust", "status": "draft" },
@@ -30,16 +30,17 @@
       { "file": "ADR-003-tui-ratatui.md", "summary": "TUI 选 ratatui+crossterm", "status": "draft" },
       { "file": "ADR-004-storage-sqlite.md", "summary": "本地存储选 SQLite(rusqlite)", "status": "draft" },
       { "file": "ADR-005-access-mcp-ipc.md", "summary": "Agent 接入选 MCP(rmcp)+daemon IPC 选 UDS/NamedPipe JSONL", "status": "draft" },
-      { "file": "ADR-006-llm-openai-compatible.md", "summary": "LLM 接入选 OpenAI 兼容协议自写客户端", "status": "draft" }
+      { "file": "ADR-006-llm-openai-compatible.md", "summary": "LLM 接入选 OpenAI 兼容协议自写客户端", "status": "draft" },
+      { "file": "ADR-007-local-model-plugin.md", "summary": "内置模型选插件化引擎+GGUF 模型（HF/魔搭下载安装）", "status": "draft" }
     ] },
     "_04_framework_design": { "path": "_04_framework_design/", "files": [
       { "file": "01_architecture.md", "summary": "四层架构与 15 模块职责、依赖规则、公共机制", "status": "draft" },
       { "file": "02_data_flow.md", "summary": "意图执行/错误诊断/MCP 三条核心数据流与容量假设", "status": "draft" }
     ] },
-    "_05_function_design": { "path": "_05_function_design/", "files": [{ "file": "01_function_matrix.md", "summary": "模块×层功能矩阵、26 张任务卡、4 个里程碑", "status": "draft" }] },
+    "_05_function_design": { "path": "_05_function_design/", "files": [{ "file": "01_function_matrix.md", "summary": "模块×层功能矩阵、31 张任务卡、6 个里程碑", "status": "draft" }] },
     "_06_interface_design": { "path": "_06_interface_design/", "files": [
-      { "file": "01_external_api.md", "summary": "CLI/MCP/IPC 三类对外接口、错误码表、版本策略", "status": "draft" },
-      { "file": "02_internal_interfaces.md", "summary": "33 个五段方法签名契约、支撑类型、SQLite 数据模型", "status": "draft" }
+      { "file": "01_external_api.md", "summary": "CLI/MCP/IPC 三类对外接口、24 个错误码、版本策略", "status": "draft" },
+      { "file": "02_internal_interfaces.md", "summary": "33 个五段方法 + 10 个 Adapter 方法契约、支撑类型、SQLite 数据模型", "status": "draft" }
     ] }
   },
   "tech_stack": {
@@ -53,6 +54,8 @@
       { "name": "serde / serde_json", "purpose": "结构化序列化" },
       { "name": "reqwest", "purpose": "LLM OpenAI 兼容 HTTP 客户端（infra::ai 内）" },
       { "name": "rmcp", "purpose": "MCP Server SDK" },
+      { "name": "sha2", "purpose": "模型插件 sha256 完整性校验（infra::modelhub）" },
+      { "name": "llama-server（外部资产）", "purpose": "本地推理引擎，随模型插件下载安装（ADR-007）" },
       { "name": "tracing", "purpose": "metrics 门面的日志/追踪后端" },
       { "name": "thiserror + anyhow", "purpose": "错误定义与传递" }
     ],
@@ -77,6 +80,7 @@
       { "name": "storage", "path": "iA-console/infra/src/storage/", "summary": "SQLite Adapter：查询/执行/迁移原语", "owner": null },
       { "name": "process", "path": "iA-console/infra/src/process/", "summary": "跨平台进程执行 Adapter", "owner": null },
       { "name": "config", "path": "iA-console/infra/src/config/", "summary": "配置 Adapter：TOML+环境变量", "owner": null },
+      { "name": "modelhub", "path": "iA-console/infra/src/modelhub/", "summary": "模型插件 Adapter：HF/魔搭多源下载、sha256 校验、安装与列表", "owner": null },
       { "name": "tui", "path": "iA-console/iac/src/tui/", "summary": "TUI 前端（框架签名豁免，逻辑下沉 core）", "owner": null },
       { "name": "cli", "path": "iA-console/iac/src/cli/", "summary": "CLI 子命令入口（框架签名豁免，适配到 dispatch）", "owner": null }
     ]
@@ -87,7 +91,7 @@
   },
   "dictionary": {
     "path": "_09_project_dict.json",
-    "terms": 22
+    "terms": 27
   },
   "change_log": {
     "path": "_10_change_log.json",

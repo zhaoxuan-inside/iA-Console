@@ -31,6 +31,30 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-002",
+      "date": "2026-10-11",
+      "requirement": "REQ-DIALECT-MODEL：设计评审意见采纳——① 习惯方言与跨方言命令翻译（静态映射优先、AI 兜底，AI 仅显式唤起）；② 内置本地模型（modelhub 插件化：llama-server 引擎+GGUF 模型自 HF/魔搭/镜像下载安装，sha256 校验，云不可用自动降级本地）；③ 技术栈复核结论：维持 Rust 全栈 TUI，不引入 Flutter（记录于 ADR-003）",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_03_tech_stack/01_selection.md",
+        "_03_tech_stack/ADR-003-tui-ratatui.md",
+        "_03_tech_stack/ADR-007-local-model-plugin.md",
+        "_04_framework_design/01_architecture.md",
+        "_04_framework_design/02_data_flow.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "README.md"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
