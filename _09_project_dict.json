@@ -515,9 +515,7 @@
       "term": "独立客户端",
       "code_name": "ia-console-gui",
       "definition": "主产品形态：egui/eframe 独立窗口应用（二进制 ia-console），内置真终端内核与 AI 侧栏，点击图标直接开窗，无第三方终端包装",
-      "aliases": [
-        "GUI 客户端"
-      ],
+      "aliases": [],
       "domain": "接入",
       "related_terms": [
         "守护进程",
