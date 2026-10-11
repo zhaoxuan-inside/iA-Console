@@ -373,7 +373,11 @@
         "core/src/history/mod.rs",
         "core/src/history/store.rs",
         "core/tests/history_test.rs",
-        "core/src/session/resume.rs"
+        "core/src/session/resume.rs",
+        "core/src/risk/mod.rs",
+        "core/src/risk/rules.rs",
+        "core/src/risk/ruleset.rs",
+        "core/src/risk/assess.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -394,7 +398,9 @@
         "m-015",
         "m-016",
         "m-017",
-        "m-018"
+        "m-018",
+        "m-019",
+        "m-020"
       ],
       "author": "Agent",
       "verified": false

@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:40:46+08:00",
+  "updated_at": "2026-10-11T15:51:50+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -273,13 +273,45 @@
       "description": "I-024：恢复会话（载入+置 active+刷新时间），不存在 IAC-3101",
       "reusable": true,
       "id": "m-018"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/risk/rules.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn match_risk_rules(input: &RiskRulesInput, output: &mut RiskAssessment, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "match_risk_rules",
+      "category": "algorithm",
+      "layer": "common",
+      "module": "risk",
+      "location": "core/src/risk/rules.rs",
+      "description": "I-001：风险规则匹配纯函数（子串确定性匹配，取最高等级，未命中=safe）",
+      "reusable": true,
+      "id": "m-019"
+    },
+    {
+      "dependencies": [
+        "m-004"
+      ],
+      "tests": "core/src/risk/assess.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn assess_risk(input: &RiskInput, output: &mut RiskAssessment, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "assess_risk",
+      "category": "orchestration",
+      "layer": "domain",
+      "module": "risk",
+      "location": "core/src/risk/assess.rs",
+      "description": "I-023：装载内置规则集并调用匹配，闸门决策依据（确定性，终检可复验）",
+      "reusable": true,
+      "id": "m-020"
     }
   ],
   "stats": {
-    "total": 18,
+    "total": 20,
     "by_category": {
-      "algorithm": 0,
-      "orchestration": 2,
+      "algorithm": 1,
+      "orchestration": 3,
       "data": 16
     }
   }
