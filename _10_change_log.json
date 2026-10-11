@@ -55,6 +55,28 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-003",
+      "date": "2026-10-11",
+      "requirement": "REQ-MARKER-UX：设计评审第二轮意见采纳——① 静态映射表升级为官方常用命令全集+参数级四类映射（direct/renamed/value_transform/none），一对一不可译时 AI 规划组合生成脚本并入库（方案库 kind=script）+登记映射（kind=composition）形成自增长闭环；② Provider 扩为四类（openai/anthropic/local-plugin/local-path，ADR-006 修订），支持本地模型路径直配；③ 输入标记语言：??（AI 唤起）//config 等管理命令/---（任务分隔控上下文）/#（备注）/\\（转义）；④ iA-Writer 式 UI 设计原则与 day/night/auto 主题（_04/03_ui_principles.md）",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_03_tech_stack/ADR-006-llm-openai-compatible.md",
+        "_04_framework_design/02_data_flow.md",
+        "_04_framework_design/03_ui_principles.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "README.md"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
