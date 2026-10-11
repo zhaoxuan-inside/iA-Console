@@ -102,3 +102,19 @@ fn read_all<R: Read>(pipe: &mut Option<R>) -> String {
 fn kill_tree(child: &mut Child) {
     let _ = child.kill();
 }
+
+/// ProcessPort 装配实现（iacd 接线用）。
+pub struct RealProcess;
+
+impl core::ports::ProcessPort for RealProcess {
+    fn spawn_process(
+        &self,
+        input: &ProcessSpec,
+        output: &mut ProcessResult,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        spawn_process(input, output, context, metrics, evolution)
+    }
+}

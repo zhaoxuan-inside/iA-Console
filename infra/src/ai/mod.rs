@@ -5,7 +5,7 @@ use core::config::ProviderProfile;
 use core::types::ProviderKind;
 use core::error::codes;
 use core::framework::{Context, Evolution, Metrics};
-use core::ports::LlmResponse;
+use core::ports::{AiRequest, LlmResponse};
 use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -126,4 +126,22 @@ fn parse_text(body: &str, kind: ProviderKind) -> Option<(String, String)> {
 
 fn truncate(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
+}
+
+/// AiPort 装配实现（iacd 接线用）。
+pub struct RealAi;
+
+impl core::ports::AiPort for RealAi {
+    #[allow(clippy::too_many_arguments)]
+    fn ai_complete(
+        &self,
+        provider: &ProviderProfile,
+        input: &AiRequest,
+        output: &mut LlmResponse,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        ai_complete(provider, input, output, context, metrics, evolution)
+    }
 }

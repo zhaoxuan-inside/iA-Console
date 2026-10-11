@@ -400,7 +400,9 @@
         "core/src/server/mod.rs",
         "core/src/server/envelope.rs",
         "core/src/server/dispatch.rs",
-        "core/tests/dispatch_test.rs"
+        "core/tests/dispatch_test.rs",
+        "iacd/src/lib.rs",
+        "iacd/tests/daemon_test.rs"
       ],
       "commits": [],
       "changed_methods": [

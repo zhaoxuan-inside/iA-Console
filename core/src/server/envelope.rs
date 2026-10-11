@@ -11,6 +11,9 @@ pub struct IpcRequest {
     pub method: String,
     #[serde(default)]
     pub params: serde_json::Value,
+    /// 发起方标识（agent:<client>）；缺省 human。字段只增演进（_06 同步随 P8）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor: Option<String>,
 }
 
 /// 响应信封。

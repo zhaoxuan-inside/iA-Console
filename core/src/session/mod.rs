@@ -12,7 +12,7 @@ pub use store::{
 use serde::{Deserialize, Serialize};
 
 /// 会话完整信息（含事件流；list 场景 events 为空）。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SessionInfo {
     pub id: String,
     pub title: String,

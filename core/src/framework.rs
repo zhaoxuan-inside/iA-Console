@@ -42,9 +42,9 @@ pub struct Locale {
 /// infra Adapter 句柄集合：随任务卡逐步挂载（store/ai/process/config…）。
 /// store 以 Box 持有，使 Context 可按共享引用贯穿整条调用链。
 pub struct Deps {
-    pub store: Box<dyn StorePort>,
-    pub ai: Box<dyn AiPort>,
-    pub process: Box<dyn ProcessPort>,
+    pub store: Box<dyn StorePort + Send + Sync>,
+    pub ai: Box<dyn AiPort + Send + Sync>,
+    pub process: Box<dyn ProcessPort + Send + Sync>,
 }
 
 impl Default for Deps {
@@ -200,19 +200,19 @@ impl TestEnv {
     }
 
     /// 换装真实 Adapter（集成测试用）：`TestEnv::new().with_store(Box::new(Storage::open_in_memory()?))`。
-    pub fn with_store(mut self, store: Box<dyn StorePort>) -> Self {
+    pub fn with_store(mut self, store: Box<dyn StorePort + Send + Sync>) -> Self {
         self.deps.store = store;
         self
     }
 
     /// 换装 AI Adapter。
-    pub fn with_ai(mut self, ai: Box<dyn AiPort>) -> Self {
+    pub fn with_ai(mut self, ai: Box<dyn AiPort + Send + Sync>) -> Self {
         self.deps.ai = ai;
         self
     }
 
     /// 换装进程 Adapter。
-    pub fn with_process(mut self, process: Box<dyn ProcessPort>) -> Self {
+    pub fn with_process(mut self, process: Box<dyn ProcessPort + Send + Sync>) -> Self {
         self.deps.process = process;
         self
     }
