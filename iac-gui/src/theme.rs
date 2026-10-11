@@ -115,6 +115,50 @@ pub fn apply_style(ctx: &Context, mode: Mode) {
     });
 }
 
+/// 终端 ANSI 调色板 ← 14 令牌（终端块与面板同源，消除色缝；派生色仅 black/bright 白）。
+pub fn terminal_palette(mode: Mode) -> egui_term::ColorPalette {
+    let hex = |t: Token| format!("#{:02X}{:02X}{:02X}", rgb(mode, t).0, rgb(mode, t).1, rgb(mode, t).2);
+    let black = match mode {
+        Mode::Day => "#2E3138".to_string(),
+        Mode::Night => "#0F1115".to_string(),
+    };
+    let bright_black = hex(Token::Fg40);
+    let bright_white = match mode {
+        Mode::Day => "#262A33".to_string(),
+        Mode::Night => "#F2F3F5".to_string(),
+    };
+    egui_term::ColorPalette {
+        foreground: hex(Token::Fg),
+        background: hex(Token::Bg),
+        bright_foreground: Some(bright_white.clone()),
+        dim_foreground: hex(Token::Fg60),
+        black: black.clone(),
+        red: hex(Token::Destructive),
+        green: hex(Token::Safe),
+        yellow: hex(Token::Caution),
+        blue: hex(Token::Accent),
+        magenta: hex(Token::SynKeyword),
+        cyan: hex(Token::SynString),
+        white: hex(Token::Fg60),
+        bright_black,
+        bright_red: hex(Token::Destructive),
+        bright_green: hex(Token::Safe),
+        bright_yellow: hex(Token::Caution),
+        bright_blue: hex(Token::Accent),
+        bright_magenta: hex(Token::SynKeyword),
+        bright_cyan: hex(Token::SynString),
+        bright_white,
+        dim_black: black,
+        dim_red: hex(Token::Dangerous),
+        dim_green: hex(Token::Safe),
+        dim_yellow: hex(Token::Caution),
+        dim_blue: hex(Token::Accent),
+        dim_magenta: hex(Token::SynKeyword),
+        dim_cyan: hex(Token::SynString),
+        dim_white: hex(Token::Fg60),
+    }
+}
+
 /// 装载系统中文字体（egui 默认字库无 CJK）：扫描常见 Noto/WQY 路径，找不到则保持默认。
 pub fn install_fonts(ctx: &Context) {
     let candidates = [
@@ -158,6 +202,18 @@ mod tests {
         ] {
             let (r, g, b) = rgb(Mode::Day, token);
             assert!((r as u32) + (g as u32) + (b as u32) > 0 || matches!(token, Token::Fg25));
+        }
+    }
+
+    #[test]
+    fn terminal_palette_tracks_tokens() {
+        for mode in [Mode::Day, Mode::Night] {
+            let p = terminal_palette(mode);
+            let bg = format!("#{:02X}{:02X}{:02X}", rgb(mode, Token::Bg).0, rgb(mode, Token::Bg).1, rgb(mode, Token::Bg).2);
+            let red = format!("#{:02X}{:02X}{:02X}", rgb(mode, Token::Destructive).0, rgb(mode, Token::Destructive).1, rgb(mode, Token::Destructive).2);
+            assert_eq!(p.background, bg, "终端背景必须与面板 Bg 同源");
+            assert_eq!(p.red, red);
+            assert_eq!(p.foreground, format!("#{:02X}{:02X}{:02X}", rgb(mode, Token::Fg).0, rgb(mode, Token::Fg).1, rgb(mode, Token::Fg).2));
         }
     }
 }

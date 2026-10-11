@@ -1,20 +1,31 @@
 //! GUI 的极简 IPC 客户端（与 iac/src/ipc.rs 同协议：UDS JSONL 信封）。
 //! 前端豁免层；与 bin 间不复用以避免 crate 互依赖。
+//! chg-021：读写加超时；spawn_request 后台线程执行，UI 线程零阻塞。
 
 use iac_core::server::IpcResponse;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::Sender;
+use std::time::Duration;
+
+/// 读超时：覆盖 LLM 往返与长命令（超过视为 daemon 死锁，报错解阻塞）。
+const READ_TIMEOUT: Duration = Duration::from_secs(300);
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// 缺省 socket 路径（core::server 统一定义）。
 pub fn default_socket_path() -> std::path::PathBuf {
     iac_core::server::default_socket_path()
 }
 
-/// 发送请求并取回响应；daemon 未运行 → Err（含 IAC-6101 语义）。
+/// 发送请求并取回响应；daemon 未运行/超时 → Err（IAC-6101 语义）。
 pub fn request(method: &str, params: serde_json::Value) -> Result<IpcResponse, String> {
-    let stream = UnixStream::connect(default_socket_path())
-        .map_err(|_| "IAC-6101: daemon 未运行，请先启动 iacd".to_string())?;
+    let stream =
+        UnixStream::connect(default_socket_path()).map_err(|_| "IAC-6101: daemon 未运行，请先启动 iacd".to_string())?;
+    stream
+        .set_read_timeout(Some(READ_TIMEOUT))
+        .and_then(|_| stream.set_write_timeout(Some(WRITE_TIMEOUT)))
+        .map_err(|e| format!("IAC-6101: 设置超时失败 {e}"))?;
     let mut writer = stream.try_clone().expect("clone stream");
     static N: AtomicU64 = AtomicU64::new(0);
     let id = format!("gui-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst));
@@ -25,18 +36,35 @@ pub fn request(method: &str, params: serde_json::Value) -> Result<IpcResponse, S
         .map_err(|e| format!("IAC-6101: 写入失败 {e}"))?;
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
-    reader.read_line(&mut line).map_err(|e| format!("IAC-6101: 读取失败 {e}"))?;
+    reader
+        .read_line(&mut line)
+        .map_err(|e| match e.kind() {
+            ErrorKind::WouldBlock | ErrorKind::TimedOut => {
+                "IAC-6101: daemon 响应超时（300s），请检查 iacd 状态".to_string()
+            }
+            _ => format!("IAC-6101: 读取失败 {e}"),
+        })?;
+    if line.is_empty() {
+        return Err("IAC-6101: daemon 提前断开连接".to_string());
+    }
     serde_json::from_str(line.trim()).map_err(|e| format!("IAC-6101: 响应解析失败 {e}"))
 }
 
-/// 渲染为侧栏文本（ok → result JSON 紧凑串；error → [code] msg）。
-pub fn render(resp: &IpcResponse) -> String {
-    if resp.ok {
-        serde_json::to_string_pretty(resp.result.as_ref().unwrap_or(&serde_json::Value::Null))
-            .unwrap_or_default()
-    } else {
-        let err = resp.error.as_ref().expect("ok=false 必有 error");
-        format!("[{}] {}", err.code, err.message)
+/// 后台线程发请求，响应经 reply_tx 送回 UI 线程（线程创建失败也要回传，防止侧栏永久 busy）。
+pub fn spawn_request(
+    method: &'static str,
+    params: serde_json::Value,
+    reply_tx: Sender<(&'static str, Result<IpcResponse, String>)>,
+) {
+    let tx = reply_tx.clone();
+    let spawned = std::thread::Builder::new()
+        .name("iac-ipc-client".into())
+        .spawn(move || {
+            let result = request(method, params);
+            let _ = tx.send((method, result));
+        });
+    if spawned.is_err() {
+        let _ = reply_tx.send((method, Err("IAC-6101: IPC 线程创建失败".to_string())));
     }
 }
 
@@ -45,7 +73,7 @@ pub fn extract_proposal_id(resp: &IpcResponse) -> Option<String> {
     resp.result.as_ref()?.get("id")?.as_str().map(str::to_string)
 }
 
-/// 提取命令文本。
+/// 提取命令文本（iac_ask 的 JSON result）。
 pub fn extract_command(resp: &IpcResponse) -> Option<String> {
     resp.result.as_ref()?.get("command")?.as_str().map(str::to_string)
 }
