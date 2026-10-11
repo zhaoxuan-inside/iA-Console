@@ -7,6 +7,7 @@ pub mod common;
 pub mod config;
 pub mod error;
 pub mod framework;
+pub mod intent;
 pub mod knowledge;
 pub mod history;
 pub mod ports;

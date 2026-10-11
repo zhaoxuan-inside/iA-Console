@@ -2,7 +2,7 @@
 //! 设计动机见 method-spec：观测统一走 metrics 门面，业务方法禁止手写埋点。
 
 use crate::config::Config;
-use crate::ports::StorePort;
+pub use crate::ports::{AiPort, ProcessPort, StorePort};
 
 /// 会话与追踪上下文（dispatch 边界注入）。
 #[derive(Debug, Clone, Default)]
@@ -43,11 +43,17 @@ pub struct Locale {
 /// store 以 Box 持有，使 Context 可按共享引用贯穿整条调用链。
 pub struct Deps {
     pub store: Box<dyn StorePort>,
+    pub ai: Box<dyn AiPort>,
+    pub process: Box<dyn ProcessPort>,
 }
 
 impl Default for Deps {
     fn default() -> Self {
-        Self { store: Box::new(crate::ports::NullStore) }
+        Self {
+            store: Box::new(crate::ports::NullStore),
+            ai: Box::new(crate::ports::NullAi),
+            process: Box::new(crate::ports::NullProcess),
+        }
     }
 }
 
@@ -196,6 +202,18 @@ impl TestEnv {
     /// 换装真实 Adapter（集成测试用）：`TestEnv::new().with_store(Box::new(Storage::open_in_memory()?))`。
     pub fn with_store(mut self, store: Box<dyn StorePort>) -> Self {
         self.deps.store = store;
+        self
+    }
+
+    /// 换装 AI Adapter。
+    pub fn with_ai(mut self, ai: Box<dyn AiPort>) -> Self {
+        self.deps.ai = ai;
+        self
+    }
+
+    /// 换装进程 Adapter。
+    pub fn with_process(mut self, process: Box<dyn ProcessPort>) -> Self {
+        self.deps.process = process;
         self
     }
 }

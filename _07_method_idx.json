@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:54:44+08:00",
+  "updated_at": "2026-10-11T16:00:24+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -350,14 +350,99 @@
       "description": "I-004：写入/更新知识缓存（command+platform 唯一 upsert）",
       "reusable": true,
       "id": "m-023"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/intent/prompt.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn build_intent_prompt(input: &IntentPromptInput, output: &mut PromptBundle, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "build_intent_prompt",
+      "category": "data",
+      "layer": "domain",
+      "module": "intent",
+      "location": "core/src/intent/prompt.rs",
+      "description": "I-005：组装意图 prompt（平台约束+知识 grounding+近期命令）",
+      "reusable": true,
+      "id": "m-024"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/intent/parse.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn parse_proposal_response(input: &LlmResponse, output: &mut ProposalDraft, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "parse_proposal_response",
+      "category": "data",
+      "layer": "domain",
+      "module": "intent",
+      "location": "core/src/intent/parse.rs",
+      "description": "I-006：LLM 响应→提案草稿（剥围栏/JSON 校验/缺字段拒绝 IAC-1102）",
+      "reusable": true,
+      "id": "m-025"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/intent_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn build_explain_doc(input: &CommandKnowledge, output: &mut ParamSpecDoc, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "build_explain_doc",
+      "category": "data",
+      "layer": "domain",
+      "module": "intent",
+      "location": "core/src/intent/handler.rs",
+      "description": "I-007：命令知识→参数文档装配",
+      "reusable": true,
+      "id": "m-026"
+    },
+    {
+      "dependencies": [
+        "m-013",
+        "m-022",
+        "m-023",
+        "m-020"
+      ],
+      "tests": "core/tests/intent_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn handle_ask(input: &AskInput, output: &mut Proposal, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "handle_ask",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "intent",
+      "location": "core/src/intent/handler.rs",
+      "description": "I-025：意图→提案主流程（会话→grounding→AI+重试→参数拒绝→风险评估→落库+事件）",
+      "reusable": true,
+      "id": "m-027"
+    },
+    {
+      "dependencies": [
+        "m-021",
+        "m-022",
+        "m-023",
+        "m-007"
+      ],
+      "tests": "core/tests/intent_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn handle_explain(input: &ExplainInput, output: &mut ParamSpecDoc, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "handle_explain",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "intent",
+      "location": "core/src/intent/handler.rs",
+      "description": "I-026：参数解释（缓存→help 解析→AI 补全三级降链，均回写缓存）",
+      "reusable": true,
+      "id": "m-028"
     }
   ],
   "stats": {
-    "total": 23,
+    "total": 28,
     "by_category": {
       "algorithm": 2,
-      "orchestration": 3,
-      "data": 18
+      "orchestration": 5,
+      "data": 21
     }
   }
 }

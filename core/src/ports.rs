@@ -126,6 +126,69 @@ pub struct LlmResponse {
     pub model: String,
 }
 
+/// AI Port（IF-005 的 trait 形态；infra::ai 实现）。
+pub trait AiPort {
+    #[allow(clippy::too_many_arguments)]
+    fn ai_complete(
+        &self,
+        provider: &crate::config::ProviderProfile,
+        input: &AiRequest,
+        output: &mut LlmResponse,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+}
+
+/// 测试桩：AI 未接线。
+#[derive(Debug, Default)]
+pub struct NullAi;
+
+impl AiPort for NullAi {
+    fn ai_complete(
+        &self,
+        _provider: &crate::config::ProviderProfile,
+        _input: &AiRequest,
+        _output: &mut LlmResponse,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1101", "AI 未接线（NullAi 测试桩）");
+        false
+    }
+}
+
+/// 进程 Port（IF-003 的 trait 形态；infra::process 实现）。
+pub trait ProcessPort {
+    fn spawn_process(
+        &self,
+        input: &ProcessSpec,
+        output: &mut ProcessResult,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+}
+
+/// 测试桩：进程未接线。
+#[derive(Debug, Default)]
+pub struct NullProcess;
+
+impl ProcessPort for NullProcess {
+    fn spawn_process(
+        &self,
+        _input: &ProcessSpec,
+        _output: &mut ProcessResult,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-2106", "进程未接线（NullProcess 测试桩）");
+        false
+    }
+}
+
 /// 存储 Port（IF-001/002/004 的 trait 形态；infra::storage 实现）。
 pub trait StorePort {
     /// 只读查询（SELECT）。失败转译 IAC-3102。
