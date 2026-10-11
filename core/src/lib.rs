@@ -6,6 +6,7 @@
 pub mod config;
 pub mod error;
 pub mod framework;
+pub mod history;
 pub mod ports;
 pub mod session;
 pub mod types;

@@ -369,7 +369,11 @@
         "infra/tests/ai_test.rs",
         "core/src/session/mod.rs",
         "core/src/session/store.rs",
-        "core/tests/session_test.rs"
+        "core/tests/session_test.rs",
+        "core/src/history/mod.rs",
+        "core/src/history/store.rs",
+        "core/tests/history_test.rs",
+        "core/src/session/resume.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -385,7 +389,12 @@
         "m-010",
         "m-011",
         "m-012",
-        "m-013"
+        "m-013",
+        "m-014",
+        "m-015",
+        "m-016",
+        "m-017",
+        "m-018"
       ],
       "author": "Agent",
       "verified": false

@@ -1,7 +1,9 @@
 //! 会话域（词典：Session/SessionEvent）。store.rs 为数据方法，resume.rs 为恢复编排。
 
+pub mod resume;
 pub mod store;
 
+pub use resume::resume_session;
 pub use store::{
     append_session_event, create_session, get_or_create_current, list_sessions, load_session,
     now_ms,

@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:37:15+08:00",
+  "updated_at": "2026-10-11T15:40:46+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -196,14 +196,91 @@
       "description": "I-020：取或建当前会话（cwd+host 活动会话复用）",
       "reusable": true,
       "id": "m-013"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/history_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn record_execution(input: &ExecutionRecord, output: &mut RecordAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "record_execution",
+      "category": "data",
+      "layer": "domain",
+      "module": "history",
+      "location": "core/src/history/store.rs",
+      "description": "I-008：写入执行记录全量留痕（AC-05），ID 由 SQL randomblob 生成",
+      "reusable": true,
+      "id": "m-014"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/history_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn get_execution_detail(input: &ExecutionId, output: &mut Option<ExecutionRecord>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "get_execution_detail",
+      "category": "data",
+      "layer": "domain",
+      "module": "history",
+      "location": "core/src/history/store.rs",
+      "description": "I-010：按 ID 取执行记录详情，不存在=None",
+      "reusable": true,
+      "id": "m-015"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/history_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn append_audit_entry(input: &AuditEntry, output: &mut RecordAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "append_audit_entry",
+      "category": "data",
+      "layer": "domain",
+      "module": "history",
+      "location": "core/src/history/store.rs",
+      "description": "I-011：追加式审计条目（禁改写）",
+      "reusable": true,
+      "id": "m-016"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/history_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn query_history(input: &HistoryFilter, output: &mut HistoryPage, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "query_history",
+      "category": "data",
+      "layer": "domain",
+      "module": "history",
+      "location": "core/src/history/store.rs",
+      "description": "I-009：关键词/目录/时间窗/状态/发起方组合检索 + 分页（AC-13）",
+      "reusable": true,
+      "id": "m-017"
+    },
+    {
+      "dependencies": [
+        "m-011"
+      ],
+      "tests": "core/tests/session_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn resume_session(input: &SessionId, output: &mut SessionInfo, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "resume_session",
+      "category": "orchestration",
+      "layer": "domain",
+      "module": "session",
+      "location": "core/src/session/resume.rs",
+      "description": "I-024：恢复会话（载入+置 active+刷新时间），不存在 IAC-3101",
+      "reusable": true,
+      "id": "m-018"
     }
   ],
   "stats": {
-    "total": 13,
+    "total": 18,
     "by_category": {
       "algorithm": 0,
-      "orchestration": 1,
-      "data": 12
+      "orchestration": 2,
+      "data": 16
     }
   }
 }
