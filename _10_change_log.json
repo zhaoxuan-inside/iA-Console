@@ -212,6 +212,24 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-009",
+      "date": "2026-10-11",
+      "requirement": "REQ-WEAK-WARNING：评审意见——① 高危命令由强确认改为弱提醒：命令红字+行尾⚠+视口边缘红描边（ambient，执行后消退），回车直接执行不拦截（AC-04 修订）；确认仅保留在翻译高危与 Agent 路径（执行内容≠输入内容/发起方非人类）；② 翻译命令显示转换逻辑：原命令删除线（不支持时灰阶+→降级）+译文，非高危直接执行、高危确认（AC-36 新增）；③ 配置 risk.confirm_mode=weak|ask（默认 weak，翻译/Agent 恒确认不受开关影响）；④ GateInfo 契约补充 requires_confirm/weak_warning/conversion 字段；提案卡片术语已在回复中向用户释义（AI 生成命令的展示组件，仅 ask 场景出现）",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_04_framework_design/03_ui_principles.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
