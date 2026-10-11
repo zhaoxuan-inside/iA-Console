@@ -101,6 +101,26 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-004",
+      "date": "2026-10-11",
+      "requirement": "REQ-ROLLBACK-JOURNAL：回滚机制按评审意见重构定稿——废弃逆向命令知识（判断机制）与 git 基线主力，采纳效果日志方案（_02 Q6-S4）：执行前统一捕获前像入内容寻址快照仓库（去重+压缩），执行后 diff 生成文件级效果日志（全局 seq），回滚=逆序回放到任意执行点（point-in-time），单文件版本历史可查可恢复（直接替换），删除效果先入回收站、retention（7 天/1GB LRU）自动回收；v1 留 journal_ref 字段，v2 由 M7（T-034~037）实现",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_04_framework_design/02_data_flow.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "README.md"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
