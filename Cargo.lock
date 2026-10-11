@@ -1200,8 +1200,6 @@ dependencies = [
 [[package]]
 name = "egui_term"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "062329a2d44c767147e2bf56ebea1aa0ca25aea5e88e74b5feb956161c827c5a"
 dependencies = [
  "alacritty_terminal",
  "anyhow",

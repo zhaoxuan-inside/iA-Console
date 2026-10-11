@@ -1,0 +1,18 @@
+[package]
+name = "egui_term"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Ilya Shvyryalkin <ilyashvy@gmail.com>", "zhaoxuan (vendored fixes)"]
+description = "Terminal emulator widget powered by EGUI framework and alacritty terminal backend. Vendored into iA-console: focus-gated keyboard input fix, subpixel cell metrics, per-frame allocation cuts, graceful exit."
+repository = "https://github.com/Harzu/egui_term"
+
+[lib]
+name = "egui_term"
+path = "src/lib.rs"
+
+[dependencies]
+alacritty_terminal = "0.25.0"
+anyhow = "1.0.96"
+egui = "0.31.0"
+open = "5.3.2"

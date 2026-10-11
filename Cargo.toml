@@ -2,6 +2,10 @@
 resolver = "2"
 members = ["iac", "iac-gui", "iacd", "core", "infra"]
 
+# egui_term 0.1.0 vendor fork：上游输入门槛/字体度量缺陷修复（见 ADR-010）
+[patch.crates-io]
+egui_term = { path = "vendor/egui-term" }
+
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
