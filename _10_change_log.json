@@ -189,6 +189,23 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-008",
+      "date": "2026-10-11",
+      "requirement": "REQ-EXPLAIN-ON-DEMAND：评审意见——解释从默认包装改为按需服务：用户确定的命令直接执行不渲染解释（AC-35，闸门仅对 caution+ 展示确认）；提案默认摘要态（命令+一句话+风险），逐参数解释与影响面经 e 键/--explain 按需展开（AC-01/AC-19/AC-23 同步修订）；翻译默认仅译文行，差异说明收起；UI 提案卡改两态+直通行组件；注意：解释数据仍生成入库（校验与缓存需要），仅展示层默认收起，无新增方法",
+      "changed_files": [
+        "_01_business/01_requirements.md",
+        "_04_framework_design/02_data_flow.md",
+        "_04_framework_design/03_ui_principles.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
