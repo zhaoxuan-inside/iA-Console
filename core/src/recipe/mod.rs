@@ -37,6 +37,26 @@ fn default_kind() -> String {
     "command".into()
 }
 
+impl Default for Recipe {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            title: String::new(),
+            description: None,
+            kind: default_kind(),
+            name: None,
+            command_template: String::new(),
+            tags: Vec::new(),
+            platform: "all".into(),
+            risk_level: RiskLevel::Safe,
+            usage_count: 0,
+            source_execution_id: None,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+}
+
 /// 保存输入（id 空即新建；kind=script 时 name 必填且唯一）。
 impl Default for RecipeInput {
     fn default() -> Self {

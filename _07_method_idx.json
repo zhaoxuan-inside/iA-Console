@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T16:14:36+08:00",
+  "updated_at": "2026-10-11T16:43:07+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -601,14 +601,62 @@
       "description": "I-030：唯一路由入口（10 方法），版本拦截/未知方法 IAC-6102/6105，人机同构",
       "reusable": true,
       "id": "m-038"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/translate_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn lookup_translation(input: &TranslationInput, output: &mut Option<TranslationResult>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "lookup_translation",
+      "category": "data",
+      "layer": "domain",
+      "module": "knowledge",
+      "location": "core/src/knowledge/translation_store.rs",
+      "description": "I-031：翻译缓存查找（键=方言+首词）",
+      "reusable": true,
+      "id": "m-039"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/translate_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn cache_translation(input: &CacheTranslationInput, output: &mut TranslationAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "cache_translation",
+      "category": "data",
+      "layer": "domain",
+      "module": "knowledge",
+      "location": "core/src/knowledge/translation_store.rs",
+      "description": "I-032：翻译结果回写（AI 译文 unverified，用户确认转正）",
+      "reusable": true,
+      "id": "m-040"
+    },
+    {
+      "dependencies": [
+        "m-031",
+        "m-034"
+      ],
+      "tests": "core/tests/translate_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn translate_command(input: &TranslationInput, output: &mut TranslationResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "translate_command",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "intent",
+      "location": "core/src/intent/translate.rs",
+      "description": "I-033：翻译编排（内置表→缓存→AI/组合闭环；降级返回原文；缓存命中重评估风险）",
+      "reusable": true,
+      "id": "m-041"
     }
   ],
   "stats": {
-    "total": 38,
+    "total": 41,
     "by_category": {
       "algorithm": 2,
-      "orchestration": 9,
-      "data": 27
+      "orchestration": 10,
+      "data": 29
     }
   }
 }

@@ -1,8 +1,12 @@
 //! 智能域·命令知识（词典：CommandKnowledge/ParamSpec）。parser 位于 common（纯算法）。
 
 pub mod store;
+pub mod translation;
+pub mod translation_store;
 
 pub use store::{cache_knowledge, lookup_knowledge};
+pub use translation::TranslationAck;
+pub use translation_store::{cache_translation, lookup_translation, CacheTranslationInput};
 
 use crate::types::Platform;
 use serde::{Deserialize, Serialize};

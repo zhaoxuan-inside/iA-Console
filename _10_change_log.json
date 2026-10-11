@@ -404,7 +404,13 @@
         "iacd/src/lib.rs",
         "iacd/tests/daemon_test.rs",
         "iac/src/mcp.rs",
-        "iac/tests/cli_mcp_test.rs"
+        "iac/tests/cli_mcp_test.rs",
+        "core/src/knowledge/translation.rs",
+        "core/src/knowledge/translation_store.rs",
+        "core/src/intent/translation_table.rs",
+        "core/src/intent/translate.rs",
+        "core/tests/translate_test.rs",
+        "_06_interface_design/02_internal_interfaces.md"
       ],
       "commits": [],
       "changed_methods": [
@@ -445,7 +451,10 @@
         "m-035",
         "m-036",
         "m-037",
-        "m-038"
+        "m-038",
+        "m-039",
+        "m-040",
+        "m-041"
       ],
       "author": "Agent",
       "verified": false
