@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T13:00:00+08:00",
+  "updated_at": "2026-10-11T14:00:00+08:00",
   "terms": [
     {
       "term": "iA-console",
@@ -533,6 +533,21 @@
         "脚本工坊"
       ],
       "source": "_02_principle/01_candidates.md"
+    },
+    {
+      "term": "结构化渲染",
+      "code_name": "StructuredRender",
+      "definition": "对命令输出/AI 回答/代码块的格式自动检测（解析验证非猜测）与克制高亮：JSON/YAML/XML/Markdown 完整支持，代码语言集配置化（默认 python/shell/bat），语法令牌进 day/night 双主题；检测失败一律纯文本不破坏原文",
+      "aliases": [
+        "语法高亮",
+        "格式美化"
+      ],
+      "domain": "体验",
+      "related_terms": [
+        "主题",
+        "错误医生"
+      ],
+      "source": "_04_framework_design/03_ui_principles.md"
     }
   ]
 }

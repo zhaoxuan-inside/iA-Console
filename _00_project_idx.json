@@ -68,7 +68,7 @@
       "files": [
         {
           "file": "01_requirements.md",
-          "summary": "需求背景/十大痛点映射/21 条用户故事/40 条 EARS 验收标准（含方言翻译、内置模型、输入标记、主题、效果日志回滚、弱提醒、按需解释、复制三档、脚本工坊）",
+          "summary": "需求背景/十大痛点映射/22 条用户故事/43 条 EARS 验收标准（含方言翻译、内置模型、输入标记、主题、效果日志回滚、弱提醒、按需解释、复制三档、脚本工坊、结构化渲染）",
           "status": "draft"
         }
       ]
@@ -78,7 +78,7 @@
       "files": [
         {
           "file": "01_candidates.md",
-          "summary": "意图生成/错误诊断/存储/Agent接入/跨平台执行/本地推理/跨方言翻译/回滚/脚本装配九问的候选方案原理对比",
+          "summary": "意图生成/错误诊断/存储/Agent接入/跨平台执行/本地推理/跨方言翻译/回滚/脚本装配/结构化渲染十问的候选方案原理对比",
           "status": "draft"
         }
       ]
@@ -143,7 +143,7 @@
         },
         {
           "file": "03_ui_principles.md",
-          "summary": "iA Writer 设计语言完整规范：设计哲学、概念翻译表、12 色彩令牌双主题、排版节奏、无框化组件规范（提案卡/列表/对话流/诊断）、动效约束、字体策略、CLI 同语言",
+          "summary": "iA Writer 设计语言完整规范：设计哲学、概念翻译表、14 色彩令牌双主题、排版节奏、无框化组件规范（提案卡/直通行/翻译行/弱提醒/复制/结构化渲染）、动效约束、字体策略、CLI 同语言",
           "status": "draft"
         }
       ]
@@ -153,7 +153,7 @@
       "files": [
         {
           "file": "01_function_matrix.md",
-          "summary": "模块×层功能矩阵、43 张任务卡（含 v2 回滚 M7 与脚本工坊 M8 预排）、8 个里程碑",
+          "summary": "模块×层功能矩阵、45 张任务卡（含 v2 回滚 M7 与脚本工坊 M8 预排）、8 个里程碑",
           "status": "draft"
         }
       ]
@@ -168,7 +168,7 @@
         },
         {
           "file": "02_internal_interfaces.md",
-          "summary": "44 个五段方法 + 13 个 Adapter 方法契约、支撑类型、SQLite 数据模型",
+          "summary": "46 个五段方法 + 13 个 Adapter 方法契约、支撑类型、SQLite 数据模型",
           "status": "draft"
         }
       ]
@@ -292,7 +292,7 @@
       {
         "name": "knowledge",
         "path": "iA-console/core/src/knowledge/",
-        "summary": "命令知识库：参数 schema 缓存与查询",
+        "summary": "纯算法方法集中地：风险规则匹配、help 解析、输入标记解析、脚本装配、格式检测与轻量高亮",
         "owner": null
       },
       {
@@ -370,7 +370,7 @@
   },
   "dictionary": {
     "path": "_09_project_dict.json",
-    "terms": 39
+    "terms": 40
   },
   "change_log": {
     "path": "_10_change_log.json",

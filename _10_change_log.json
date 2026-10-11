@@ -308,6 +308,26 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-013",
+      "date": "2026-10-11",
+      "requirement": "REQ-STRUCTURED-RENDER：评审意见——结构化渲染（G17，v1 M6）：JSON/YAML/XML/Markdown 完整美化与语法分层着色（检测=解析验证，失败纯文本不破坏原文）；代码高亮语言集可配置（默认 python/shell/bat，可扩展 java/go 等），机制取 _02 Q10 结论『自写轻量 tokenizer』（syntect 否决：体积与克制哲学冲突）；色板扩展至 14 令牌（+syn-keyword/syn-string），双主题配对；新增 I-045/I-046、任务卡 T-034/T-035，E2E 顺延 T-036，M7/M8 卡顺延重编号，_06 引用同步",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_04_framework_design/03_ui_principles.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
