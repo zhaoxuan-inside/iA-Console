@@ -12,7 +12,8 @@ use crate::types::{Platform, RiskLevel};
 use serde::{Deserialize, Serialize};
 
 /// 用户意图输入（AC-01：1~2000 字符校验在编排内）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AskInput {
     pub intent: String,
     pub cwd: Option<String>,
@@ -93,7 +94,8 @@ pub struct ProposalId {
 }
 
 /// 参数解释输入（AC-02）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ExplainInput {
     pub command: String,
     pub platform: Option<Platform>,

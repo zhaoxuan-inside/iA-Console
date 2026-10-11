@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T16:08:46+08:00",
+  "updated_at": "2026-10-11T16:14:36+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -582,13 +582,32 @@
       "description": "I-015：删除方案",
       "reusable": true,
       "id": "m-037"
+    },
+    {
+      "dependencies": [
+        "m-027",
+        "m-031",
+        "m-032"
+      ],
+      "tests": "core/tests/dispatch_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn dispatch_request(input: &IpcRequest, output: &mut IpcResponse, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "dispatch_request",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "server",
+      "location": "core/src/server/dispatch.rs",
+      "description": "I-030：唯一路由入口（10 方法），版本拦截/未知方法 IAC-6102/6105，人机同构",
+      "reusable": true,
+      "id": "m-038"
     }
   ],
   "stats": {
-    "total": 37,
+    "total": 38,
     "by_category": {
       "algorithm": 2,
-      "orchestration": 8,
+      "orchestration": 9,
       "data": 27
     }
   }

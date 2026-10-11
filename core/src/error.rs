@@ -7,6 +7,9 @@ pub mod codes {
     pub const EXEC_TIMEOUT: &str = "IAC-2103";
     pub const EXEC_PLATFORM: &str = "IAC-2106";
     pub const STORAGE: &str = "IAC-3102";
+    pub const UNKNOWN_METHOD: &str = "IAC-6105";
+    pub const PROTOCOL_MISMATCH: &str = "IAC-6102";
+    pub const DAEMON_STOP: &str = "IAC-6106";
     pub const STORAGE_MIGRATE: &str = "IAC-3103";
     pub const CONFIG_INVALID: &str = "IAC-5101";
     pub const CONFIG_KEY_MISSING: &str = "IAC-5102";

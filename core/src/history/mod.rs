@@ -70,13 +70,14 @@ pub struct AuditEntry {
 }
 
 /// 执行 ID 引用。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ExecutionId {
     pub id: String,
 }
 
 /// 历史检索过滤（AC-13：万条级秒回）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct HistoryFilter {
     /// 命令/输出摘要关键词（LIKE）
     pub q: Option<String>,
@@ -90,7 +91,7 @@ pub struct HistoryFilter {
 }
 
 /// 检索结果页。
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HistoryPage {
     pub total: i64,
     pub items: Vec<ExecutionRecord>,

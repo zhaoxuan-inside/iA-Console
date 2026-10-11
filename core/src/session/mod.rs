@@ -120,13 +120,15 @@ pub struct SessionId {
 }
 
 /// list_sessions 过滤（v1：条数限制，按 updated_at 倒序）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct SessionFilter {
     pub limit: u32,
 }
 
 /// get_or_create_current 输入：按 cwd+host 复用活动会话，否则新建。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct CurrentSessionInput {
     pub cwd: String,
     pub shell: String,

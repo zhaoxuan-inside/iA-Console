@@ -57,7 +57,8 @@ pub enum CommandOrigin {
 }
 
 /// 执行输入（_06 ExecuteInput；origin 为字段只增演进）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ExecuteInput {
     pub command: Option<String>,
     pub proposal_id: Option<String>,

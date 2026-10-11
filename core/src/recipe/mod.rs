@@ -54,6 +54,8 @@ impl Default for RecipeInput {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct RecipeInput {
     pub title: String,
     pub description: Option<String>,
@@ -67,13 +69,13 @@ pub struct RecipeInput {
 }
 
 /// 方案 ID 引用。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct RecipeId {
     pub id: String,
 }
 
 /// 检索过滤：关键词（标题/描述/命令模板）+ 标签 + 平台。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct RecipeFilter {
     pub q: Option<String>,
     pub tag: Option<String>,
@@ -82,7 +84,7 @@ pub struct RecipeFilter {
 }
 
 /// 删除确认。
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeleteAck {
     pub deleted: bool,
 }

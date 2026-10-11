@@ -15,5 +15,6 @@ pub mod history;
 pub mod ports;
 pub mod recipe;
 pub mod risk;
+pub mod server;
 pub mod session;
 pub mod types;

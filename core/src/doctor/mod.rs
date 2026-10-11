@@ -29,7 +29,7 @@ pub struct Diagnosis {
 }
 
 /// 诊断输入：指定执行记录，缺省=最近一次失败。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct DiagnoseInput {
     pub execution_id: Option<String>,
 }

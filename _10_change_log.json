@@ -396,7 +396,11 @@
         "core/tests/executor_test.rs",
         "core/tests/doctor_test.rs",
         "core/src/recipe/mod.rs",
-        "core/tests/recipe_test.rs"
+        "core/tests/recipe_test.rs",
+        "core/src/server/mod.rs",
+        "core/src/server/envelope.rs",
+        "core/src/server/dispatch.rs",
+        "core/tests/dispatch_test.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -436,7 +440,8 @@
         "m-034",
         "m-035",
         "m-036",
-        "m-037"
+        "m-037",
+        "m-038"
       ],
       "author": "Agent",
       "verified": false
