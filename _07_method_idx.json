@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-10-11T00:00:00+08:00",
+  "methods": [],
+  "stats": {
+    "total": 0,
+    "by_category": { "algorithm": 0, "orchestration": 0, "data": 0 }
+  }
+}

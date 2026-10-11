@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-10-11T00:00:00+08:00",
+  "terms": [
+    { "term": "iA-console", "code_name": "ia_console", "definition": "本项目：伴生智能内核，含 daemon（iacd）与前端（iac），把自然语言意图变成可信、可解释、可审计的命令执行闭环", "aliases": ["智能控制台", "IA Console"], "domain": "全局", "related_terms": ["守护进程", "前端"], "source": "_01_business/01_requirements.md" },
+    { "term": "守护进程", "code_name": "daemon", "definition": "常驻后台的智能内核进程 iacd，提供 IPC/MCP 服务，承载全部业务能力；前端与 Agent 都是它的客户端", "aliases": ["iacd", "后台服务", "内核"], "domain": "全局", "related_terms": ["前端", "进程间通信"], "source": "_04_framework_design/01_architecture.md" },
+    { "term": "前端", "code_name": "frontend", "definition": "与用户交互的 iac 可执行程序，含 CLI 子命令与 TUI 界面两种形态，均经 IPC 调用 daemon", "aliases": ["客户端", "iac"], "domain": "全局", "related_terms": ["守护进程", "终端用户界面"], "source": "_04_framework_design/01_architecture.md" },
+    { "term": "会话", "code_name": "Session", "definition": "一次连续工作上下文的容器：命令记录、提案、AI 对话、备注按序组成的会话事件流，可持久化与恢复", "aliases": ["工作区"], "domain": "会话", "related_terms": ["会话事件", "执行记录"], "source": "_01_business/01_requirements.md" },
+    { "term": "会话事件", "code_name": "SessionEvent", "definition": "会话内按序追加的一条记录，kind 取 command|proposal|ai_message|note|diagnosis，payload 为 JSON", "aliases": [], "domain": "会话", "related_terms": ["会话"], "source": "_06_interface_design/02_internal_interfaces.md" },
+    { "term": "意图", "code_name": "Intent", "definition": "用户（人或 Agent）以自然语言表达的目标，是提案生成的输入", "aliases": ["自然语言请求"], "domain": "智能", "related_terms": ["提案"], "source": "_01_business/01_requirements.md" },
+    { "term": "提案", "code_name": "Proposal", "definition": "系统为意图生成的结构化命令建议：完整命令、逐参数白话解释、风险等级、影响面说明、平台，状态 proposed|confirmed|executed|rejected", "aliases": ["命令建议", "计划"], "domain": "智能", "related_terms": ["意图", "风险等级"], "source": "_01_business/01_requirements.md" },
+    { "term": "执行记录", "code_name": "ExecutionRecord", "definition": "一次命令执行的全量留痕：命令、argv、cwd、shell、host、发起方、退出码、输出摘要、风险等级、起止时间与会话归属", "aliases": ["历史记录"], "domain": "记录", "related_terms": ["会话", "审计条目"], "source": "_01_business/01_requirements.md" },
+    { "term": "审计条目", "code_name": "AuditEntry", "definition": "追加式审计日志的一条：时间、发起方（human|agent:<client>|system）、动作、目标、明细 JSON，与执行记录互补记录非执行类操作", "aliases": ["审计日志"], "domain": "记录", "related_terms": ["执行记录"], "source": "_06_interface_design/02_internal_interfaces.md" },
+    { "term": "方案", "code_name": "Recipe", "definition": "用户显式收藏的命令/脚本模板：标题、描述、命令模板、标签、平台、风险等级、使用计数，可检索可导出", "aliases": ["命令收藏", "片段", "snippet"], "domain": "记录", "related_terms": ["执行记录"], "source": "_01_business/01_requirements.md" },
+    { "term": "命令知识", "code_name": "CommandKnowledge", "definition": "某命令在某平台的结构化元数据：子命令、参数规格（名称/类型/默认值/白话解释），来源为 help 解析与 AI 补全，带验证标记缓存于本地", "aliases": ["命令元数据"], "domain": "智能", "related_terms": ["参数规格"], "source": "_02_principle/01_candidates.md" },
+    { "term": "参数规格", "code_name": "ParamSpec", "definition": "命令知识中单个参数的结构化描述：名称、类型、是否必填、默认值、白话解释", "aliases": [], "domain": "智能", "related_terms": ["命令知识"], "source": "_06_interface_design/02_internal_interfaces.md" },
+    { "term": "风险等级", "code_name": "RiskLevel", "definition": "命令危险度四级：safe（常规读写）|caution（需留意）|dangerous（可致损失，需确认）|destructive（不可逆破坏，需二次确认+影响面展示）", "aliases": [], "domain": "风险", "related_terms": ["风险评估", "风险闸门"], "source": "_01_business/01_requirements.md" },
+    { "term": "风险评估", "code_name": "RiskAssessment", "definition": "对命令的风险判定结果：等级、命中的规则、影响面说明、是否需确认", "aliases": [], "domain": "风险", "related_terms": ["风险等级"], "source": "_02_principle/01_candidates.md" },
+    { "term": "风险闸门", "code_name": "risk_gate", "definition": "执行前的强制检查点：按风险评估结果决定放行、要求确认或拒绝；人类与 Agent 执行一律经过", "aliases": ["执行闸门"], "domain": "风险", "related_terms": ["风险评估"], "source": "_04_framework_design/02_data_flow.md" },
+    { "term": "错误诊断", "code_name": "Diagnosis", "definition": "对失败执行的结构化分析：根因假设（须引用 stderr 证据）、置信度、修复提案列表", "aliases": ["诊断报告"], "domain": "智能", "related_terms": ["修复提案"], "source": "_01_business/01_requirements.md" },
+    { "term": "修复提案", "code_name": "FixProposal", "definition": "诊断给出的候选修复命令，采纳后走与普通提案相同的执行闸门", "aliases": [], "domain": "智能", "related_terms": ["错误诊断", "提案"], "source": "_01_business/01_requirements.md" },
+    { "term": "进程间通信", "code_name": "ipc", "definition": "前端/本地客户端与 daemon 的通信通道：Unix domain socket / Windows named pipe，JSONL 信封协议", "aliases": ["IPC"], "domain": "接入", "related_terms": ["模型上下文协议"], "source": "_03_tech_stack/ADR-005-access-mcp-ipc.md" },
+    { "term": "模型上下文协议", "code_name": "mcp", "definition": "面向外部 Agent 的标准工具协议，iA-console 以 stdio MCP Server 暴露 iac_ 前缀工具集", "aliases": ["MCP", "Agent接口"], "domain": "接入", "related_terms": ["进程间通信"], "source": "_03_tech_stack/ADR-005-access-mcp-ipc.md" },
+    { "term": "模型后端", "code_name": "AiProvider", "definition": "一个可调用的 LLM 服务配置档案：名称、base_url、模型、鉴权来源；走 OpenAI 兼容协议，可插拔切换", "aliases": ["AI后端", "供应商"], "domain": "智能", "related_terms": ["模型调用"], "source": "_03_tech_stack/ADR-006-llm-openai-compatible.md" },
+    { "term": "模型调用", "code_name": "AiRequest", "definition": "对模型后端的一次补全请求：system+messages、温度、超时；返回统一 LlmResponse", "aliases": ["补全请求"], "domain": "智能", "related_terms": ["模型后端"], "source": "_06_interface_design/02_internal_interfaces.md" },
+    { "term": "平台", "code_name": "Platform", "definition": "目标操作系统三值：linux|macos|windows（方案库另有 all），决定 shell 语法与提案生成目标", "aliases": ["操作系统"], "domain": "全局", "related_terms": ["方案"], "source": "_01_business/01_requirements.md" }
+  ]
+}

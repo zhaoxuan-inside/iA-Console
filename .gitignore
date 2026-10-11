@@ -1,0 +1,12 @@
+# Rust
+/target
+**/*.rs.bk
+
+# 本地运行数据
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
