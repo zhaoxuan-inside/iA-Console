@@ -50,6 +50,10 @@
 | I-038 | `fn file_history(input: &FilePath, output: &mut Vec<FileVersion>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-038 | 路径版本列表=各次执行效果条目（v2） |
 | I-039 | `fn restore_file(input: &FileVersionRef, output: &mut RestoreReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-038 | 取版本内容直接替换，过风险闸门（v2） |
 | I-040 | `fn list_rollback_points(input: &RollbackListFilter, output: &mut Vec<RollbackPointView>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-039 | history 式回滚点聚合视图：seq/时间/命令/可回滚标识（v2） |
+| I-041 | `fn collect_commands(input: &CollectRange, output: &mut Vec<CommandEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | script | T-040 | 任务段/行号区间统一取命令序列（v2） |
+| I-042 | `fn assemble_script(input: &ScriptAssemblyInput, output: &mut AssembledScript, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | script | T-040 | 确定性拼接 + 平台头部（set -e / ErrorActionPreference）（v2） |
+| I-043 | `fn refine_script(input: &AssembledScript, output: &mut ScriptRefineDiff, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | script | T-041 | AI 精修：参数化/预检/跨方言适配，diff 确认（v2） |
+| I-044 | `fn run_script(input: &ScriptRunInput, output: &mut ExecutionOutcome, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | script | T-042 | 命名脚本执行：platform 选版本、闸门（内部最高风险）、记录（v2） |
 | IF-001 | `fn storage_query(input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | SQL 原语，rusqlite 封装 |
 | IF-002 | `fn storage_execute(input: &SqlStatement, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | 写原语，含 ID 生成 |
 | IF-003 | `fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | process | T-005 | 平台 shell 选择+超时+捕获 |
@@ -224,7 +228,8 @@ CREATE TABLE recipes (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  kind TEXT NOT NULL DEFAULT 'command',      -- command|script（组合翻译生成的脚本）
+  kind TEXT NOT NULL DEFAULT 'command',      -- command|script（组合翻译/脚本工坊生成的脚本）
+  name TEXT,                                 -- 脚本工坊命名（kind=script 时全局唯一，iac run @name 的名字）
   command_template TEXT NOT NULL,
   tags TEXT NOT NULL DEFAULT '[]',           -- JSON array
   platform TEXT NOT NULL,                    -- linux|macos|windows|all
@@ -235,6 +240,7 @@ CREATE TABLE recipes (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX idx_recipes_title ON recipes(title);
+CREATE UNIQUE INDEX idx_recipes_name ON recipes(name) WHERE name IS NOT NULL;
 
 CREATE TABLE knowledge_cache (
   id TEXT PRIMARY KEY,                       -- hash(command+platform)
@@ -383,6 +389,14 @@ pub struct FileVersion { pub seq: i64, pub execution_id: String, pub op: EffectO
     pub content_ref: String, pub at: i64, pub command: String }
 pub struct FileVersionRef { pub path: String, pub seq: i64 }
 pub struct RestoreReport { pub path: String, pub restored_from: i64, pub gate: GateInfo }
+pub struct CollectRange { pub segment_id: Option<String>, pub from_seq: Option<i64>, pub to_seq: Option<i64> }  // 任务段或行号区间（与回滚同一套"行"语义）
+pub struct CommandEntry { pub seq: i64, pub command: String, pub cwd: String }
+pub enum ScriptTarget { Sh, Bat, Both }
+pub struct ScriptAssemblyInput { pub entries: Vec<CommandEntry>, pub target: ScriptTarget }
+pub struct AssembledScript { pub name_hint: String, pub sh_body: Option<String>, pub ps_body: Option<String>,
+    pub target: ScriptTarget, pub max_risk: RiskLevel }
+pub struct ScriptRefineDiff { pub refined: AssembledScript, pub notes: Vec<String> }
+pub struct ScriptRunInput { pub name: String, pub args: Vec<String>, pub confirm_dangerous: bool }
 ```
 
 ### 支撑类型（五段签名公共段，P7 随 T-002 定稿实现）

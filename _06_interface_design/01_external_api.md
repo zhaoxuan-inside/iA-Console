@@ -37,6 +37,8 @@
 | CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
 | CMD-015 | `iac rollback --list \| --to <行\|时间\|exec_id> \| --from <行> [--to <行>] [--on-conflict <ask\|skip\|abort>]` | 回滚点列表与范围回放（v2，M7） | T-037/039 | rollback |
 | CMD-016 | `iac file history <路径>` / `iac file restore <路径> --to <版本>` | 文件版本历史与恢复（v2） | T-038 | rollback |
+| CMD-017 | `iac script make (--segment <任务段> \| --from <行> [--to <行>]) --name <名> [--target sh\|bat\|both] [--refine]` | 命令范围→脚本制作（v2，M8） | T-040/041 | script |
+| CMD-018 | `iac script list\|show <name>\|run <name> [--args...]\|rm <name>`；`iac run @<name>` 等价 | 脚本管理与运行（v2） | T-042 | script |
 
 ### 2.2 MCP 工具 / IPC methods（同名同构）
 
@@ -54,6 +56,8 @@
 | API-010 | `iac_translate` | 跨方言命令翻译 | T-025 | intent |
 | API-011 | `iac_model_list` | 已装模型插件列表 | T-026 | modelhub |
 | API-012 | `iac_rollback` | 回滚点列表（history 式）与范围回放（v2，M7） | T-037/039 | rollback |
+| API-013 | `iac_script_make` | 命令范围→脚本制作与注册（v2，M8） | T-040/041 | script |
+| API-014 | `iac_script_run` | 运行命名脚本（v2） | T-042 | script |
 
 ## 3. 接口定义（关键 API）
 
