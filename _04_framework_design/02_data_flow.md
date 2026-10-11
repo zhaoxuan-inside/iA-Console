@@ -109,6 +109,31 @@ sequenceDiagram
     Note over T: AI 不可用时返回原命令+说明，不阻塞直接执行
 ```
 
+### 流 5：执行回滚——效果日志（v2，AC-29/30/31，无逐命令判断）
+
+```mermaid
+sequenceDiagram
+    participant E as executor
+    participant RB as rollback
+    participant SS as infra::snapstore
+    participant U as 用户
+
+    Note over E,SS: 执行前：统一策略圈定捕获范围（cwd 子树+显式路径+影响面）
+    E->>SS: snapstore_put(捕获范围前像 manifest，内容寻址去重)
+    E->>E: 正常执行（不转译、不判断可逆性）
+    E->>RB: diff_effects(前像 manifest vs 现况)
+    RB->>RB: 效果日志入库（每文件 op/before/after，全局 seq）
+    Note over U,RB: 事后
+    U->>RB: iac rollback [执行点|时间]
+    RB->>SS: snapstore_fetch(各条目前像)
+    RB->>RB: 逆序回放：modified→前像替换 / deleted→恢复 / created→移入回收站 / renamed→反向改名
+    RB-->>U: 回滚报告（含回收站位置与 retention 说明）
+    U->>RB: iac file history <路径>
+    RB-->>U: 该文件版本列表（每次执行一条：时间+命令+变化）
+    U->>RB: iac file restore <路径> --to <版本>
+    RB->>SS: 取该版本内容直接替换
+```
+
 ## 2. 主调用链
 
 以"用户意图到执行落库"为例（方法名以 _06 编号为准）：
@@ -138,7 +163,9 @@ sequenceDiagram
 | Session | id/title/cwd/shell/host/status/时间 | SQLite sessions | session |
 | SessionEvent | session_id/seq/kind/payload(JSON) | SQLite session_events | session |
 | Proposal | id/intent/command/explanation/risk/platform/status | SQLite proposals | intent |
-| ExecutionRecord | id/session_id/command/argv/cwd/actor/exit_code/输出摘要+落盘引用/risk/耗时/status/pre_snapshot_ref | SQLite executions | history |
+| ExecutionRecord | id/session_id/command/argv/cwd/actor/exit_code/输出摘要+落盘引用/risk/耗时/status/journal_ref | SQLite executions | history |
+| RollbackJournal | seq/execution_id/path/op(created\|modified\|deleted\|renamed)/before/after（内容寻址引用） | SQLite rollback_journal + 快照仓库 | rollback |
+| Snapshot（快照仓库） | 内容寻址对象（去重+压缩）+ manifest | `~/.local/share/iac/snapshots/` | rollback/snapstore |
 | AuditEntry | ts/actor/action/target/detail(JSON) | SQLite audit_log | history |
 | Recipe | id/title/description/command_template/tags/platform/risk/usage_count | SQLite recipes | recipe |
 | CommandKnowledge | command/platform/schema(JSON)/source_hash/verified | SQLite knowledge_cache | knowledge |
