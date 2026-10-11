@@ -103,15 +103,15 @@ $ rm -rf ./build/          ← dangerous/destructive：命令红字 + 行尾 ⚠
 （回车直接执行，不做强确认）
 ```
 
-### 翻译行（显示转换逻辑，AC-36）
+### 翻译行（转换逻辑统一灰阶，AC-36）
 
 ```text
-~~ls~~ → Get-ChildItem                                    非高危：回车直接执行
-~~rm -rf build~~ → Remove-Item -Recurse -Force build   ⚠   确认 y / 取消 n   高危：需确认
+ls → Get-ChildItem                                      非高危：回车直接执行
+rm -rf build → Remove-Item -Recurse -Force build   ⚠    确认 y / 取消 n   高危：需确认
 ```
 
-- 原命令删除线（ANSI SGR 9），终端不支持时降级为 `fg-25` 灰阶 + `→` 箭头表达转换。
-- 译文按命令行语法分层着色；差异说明 `e` 展开收起不变。
+- 原命令一律**灰阶弱化**（fg-25），`→` 衔接（fg-25），译文正常分层着色——不使用删除线，与"语法字符弱化"同一手法，零终端兼容负担。
+- 差异说明 `e` 展开收起不变。
 
 ### 弱提醒三件套（dangerous/destructive 激活，执行后消退）
 

@@ -316,8 +316,7 @@ pub struct ExecuteInput { pub command: Option<String>, pub proposal_id: Option<S
     pub confirm_dangerous: bool, pub timeout_ms: Option<u64> }
 pub struct GateInfo { pub level: RiskLevel, pub requires_confirm: bool, pub weak_warning: bool,
     pub conversion: Option<ConversionView> }   // 人类直输恒 weak_warning=true、requires_confirm=false；翻译高危/Agent 反之
-pub struct ConversionView { pub from_command: String, pub to_command: String,
-    pub strikethrough_supported: bool }        // 终端不支持删除线时前端降级灰阶+→
+pub struct ConversionView { pub from_command: String, pub to_command: String }   // 前端统一以灰阶弱化呈现原命令（AC-36）
 pub struct ExecutionOutcome { pub execution_id: String, pub exit_code: Option<i32>, pub status: ExecStatus,
     pub stdout_summary: Option<String>, pub stderr_summary: Option<String>, pub duration_ms: Option<u64>,
     pub diagnosis: Option<Diagnosis>, pub gate: GateInfo }
