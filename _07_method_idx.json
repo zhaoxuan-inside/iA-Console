@@ -1,9 +1,59 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T00:00:00+08:00",
-  "methods": [],
+  "updated_at": "2026-10-11T15:24:25+08:00",
+  "methods": [
+    {
+      "dependencies": [],
+      "tests": "infra/tests/config_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn load_config(input: &ConfigPath, output: &mut Config, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "load_config",
+      "category": "data",
+      "layer": "infra",
+      "module": "config",
+      "location": "infra/src/config.rs",
+      "description": "IF-006：加载配置（缺省路径解析/TOML 解析/env 覆盖/校验），缺失=首跑默认值，失败转译 IAC-5101/5103",
+      "reusable": true,
+      "id": "m-001"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/config_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn save_config(input: &Config, output: &mut ConfigWriteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "save_config",
+      "category": "data",
+      "layer": "infra",
+      "module": "config",
+      "location": "infra/src/config.rs",
+      "description": "IF-007：保存配置到平台缺省路径（原子写，密钥不落盘），失败转译 IAC-5101/5104",
+      "reusable": true,
+      "id": "m-002"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/config_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn save_config_to(path: &Path, input: &Config, output: &mut ConfigWriteAck, evolution: &mut Evolution) -> bool",
+      "name": "save_config_to",
+      "category": "data",
+      "layer": "infra",
+      "module": "config",
+      "location": "infra/src/config.rs",
+      "description": "写盘实现（save_config 的路径解析包装；测试可直调临时路径）",
+      "reusable": true,
+      "id": "m-003"
+    }
+  ],
   "stats": {
-    "total": 0,
-    "by_category": { "algorithm": 0, "orchestration": 0, "data": 0 }
+    "total": 3,
+    "by_category": {
+      "algorithm": 0,
+      "orchestration": 0,
+      "data": 3
+    }
   }
 }

@@ -335,6 +335,39 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-014",
+      "date": "2026-10-11",
+      "requirement": "REQ-MVP-IMPL：P7 编码（v1 M1~M6，任务卡 T-001 起，TDD 逐卡提交）",
+      "changed_files": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "core/Cargo.toml",
+        "core/src/lib.rs",
+        "infra/Cargo.toml",
+        "infra/src/lib.rs",
+        "iac/Cargo.toml",
+        "iac/src/main.rs",
+        "iacd/Cargo.toml",
+        "iacd/src/main.rs",
+        "core/src/types.rs",
+        "core/src/error.rs",
+        "core/src/framework.rs",
+        "core/src/config.rs",
+        "infra/src/config.rs",
+        "infra/tests/config_test.rs",
+        "_07_method_idx.json",
+        "_06_interface_design/01_external_api.md"
+      ],
+      "commits": [],
+      "changed_methods": [
+        "m-001",
+        "m-002",
+        "m-003"
+      ],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }

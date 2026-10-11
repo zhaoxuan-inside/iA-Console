@@ -169,6 +169,8 @@
 | IAC-4101 | 404 | 方案不存在 | 核对 recipe ID |
 | IAC-5101 | 400 | 配置无效 | 修正 config.toml（iac config path 定位） |
 | IAC-5102 | 401 | 缺少 API Key | 按文档设置 Provider 环境变量 |
+| IAC-5103 | 500 | 配置读取失败（IO） | 检查文件权限；修复后重试 |
+| IAC-5104 | 500 | 配置写入失败（IO） | 检查磁盘与目录权限 |
 | IAC-6101 | 503 | daemon 未运行 | `iac daemon start` |
 | IAC-6102 | 400 | 协议版本不匹配 | 升级 iac / iacd 至一致版本 |
 | IAC-6103 | 409 | daemon 已在运行 | 直接使用现有实例 |
