@@ -190,6 +190,9 @@ AC-28  WHEN 主题设置为 day/night/auto THE SYSTEM SHALL 应用对应配色�
 AC-29  (v2) WHEN 捕获范围内的命令执行完成且有文件变化 THE SYSTEM SHALL 生成文件级效果日志（op=created|modified|deleted|renamed，含前后像引用）并成为可选回滚点，全程无需按命令判断可逆性。
 AC-30  (v2) WHEN 用户执行 iac rollback [执行点\|时间] THE SYSTEM SHALL 逆序回放效果日志至目标位置（point-in-time）；iac file history <路径> 可查看该文件全部版本（对应各次执行）并恢复到任一版本（直接替换）。
 AC-31  (v2) WHEN 发生删除类回滚或快照回收 THE SYSTEM SHALL 删除效果先入回收站、按 retention（默认 7 天/1GB LRU）自动清理；回滚目标条目已被回收时明确报 IAC-1602 而非静默失败。
+AC-32  (v2) WHEN 回滚日志执行点数超过上限 THE SYSTEM SHALL 按配置自动清退最旧执行点（rollback.max_entries 默认 1024，可配置，上限 65536），与天数/容量策略并行生效。
+AC-33  (v2) WHEN 用户查看回滚列表 THE SYSTEM SHALL 以 history 风格展示每个执行点：行号(seq)、时间、当时命令、可回滚标识（可回滚/部分可回滚/不可回滚+原因）；并支持范围回放——回滚到指定行（其后全部逆序回放）、从指定行回滚到指定行（区间）、从指定行一直回滚到最远。
+AC-34  (v2) WHEN 逐行倒序回放遇到不可回滚条目（冲突/引用缺失/权限） THE SYSTEM SHALL 提示用户逐条决策是否跳过；--on-conflict <ask|skip|abort> 参数可改变策略（skip 即默认跳过），决策结果计入回滚报告。
 ```
 
 ## 8. 未决问题
