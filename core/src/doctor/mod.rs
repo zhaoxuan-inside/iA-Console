@@ -2,7 +2,7 @@
 
 pub mod handler;
 
-pub use handler::{build_failure_context, diagnose_failure, parse_diagnosis_response};
+pub use handler::{build_failure_context, diagnose_failure, parse_diagnosis_response, DiagnosePromptBundle};
 
 use serde::{Deserialize, Serialize};
 

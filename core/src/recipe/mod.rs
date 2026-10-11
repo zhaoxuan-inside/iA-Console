@@ -130,12 +130,31 @@ pub fn save_recipe(
     }
     let id = rows.text(0, "id").unwrap_or_default().to_string();
     let mut got = None;
-    if !get_recipe(&RecipeId { id: id.clone() }, &mut got, context, metrics, evolution) || got.is_none() {
+    if !read_recipe(&RecipeId { id: id.clone() }, &mut got, context, metrics, evolution) || got.is_none() {
         evolution.propagate("save_recipe", "回读方案失败");
         return false;
     }
     *output = got.unwrap();
     metrics.counter("recipe.saved", 1);
+    true
+}
+
+/// 无副作用读取（不累加使用计数；get_recipe 与 save_recipe 共用）。
+fn read_recipe(
+    input: &RecipeId,
+    output: &mut Option<Recipe>,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> bool {
+    evolution.succeed();
+    let q = SqlQuery { sql: format!("SELECT {COLS} FROM recipes WHERE id = ?1"), params: vec![input.id.as_str().into()] };
+    let mut rows = QueryRows::default();
+    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+        evolution.propagate("read_recipe", "查询方案失败");
+        return false;
+    }
+    *output = if rows.is_empty() { None } else { Some(recipe_from_row(&rows, 0)) };
     true
 }
 
@@ -185,17 +204,15 @@ pub fn get_recipe(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let q = SqlQuery { sql: format!("SELECT {COLS} FROM recipes WHERE id = ?1"), params: vec![input.id.as_str().into()] };
-    let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    let mut got = None;
+    if !read_recipe(input, &mut got, context, metrics, evolution) {
         evolution.propagate("get_recipe", "查询方案失败");
         return false;
     }
-    if rows.is_empty() {
+    let Some(mut recipe) = got else {
         *output = None;
         return true;
-    }
-    let mut recipe = recipe_from_row(&rows, 0);
+    };
     let up = SqlQuery {
         sql: "UPDATE recipes SET usage_count = usage_count + 1 WHERE id = ?1".into(),
         params: vec![input.id.as_str().into()],
@@ -204,6 +221,7 @@ pub fn get_recipe(
     let _ = context.deps.store.storage_execute(&up, &mut ack, context, metrics, evolution);
     recipe.usage_count += 1;
     *output = Some(recipe);
+    metrics.counter("recipe.read", 1);
     true
 }
 

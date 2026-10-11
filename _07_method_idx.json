@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T16:06:26+08:00",
+  "updated_at": "2026-10-11T16:08:46+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -522,14 +522,74 @@
       "description": "I-028：确认后执行（置提案 confirmed，confirm_dangerous=true）",
       "reusable": true,
       "id": "m-033"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/recipe_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn save_recipe(input: &RecipeInput, output: &mut Recipe, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "save_recipe",
+      "category": "data",
+      "layer": "domain",
+      "module": "recipe",
+      "location": "core/src/recipe/mod.rs",
+      "description": "I-012：保存方案（name 唯一约束；空标题/模板拒绝 IAC-4101）",
+      "reusable": true,
+      "id": "m-034"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/recipe_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn search_recipes(input: &RecipeFilter, output: &mut Vec<Recipe>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "search_recipes",
+      "category": "data",
+      "layer": "domain",
+      "module": "recipe",
+      "location": "core/src/recipe/mod.rs",
+      "description": "I-013：关键词/标签/平台检索（platform IN (?, all)）",
+      "reusable": true,
+      "id": "m-035"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/recipe_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn get_recipe(input: &RecipeId, output: &mut Option<Recipe>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "get_recipe",
+      "category": "data",
+      "layer": "domain",
+      "module": "recipe",
+      "location": "core/src/recipe/mod.rs",
+      "description": "I-014：取方案详情并累加使用计数",
+      "reusable": true,
+      "id": "m-036"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/recipe_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn delete_recipe(input: &RecipeId, output: &mut DeleteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "delete_recipe",
+      "category": "data",
+      "layer": "domain",
+      "module": "recipe",
+      "location": "core/src/recipe/mod.rs",
+      "description": "I-015：删除方案",
+      "reusable": true,
+      "id": "m-037"
     }
   ],
   "stats": {
-    "total": 33,
+    "total": 37,
     "by_category": {
       "algorithm": 2,
       "orchestration": 8,
-      "data": 23
+      "data": 27
     }
   }
 }
