@@ -3,7 +3,6 @@
 use super::ProposalDraft;
 use crate::framework::{Context, Evolution, Metrics};
 use crate::ports::LlmResponse;
-use crate::types::RiskLevel;
 use crate::knowledge::ParamSpec;
 use serde_json::Value;
 
@@ -29,18 +28,10 @@ pub fn parse_proposal_response(
         evolution.fail("IAC-1102", "提案缺少 command 字段");
         return false;
     }
-    let risk = match v["risk"].as_str().unwrap_or("caution") {
-        "safe" => RiskLevel::Safe,
-        "dangerous" => RiskLevel::Dangerous,
-        "destructive" => RiskLevel::Destructive,
-        _ => RiskLevel::Caution,
-    };
-    let _ = risk; // 草稿不带 risk：以 assess_risk 结果为准（闸门唯一依据）
-    let params = parse_params(&v);
     output.command = command;
     output.argv = shell_split(&output.command);
     output.explanation = super::ParamSpecDoc {
-        params,
+        params: parse_params(&v),
         impact: v["impact"].as_str().unwrap_or_default().to_string(),
         summary: v["summary"].as_str().unwrap_or_default().to_string(),
     };

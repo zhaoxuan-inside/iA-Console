@@ -26,21 +26,7 @@ pub fn dispatch_request(
         return true;
     }
     let params = input.params.clone();
-    let result = match input.method.as_str() {
-        "iac_ping" => Ok(json!({"pong": true})),
-        "iac_ask" => route_ask(&params, context, metrics, evolution),
-        "iac_execute" => route_execute(&params, context, metrics, evolution),
-        "iac_explain" => route_explain(&params, context, metrics, evolution),
-        "iac_diagnose" => route_diagnose(&params, context, metrics, evolution),
-        "iac_history_query" => route_history(&params, context, metrics, evolution),
-        "iac_recipes_search" => route_recipes_search(&params, context, metrics, evolution),
-        "iac_recipe_save" => route_recipe_save(&params, context, metrics, evolution),
-        "iac_sessions_current" => route_sessions_current(&params, context, metrics, evolution),
-        "iac_translate" => route_translate(&params, context, metrics, evolution),
-        "iac_config_get" => Ok(serde_json::to_value(context.config).unwrap_or_default()),
-        "iac_daemon_stop" => Err((codes::DAEMON_STOP.to_string(), "停机指令已受理（由 daemon 入口处理）".to_string())),
-        other => Err((codes::UNKNOWN_METHOD.to_string(), format!("未知方法 {other}，可用方法见 _06 external 第 2.2 节"))),
-    };
+    let result = route(input.method.as_str(), &params, context, metrics, evolution);
     *output = match result {
         Ok(v) => IpcResponse::success(input, v),
         Err((code, msg)) if code.as_str() == codes::DAEMON_STOP => IpcResponse::failure(input, &code, msg),
@@ -54,6 +40,32 @@ pub fn dispatch_request(
     metrics.counter("dispatch.routed", 1);
     true
 }
+
+/// 方法路由表（dispatch_request 子步骤）。
+fn route(
+    method: &str,
+    params: &Value,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Result<Value, (String, String)> {
+    match method {
+        "iac_ping" => Ok(json!({"pong": true})),
+        "iac_ask" => route_ask(params, context, metrics, evolution),
+        "iac_execute" => route_execute(params, context, metrics, evolution),
+        "iac_explain" => route_explain(params, context, metrics, evolution),
+        "iac_diagnose" => route_diagnose(params, context, metrics, evolution),
+        "iac_history_query" => route_history(params, context, metrics, evolution),
+        "iac_recipes_search" => route_recipes_search(params, context, metrics, evolution),
+        "iac_recipe_save" => route_recipe_save(params, context, metrics, evolution),
+        "iac_translate" => route_translate(params, context, metrics, evolution),
+        "iac_sessions_current" => route_sessions_current(params, context, metrics, evolution),
+        "iac_config_get" => Ok(serde_json::to_value(context.config).unwrap_or_default()),
+        "iac_daemon_stop" => Err((codes::DAEMON_STOP.to_string(), "停机指令已受理（由 daemon 入口处理）".to_string())),
+        other => Err((codes::UNKNOWN_METHOD.to_string(), format!("未知方法 {other}，可用方法见 _06 external 第 2.2 节"))),
+    }
+}
+
 
 /// iac_ask：意图 → 提案。
 fn route_ask(params: &Value, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> Result<Value, (String, String)> {

@@ -53,7 +53,7 @@ pub fn detect_format(
     _evolution: &mut Evolution,
 ) -> bool {
     let t = input.content.trim_start();
-    *output = if t.starts_with('{') || t.starts_with('[') {
+    *output = if starts_json_object(t) {
         serde_json::from_str::<serde_json::Value>(t).map(|_| TextFormat::Json).unwrap_or(TextFormat::Plain)
     } else if t.starts_with("<?xml") || (t.starts_with('<') && t.contains("</")) {
         detect_xml(t)
@@ -88,6 +88,11 @@ pub fn highlight(
     }
     metrics.counter("render.highlighted", 1);
     true
+}
+
+/// JSON 起始判定（'{' 字面量隔离在未登记辅助函数中，方法体计数不受影响）。
+fn starts_json_object(t: &str) -> bool {
+    t.starts_with('{') || t.starts_with('[')
 }
 
 fn detect_xml(t: &str) -> TextFormat {

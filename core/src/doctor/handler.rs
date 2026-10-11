@@ -60,8 +60,30 @@ pub fn parse_diagnosis_response(
             return false;
         }
     };
-    let evidence: Vec<String> = v["evidence"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
-    let fixes = v["fix_proposals"]
+    let evidence = extract_evidence(&v);
+    *output = Diagnosis {
+        root_cause: v["root_cause"].as_str().unwrap_or("未知根因").to_string(),
+        confidence: v["confidence"].as_f64().unwrap_or(0.5) as f32,
+        evidence,
+        fix_proposals: extract_fixes(&v),
+        rollback_note: "当前版本无自动回滚能力；高危操作请依赖回滚日志（v2）".into(),
+        speculation: false,
+    };
+    if output.evidence.is_empty() {
+        output.speculation = true;
+    }
+    metrics.counter("doctor.parsed", 1);
+    true
+}
+
+/// evidence 数组提取（全为字符串）。
+fn extract_evidence(v: &serde_json::Value) -> Vec<String> {
+    v["evidence"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default()
+}
+
+/// fix_proposals 数组提取。
+fn extract_fixes(v: &serde_json::Value) -> Vec<FixProposal> {
+    v["fix_proposals"]
         .as_array()
         .map(|a| {
             a.iter()
@@ -73,20 +95,7 @@ pub fn parse_diagnosis_response(
                 })
                 .collect()
         })
-        .unwrap_or_default();
-    *output = Diagnosis {
-        root_cause: v["root_cause"].as_str().unwrap_or("未知根因").to_string(),
-        confidence: v["confidence"].as_f64().unwrap_or(0.5) as f32,
-        evidence,
-        fix_proposals: fixes,
-        rollback_note: "当前版本无自动回滚能力；高危操作请依赖回滚日志（v2）".into(),
-        speculation: false,
-    };
-    if output.evidence.is_empty() {
-        output.speculation = true;
-    }
-    metrics.counter("doctor.parsed", 1);
-    true
+        .unwrap_or_default()
 }
 
 /// I-029：诊断编排（AC-03）：静态命中即返回；否则 LLM 证据链；AI 不可用降级静态并标注。
@@ -115,6 +124,17 @@ pub fn diagnose_failure(
         metrics.counter("doctor.static_hit", 1);
         return true;
     }
+    ai_diagnose(&bundle, context, metrics, evolution, output)
+}
+
+/// LLM 证据链诊断（diagnose_failure 子步骤）。
+fn ai_diagnose(
+    bundle: &DiagnosePromptBundle,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+    output: &mut Diagnosis,
+) -> bool {
     let provider = crate::intent::handler::default_provider(context.config);
     let ai_in = crate::ports::AiRequest {
         system: bundle.system.clone(),

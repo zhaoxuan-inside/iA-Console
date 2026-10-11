@@ -30,22 +30,8 @@ pub fn spawn_process(
     let t_out = std::thread::spawn(move || read_all(&mut out_pipe));
     let t_err = std::thread::spawn(move || read_all(&mut err_pipe));
     let deadline = start + Duration::from_millis(input.timeout_ms);
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(st)) => break Some(st),
-            Ok(None) if Instant::now() >= deadline => {
-                kill_tree(&mut child);
-                let _ = child.wait();
-                evolution.fail(codes::EXEC_TIMEOUT, format!("执行超时（>{}ms）已终止", input.timeout_ms));
-                metrics.counter("process.timeout", 1);
-                return false;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(20)),
-            Err(e) => {
-                evolution.fail(codes::EXEC_PLATFORM, format!("等待进程失败: {e}"));
-                return false;
-            }
-        }
+    let Some(status) = wait_status(&mut child, deadline, input.timeout_ms, metrics, evolution) else {
+        return false; // evolution 已写明超时/平台原因
     };
     output.exit_code = status.and_then(|s| s.code());
     output.stdout = t_out.join().unwrap_or_default();
@@ -54,6 +40,33 @@ pub fn spawn_process(
     output.shell_used = shell;
     metrics.counter("process.spawned", 1);
     true
+}
+
+/// 等待子进程：超时杀进程并返回 None（经 Err 信号），Err(e)=平台错误。
+fn wait_status(
+    child: &mut Child,
+    deadline: Instant,
+    timeout_ms: u64,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Option<Option<std::process::ExitStatus>> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(st)) => return Some(Some(st)),
+            Ok(None) if Instant::now() >= deadline => {
+                kill_tree(child);
+                let _ = child.wait();
+                evolution.fail(codes::EXEC_TIMEOUT, format!("执行超时（>{timeout_ms}ms）已终止"));
+                metrics.counter("process.timeout", 1);
+                return None;
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(20)),
+            Err(e) => {
+                evolution.fail(codes::EXEC_PLATFORM, format!("等待进程失败: {e}"));
+                return None;
+            }
+        }
+    }
 }
 
 /// 按平台选择 shell 并装配子进程：unix=sh -c；windows=powershell -Command。

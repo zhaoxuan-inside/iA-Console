@@ -19,9 +19,26 @@ iA-console 是一个**伴生智能内核**（daemon + CLI/TUI），不替换你�
 
 跨 Linux / macOS / Windows。AI 后端可插拔（OpenAI 兼容协议：GLM / OpenAI / DeepSeek / Ollama 等）。
 
+## 快速开始（v0.1.0，Linux/macOS）
+
+```bash
+cargo build --release
+./target/release/iacd --foreground        # 终端 1：守护进程
+./target/release/iac --json run "echo hello"   # 终端 2：闸门执行
+./target/release/iac history search hello --json
+./target/release/iac translate "Get-ChildItem" --from windows  # 方言翻译（零 AI）
+./target/release/iac mcp serve            # Agent 接入（MCP stdio）
+
+# 需要 AI 能力：配置 Provider 后
+iac config path                           # 找到 config.toml
+iac ask "找出最近7天修改的10个最大文件"
+```
+
 ## 状态
 
-设计阶段（P1~P6 已落盘，见 `_00_project_idx.json`），编码未开始。
+**v0.1.0 已实现**（P7 编码完成）：M1 基础设施 / M2 记录域 / M3 智能域 / M4 服务接入 / M5 翻译+modelhub / M6 体验件。v2 预排：执行回滚（M7 效果日志）与脚本工坊（M8）。
+
+架构与流程文档从 [`_00_project_idx.json`](_00_project_idx.json) 读起；120 项自动化测试（`cargo test --workspace`）。
 
 ## 文档入口
 

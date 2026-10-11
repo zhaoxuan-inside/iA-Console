@@ -7,6 +7,8 @@ use crate::ports::{QueryRows, SqlQuery, SqlValue};
 use crate::session::now_ms;
 use crate::session::RecordAck;
 
+const INSERT_EXEC: &str = "INSERT INTO executions (id, session_id, proposal_id, command, argv, cwd, shell, host, actor, exit_code, status, risk_level, stdout_summary, stderr_summary, stdout_ref, stderr_ref, started_at, duration_ms, journal_ref) VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18) RETURNING id";
+
 const COLS: &str = "id, session_id, proposal_id, command, argv, cwd, shell, host, actor, exit_code, \
                     status, risk_level, stdout_summary, stderr_summary, stdout_ref, stderr_ref, \
                     started_at, duration_ms, journal_ref";
@@ -20,31 +22,7 @@ pub fn record_execution(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let argv = serde_json::to_string(&input.argv).unwrap_or_else(|_| "[]".into());
-    let sql = "INSERT INTO executions (id, session_id, proposal_id, command, argv, cwd, shell, host, actor, exit_code, status, risk_level, stdout_summary, stderr_summary, stdout_ref, stderr_ref, started_at, duration_ms, journal_ref) VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18) RETURNING id";
-    let q = SqlQuery {
-        sql: sql.to_string(),
-        params: vec![
-            opt_text(input.session_id.as_deref()),
-            opt_text(input.proposal_id.as_deref()),
-            input.command.as_str().into(),
-            argv.as_str().into(),
-            input.cwd.as_str().into(),
-            input.shell.as_str().into(),
-            input.host.as_str().into(),
-            input.actor.as_str().into(),
-            opt_int(input.exit_code.map(|v| v as i64)),
-            status_text(&input.status).into(),
-            risk_text(&input.risk_level).into(),
-            opt_text(input.stdout_summary.as_deref()),
-            opt_text(input.stderr_summary.as_deref()),
-            opt_text(input.stdout_ref.as_deref()),
-            opt_text(input.stderr_ref.as_deref()),
-            input.started_at.into(),
-            opt_int(input.duration_ms.map(|v| v as i64)),
-            opt_text(input.journal_ref.as_deref()),
-        ],
-    };
+    let q = SqlQuery { sql: INSERT_EXEC.into(), params: record_params(input) };
     let mut rows = QueryRows::default();
     if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
         evolution.propagate("record_execution", "写入执行记录失败");
@@ -53,6 +31,31 @@ pub fn record_execution(
     output.id = rows.text(0, "id").unwrap_or_default().to_string();
     metrics.counter("history.recorded", 1);
     true
+}
+
+/// 执行记录 → INSERT 参数（record_execution 子步骤）。
+fn record_params(input: &ExecutionRecord) -> Vec<SqlValue> {
+    let argv = serde_json::to_string(&input.argv).unwrap_or_else(|_| "[]".into());
+    vec![
+        opt_text(input.session_id.as_deref()),
+        opt_text(input.proposal_id.as_deref()),
+        input.command.as_str().into(),
+        argv.as_str().into(),
+        input.cwd.as_str().into(),
+        input.shell.as_str().into(),
+        input.host.as_str().into(),
+        input.actor.as_str().into(),
+        opt_int(input.exit_code.map(|v| v as i64)),
+        status_text(&input.status).into(),
+        risk_text(&input.risk_level).into(),
+        opt_text(input.stdout_summary.as_deref()),
+        opt_text(input.stderr_summary.as_deref()),
+        opt_text(input.stdout_ref.as_deref()),
+        opt_text(input.stderr_ref.as_deref()),
+        input.started_at.into(),
+        opt_int(input.duration_ms.map(|v| v as i64)),
+        opt_text(input.journal_ref.as_deref()),
+    ]
 }
 
 /// I-010：取执行记录详情；不存在返回 None（业务"否"）。

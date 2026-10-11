@@ -58,22 +58,36 @@ pub fn local_engine_ensure(
         return false;
     }
     let start_port = input.preferred_port.unwrap_or(18080);
+    if let Some((_port, url)) = try_ports(&engine_path, &model, input.context_len, start_port, metrics) {
+        output.base_url = url;
+        output.pid = 0; // 引擎由注册表持有；pid 随 T-027 收尾补齐
+        output.model = model.display().to_string();
+        return true;
+    }
+    evolution.fail("IAC-1403", "本地引擎启动失败（端口尝试 10 次均未就绪）");
+    false
+}
+
+/// 端口扫描启动（local_engine_ensure 子步骤）：返回 (端口, base_url)。
+fn try_ports(
+    engine_path: &PathBuf,
+    model: &PathBuf,
+    context_len: u32,
+    start_port: u16,
+    metrics: &mut Metrics,
+) -> Option<(u16, String)> {
     for port in start_port..start_port + 10 {
         if !port_free(port) {
             continue;
         }
-        let started = spawn_engine(&engine_path, &model, input.context_len, port)
+        let started = spawn_engine(engine_path, model, context_len, port)
             && wait_healthy(port, Duration::from_secs(3));
         if started {
             metrics.counter("local_engine.started", 1);
-            output.base_url = format!("http://127.0.0.1:{port}");
-            output.pid = 0; // 引擎由注册表持有；pid 随 T-027 收尾补齐
-            output.model = model.display().to_string();
-            return true;
+            return Some((port, format!("http://127.0.0.1:{port}")));
         }
     }
-    evolution.fail("IAC-1403", "本地引擎启动失败（端口尝试 10 次均未就绪）");
-    false
+    None
 }
 
 /// 端口空闲检测。

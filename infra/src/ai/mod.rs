@@ -42,31 +42,41 @@ pub fn ai_complete(
         _ => openai_payload(provider, input, &key),
     };
     metrics.counter("ai.calls", 1);
-    let resp = client.post(&url).json(&body).headers(headers).send();
+    let Some((content, model)) = send_and_parse(&client, &url, body, headers, provider.kind, evolution) else {
+        return false; // evolution 已写明原因
+    };
+    output.text = content;
+    output.model = model;
+    true
+}
+
+/// HTTP 收发与响应解析（ai_complete 子步骤；失败经 evolution 返回 None）。
+fn send_and_parse(
+    client: &Client,
+    url: &str,
+    body: Value,
+    headers: reqwest::header::HeaderMap,
+    kind: ProviderKind,
+    evolution: &mut Evolution,
+) -> Option<(String, String)> {
+    let resp = client.post(url).json(&body).headers(headers).send();
     let resp = match resp {
         Ok(r) => r,
         Err(e) => {
             evolution.fail(codes::AI_UNAVAILABLE, format!("AI 后端不可达: {e}"));
-            return false;
+            return None;
         }
     };
     let status = resp.status();
     let text = resp.text().unwrap_or_default();
     if !status.is_success() {
         evolution.fail(codes::AI_UNAVAILABLE, format!("AI 后端返回 {status}: {}", truncate(&text, 300)));
-        return false;
+        return None;
     }
-    match parse_text(&text, provider.kind) {
-        Some((content, model)) => {
-            output.text = content;
-            output.model = model;
-            true
-        }
-        None => {
-            evolution.fail(codes::AI_UNAVAILABLE, format!("响应解析失败: {}", truncate(&text, 300)));
-            false
-        }
-    }
+    parse_text(&text, kind).or_else(|| {
+        evolution.fail(codes::AI_UNAVAILABLE, format!("响应解析失败: {}", truncate(&text, 300)));
+        None
+    })
 }
 
 /// 密钥只从环境变量读取，永不落盘/入日志。

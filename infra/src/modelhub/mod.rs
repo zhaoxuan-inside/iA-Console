@@ -77,12 +77,8 @@ pub fn modelhub_install(
     evolution.succeed();
     let start = Instant::now();
     let base = input.base_url.clone().unwrap_or_else(|| input.source.default_base().to_string());
-    let client = match reqwest::blocking::Client::builder().timeout(Duration::from_secs(60)).build() {
-        Ok(c) => c,
-        Err(e) => {
-            evolution.fail("IAC-1402", format!("HTTP 客户端构建失败: {e}"));
-            return false;
-        }
+    let Some(client) = build_client(evolution) else {
+        return false; // evolution 已写明 IAC-1402
     };
     // 1) 清单
     let manifest = match fetch_manifest(&client, &manifest_url(&base, &input.plugin_id)) {
@@ -95,31 +91,12 @@ pub fn modelhub_install(
     // 2) 安装目录
     let dir = input.install_dir.clone().unwrap_or_else(default_plugins_dir).join(&input.plugin_id);
     // 3) 逐文件下载校验
-    let mut files = Vec::new();
-    let mut total: u64 = 0;
-    for (path, sha, size) in &manifest.files {
-        let dest = dir.join(path);
-        match download_verify(&client, &file_url(&base, &input.plugin_id, path), &dest, sha) {
-            Ok(bytes) => {
-                files.push((path.clone(), bytes));
-                total += bytes;
-            }
-            Err(e) => {
-                evolution.fail("IAC-1402", format!("文件 {path} 下载校验失败: {e}"));
-                return false;
-            }
-        }
-        let _ = size;
-    }
+    let Some((files, total)) = install_files(&client, &base, &input.plugin_id, &dir, &manifest, evolution) else {
+        return false; // evolution 已写明 IAC-1402
+    };
     // 4) 注册
-    let install_dir = dir.clone();
-    let manifest_name = manifest.name.clone();
-    let manifest_engine = manifest.engine.clone();
-    let manifest_model = manifest.model.clone();
-    let files_json = serde_json::to_string(&manifest.files.iter().map(|(p, s, sz)| serde_json::json!({"path": p, "sha256": s, "size": sz})).collect::<Vec<_>>()).unwrap_or_default();
-    let _ = install_dir;
     let mut reg_evo = Evolution::default();
-    if !register_plugin(input, &manifest_name, &manifest_engine, &manifest_model, &files_json, total, context, metrics, &mut reg_evo) {
+    if !register_plugin(input, &manifest.name, &manifest.engine, &manifest.model, &files_json(&manifest), total, context, metrics, &mut reg_evo) {
         evolution.fail("IAC-3102", format!("插件注册失败: {}", reg_evo.reason.unwrap_or_default()));
         return false;
     }
@@ -150,6 +127,43 @@ pub fn modelhub_list(
     }
     metrics.counter("modelhub.listed", output.len() as u64);
     true
+}
+
+/// HTTP 客户端构建（modelhub_install 子步骤）。
+fn build_client(evolution: &mut Evolution) -> Option<reqwest::blocking::Client> {
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|e| evolution.fail("IAC-1402", format!("HTTP 客户端构建失败: {e}")))
+        .ok()
+}
+
+/// 清单 files → JSON 字符串（注册行用）。
+fn files_json(manifest: &Manifest) -> String {
+    serde_json::to_string(&manifest.files.iter().map(|(p, s, sz)| serde_json::json!({"path": p, "sha256": s, "size": sz})).collect::<Vec<_>>()).unwrap_or_default()
+}
+
+/// 逐文件下载校验（modelhub_install 子步骤）；失败返回 None。
+fn install_files(
+    client: &reqwest::blocking::Client,
+    base: &str,
+    plugin_id: &str,
+    dir: &std::path::Path,
+    manifest: &Manifest,
+    evolution: &mut Evolution,
+) -> Option<(Vec<(String, u64)>, u64)> {
+    let mut files = Vec::new();
+    let mut total: u64 = 0;
+    for (path, sha, _size) in &manifest.files {
+        let dest = dir.join(path);
+        let Ok(bytes) = download_verify(client, &file_url(base, plugin_id, path), &dest, sha) else {
+            evolution.fail("IAC-1402", format!("文件 {path} 下载校验失败"));
+            return None;
+        };
+        files.push((path.clone(), bytes));
+        total += bytes;
+    }
+    Some((files, total))
 }
 
 fn fetch_manifest(client: &reqwest::blocking::Client, url: &str) -> Result<Manifest, String> {

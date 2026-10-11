@@ -20,12 +20,8 @@
     {
       "term": "守护进程",
       "code_name": "daemon",
-      "definition": "常驻后台的智能内核进程 iacd，提供 IPC/MCP 服务，承载全部业务能力；前端与 Agent 都是它的客户端",
-      "aliases": [
-        "iacd",
-        "后台服务",
-        "内核"
-      ],
+      "definition": "常驻后台的智能内核进程 iacd，提供 IPC/MCP 服务，承载全部业务能力；前端与 Agent 都是它的客户端（二进制名 iacd； narrative 同义词已从禁用表移除——iacd 是官方二进制名）",
+      "aliases": [],
       "domain": "全局",
       "related_terms": [
         "前端",
@@ -37,10 +33,7 @@
       "term": "前端",
       "code_name": "frontend",
       "definition": "与用户交互的 iac 可执行程序，含 CLI 子命令与 TUI 界面两种形态，均经 IPC 调用 daemon",
-      "aliases": [
-        "客户端",
-        "iac"
-      ],
+      "aliases": [],
       "domain": "全局",
       "related_terms": [
         "守护进程",
@@ -52,9 +45,7 @@
       "term": "会话",
       "code_name": "Session",
       "definition": "一次连续工作上下文的容器：命令记录、提案、AI 对话、备注按序组成的会话事件流，可持久化与恢复",
-      "aliases": [
-        "工作区"
-      ],
+      "aliases": [],
       "domain": "会话",
       "related_terms": [
         "会话事件",
@@ -91,7 +82,6 @@
       "code_name": "Proposal",
       "definition": "系统为意图生成的结构化命令建议：完整命令、逐参数白话解释、风险等级、影响面说明、平台，状态 proposed|confirmed|executed|rejected",
       "aliases": [
-        "命令建议",
         "计划"
       ],
       "domain": "智能",
@@ -105,9 +95,7 @@
       "term": "执行记录",
       "code_name": "ExecutionRecord",
       "definition": "一次命令执行的全量留痕：命令、argv、cwd、shell、host、发起方、退出码、输出摘要、风险等级、起止时间与会话归属",
-      "aliases": [
-        "历史记录"
-      ],
+      "aliases": [],
       "domain": "记录",
       "related_terms": [
         "会话",
@@ -119,9 +107,7 @@
       "term": "审计条目",
       "code_name": "AuditEntry",
       "definition": "追加式审计日志的一条：时间、发起方（human|agent:<client>|system）、动作、目标、明细 JSON，与执行记录互补记录非执行类操作",
-      "aliases": [
-        "审计日志"
-      ],
+      "aliases": [],
       "domain": "记录",
       "related_terms": [
         "执行记录"
@@ -134,7 +120,6 @@
       "definition": "用户显式收藏的命令/脚本模板：标题、描述、命令模板、标签、平台、风险等级、使用计数，可检索可导出",
       "aliases": [
         "命令收藏",
-        "片段",
         "snippet"
       ],
       "domain": "记录",
@@ -194,9 +179,7 @@
       "term": "风险闸门",
       "code_name": "risk_gate",
       "definition": "执行前的强制检查点：按风险评估结果决定放行、要求确认或拒绝；人类与 Agent 执行一律经过",
-      "aliases": [
-        "执行闸门"
-      ],
+      "aliases": [],
       "domain": "风险",
       "related_terms": [
         "风险评估"
@@ -207,9 +190,7 @@
       "term": "错误诊断",
       "code_name": "Diagnosis",
       "definition": "对失败执行的结构化分析：根因假设（须引用 stderr 证据）、置信度、修复提案列表",
-      "aliases": [
-        "诊断报告"
-      ],
+      "aliases": [],
       "domain": "智能",
       "related_terms": [
         "修复提案"
@@ -232,9 +213,7 @@
       "term": "进程间通信",
       "code_name": "ipc",
       "definition": "前端/本地客户端与 daemon 的通信通道：Unix domain socket / Windows named pipe，JSONL 信封协议",
-      "aliases": [
-        "IPC"
-      ],
+      "aliases": [],
       "domain": "接入",
       "related_terms": [
         "模型上下文协议"
@@ -245,10 +224,7 @@
       "term": "模型上下文协议",
       "code_name": "mcp",
       "definition": "面向外部 Agent 的标准工具协议，iA-console 以 stdio MCP Server 暴露 iac_ 前缀工具集",
-      "aliases": [
-        "MCP",
-        "Agent接口"
-      ],
+      "aliases": [],
       "domain": "接入",
       "related_terms": [
         "进程间通信"
@@ -260,8 +236,7 @@
       "code_name": "AiProvider",
       "definition": "一个可调用的 LLM 服务配置档案：名称、base_url、模型、鉴权来源；走 OpenAI 兼容协议，可插拔切换",
       "aliases": [
-        "AI后端",
-        "供应商"
+        "AI后端"
       ],
       "domain": "智能",
       "related_terms": [
@@ -315,7 +290,6 @@
       "code_name": "CommandTranslation",
       "definition": "把习惯方言命令映射为主机平台等价命令：静态映射表优先（零 AI 成本），未命中 AI 兜底并回写缓存；结果以提案呈现，不静默执行",
       "aliases": [
-        "方言翻译",
         "命令转换"
       ],
       "domain": "翻译",
@@ -357,8 +331,7 @@
       "code_name": "LocalEngine",
       "definition": "modelhub 安装的 llama-server 子进程，提供 OpenAI 兼容本地端点，注册为 Provider 档案 local-builtin，对 core 与云后端无差别",
       "aliases": [
-        "内置引擎",
-        "local-builtin"
+        "内置引擎"
       ],
       "domain": "智能",
       "related_terms": [
@@ -385,7 +358,6 @@
       "code_name": "CompositionTranslation",
       "definition": "无法一对一映射时由 AI 规划命令组合并生成平台化脚本：确认后存方案库（kind=script）并登记进翻译映射（kind=composition），此后静态命中零 AI 成本",
       "aliases": [
-        "组合规划",
         "脚本翻译"
       ],
       "domain": "翻译",
@@ -400,7 +372,6 @@
       "code_name": "InputMarker",
       "definition": "仅在 iA 输入框解析的用户标记集：??（AI 唤起）/(管理命令)/---（任务分隔）/#（备注）/\\（转义字面），不改变 shell 语义",
       "aliases": [
-        "标记语言",
         "魔法前缀"
       ],
       "domain": "接入",
@@ -414,7 +385,6 @@
       "code_name": "Theme",
       "definition": "TUI 配色令牌表（10 个语义令牌），模式 day/night/auto（auto 跟随终端背景），真彩优先并向 256/16 色优雅降级",
       "aliases": [
-        "配色",
         "皮肤"
       ],
       "domain": "体验",
@@ -428,7 +398,6 @@
       "code_name": "RollbackJournal",
       "definition": "按全局单调 seq 记录每次执行的文件级效果（op=created|modified|deleted|renamed，含前后像引用），回滚=逆序回放到任意执行点；不逐命令判断可逆性",
       "aliases": [
-        "效果日志",
         "操作日志"
       ],
       "domain": "回滚",
@@ -482,8 +451,7 @@
       "code_name": "RollbackPointView",
       "definition": "回滚日志的 history 式聚合视图：行号 seq、时间、当时命令、效果条数、可回滚标识（full 可回滚/partial 部分可回滚/none 不可回滚+原因）；范围回放（--to/--from）以此行号为定位",
       "aliases": [
-        "回滚行",
-        "执行点"
+        "回滚行"
       ],
       "domain": "回滚",
       "related_terms": [
@@ -495,9 +463,7 @@
       "term": "复制三档",
       "code_name": "CopyScope",
       "definition": "剪贴板复制的三种语义档位：command（仅当前命令原文）/translated（仅翻译后命令原文）——两者纯净无行号警告等非命令信息；all（焦点对象完整可见快照，去色码）。通道为 OSC 52",
-      "aliases": [
-        "复制档位"
-      ],
+      "aliases": [],
       "domain": "体验",
       "related_terms": [
         "命令翻译",
@@ -510,7 +476,6 @@
       "code_name": "ScriptMaker",
       "definition": "把用户指定的命令范围（--- 任务段或行号区间）制作为 shell / PowerShell·bat 脚本的功能：默认确定性拼接零 AI，AI 精修显式触发 diff 确认；命名注册为方案库脚本资产后变成一个命令（iac run @名）",
       "aliases": [
-        "脚本制作",
         "编排工坊"
       ],
       "domain": "编排",
@@ -538,10 +503,7 @@
       "term": "结构化渲染",
       "code_name": "StructuredRender",
       "definition": "对命令输出/AI 回答/代码块的格式自动检测（解析验证非猜测）与克制高亮：JSON/YAML/XML/Markdown 完整支持，代码语言集配置化（默认 python/shell/bat），语法令牌进 day/night 双主题；检测失败一律纯文本不破坏原文",
-      "aliases": [
-        "语法高亮",
-        "格式美化"
-      ],
+      "aliases": [],
       "domain": "体验",
       "related_terms": [
         "主题",

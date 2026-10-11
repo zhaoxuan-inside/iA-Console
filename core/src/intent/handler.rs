@@ -27,60 +27,127 @@ pub fn handle_ask(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    if input.intent.trim().is_empty() || input.intent.chars().count() > 2000 {
-        evolution.fail("IAC-1103", "意图为空或超过 2000 字符");
+    if !validate_intent(input, evolution) {
         return false;
     }
     let platform = input.platform.unwrap_or_else(Platform::detect);
     let mut session = empty_session();
+    if !ensure_ask_session(input, &mut session, context, metrics, evolution) {
+        return false; // evolution 已写明
+    }
+    let knowledge = lookup_for_ask(input, platform, context, metrics, evolution);
+    let Some(draft) = generate_checked_draft(input, platform, knowledge.as_ref(), context, metrics, evolution) else {
+        evolution.propagate("handle_ask", "生成提案失败");
+        return false;
+    };
+    let risk_level = match assess_and_level(&draft, input, context, metrics, evolution) {
+        Some(l) => l,
+        None => {
+            evolution.propagate("handle_ask", "风险评估失败");
+            return false;
+        }
+    };
+    let mut proposal = assemble_proposal(input, &session.id, &draft, risk_level, knowledge.is_some(), platform);
+    persist_proposal(&mut proposal, &session.id, context, metrics, evolution);
+    *output = proposal;
+    true
+}
+
+/// 提案落库+会话事件（handle_ask 子步骤；事件失败不阻断）。
+fn persist_proposal(proposal: &mut Proposal, session_id: &str, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) {
+    if !save_proposal(proposal, context, metrics, evolution) {
+        evolution.propagate("handle_ask", "保存提案失败");
+        return;
+    }
+    append_proposal_event(session_id, proposal, context, metrics, evolution);
+    metrics.counter("ask.completed", 1);
+}
+
+/// 风险评估到等级（handle_ask 子步骤）。
+fn assess_and_level(
+    draft: &ProposalDraft,
+    input: &AskInput,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Option<crate::types::RiskLevel> {
+    let mut risk = RiskAssessment::default();
+    let risk_in = RiskInput { command: draft.command.clone(), cwd: input.cwd.clone() };
+    assess_risk(&risk_in, &mut risk, context, metrics, evolution).then_some(risk.level)
+}
+
+/// 意图校验（IAC-1103）。
+fn validate_intent(input: &AskInput, evolution: &mut Evolution) -> bool {
+    let ok = !input.intent.trim().is_empty() && input.intent.chars().count() <= 2000;
+    if !ok {
+        evolution.fail("IAC-1103", "意图为空或超过 2000 字符");
+    }
+    ok
+}
+
+/// 会话就绪（handle_ask 子步骤）：取/建当前会话。
+fn ensure_ask_session(
+    input: &AskInput,
+    session: &mut SessionInfo,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> bool {
     let sess_in = CurrentSessionInput {
         cwd: input.cwd.clone().unwrap_or_else(|| ".".into()),
         shell: "sh".into(),
         host: LOCAL_HOST.into(),
     };
-    if !get_or_create_current(&sess_in, &mut session, context, metrics, evolution) {
+    if !get_or_create_current(&sess_in, session, context, metrics, evolution) {
         evolution.propagate("handle_ask", "取当前会话失败");
         return false;
     }
-    let knowledge = lookup_for_ask(input, platform, context, metrics, evolution);
+    true
+}
+
+/// 生成并校验草稿（handle_ask 子步骤）：AI 生成 + grounding 参数拒绝。
+fn generate_checked_draft(
+    input: &AskInput,
+    platform: Platform,
+    knowledge: Option<&crate::knowledge::CommandKnowledge>,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Option<ProposalDraft> {
     let provider = default_provider(context.config);
-    let Some(draft) = generate_draft(input, platform, knowledge.as_ref(), &provider, context, metrics, evolution) else {
-        evolution.propagate("handle_ask", "生成提案失败");
-        return false;
-    };
-    if let Some(k) = &knowledge {
+    let draft = generate_draft(input, platform, knowledge, &provider, context, metrics, evolution)?;
+    if let Some(k) = knowledge {
         if violates_known_params(&draft, k) {
             evolution.fail("IAC-1102", "提案包含知识库未注册的参数（grounding 拒绝）");
-            return false;
+            return None;
         }
     }
-    let mut risk = RiskAssessment::default();
-    let risk_in = RiskInput { command: draft.command.clone(), cwd: input.cwd.clone() };
-    if !assess_risk(&risk_in, &mut risk, context, metrics, evolution) {
-        evolution.propagate("handle_ask", "风险评估失败");
-        return false;
-    }
-    let mut proposal = Proposal {
+    Some(draft)
+}
+
+
+/// 提案组装（handle_ask 子步骤）。
+fn assemble_proposal(
+    input: &AskInput,
+    session_id: &str,
+    draft: &ProposalDraft,
+    risk_level: crate::types::RiskLevel,
+    verified: bool,
+    platform: Platform,
+) -> Proposal {
+    Proposal {
         id: String::new(),
-        session_id: session.id.clone(),
+        session_id: session_id.to_string(),
         intent_text: input.intent.clone(),
         command: draft.command.clone(),
         argv: draft.argv.clone(),
         explanation: draft.explanation.clone(),
-        risk_level: risk.level,
+        risk_level,
         platform,
-        verified: knowledge.is_some(),
+        verified,
         status: ProposalStatus::Proposed,
         created_at: 0,
-    };
-    if !save_proposal(&mut proposal, context, metrics, evolution) {
-        evolution.propagate("handle_ask", "保存提案失败");
-        return false;
     }
-    append_proposal_event(&session.id, &proposal, context, metrics, evolution);
-    *output = proposal;
-    metrics.counter("ask.completed", 1);
-    true
 }
 
 /// I-026：参数解释（AC-02）：知识命中 → 文档；未命中 → `--help` 解析 → AI 补全，均回写缓存。
@@ -102,7 +169,25 @@ pub fn handle_explain(
     if let Some(k) = cached {
         return build_explain_doc(&k, output, context, metrics, evolution);
     }
-    // 未命中：执行 `<命令> --help` 抓取文本
+    let Some(knowledge) = knowledge_from_help(input, platform, context, metrics, evolution) else {
+        return ai_explain_fallback(input, platform, context, metrics, evolution, output);
+    };
+    let mut ack = crate::knowledge::KnowledgeAck::default();
+    if !cache_knowledge(&knowledge, &mut ack, context, metrics, evolution) {
+        evolution.propagate("handle_explain", "写缓存失败");
+        return false;
+    }
+    build_explain_doc(&knowledge, output, context, metrics, evolution)
+}
+
+/// `--help` 抓取与解析（handle_explain 子步骤）：解析失败返回 None（转 AI 兜底）。
+fn knowledge_from_help(
+    input: &ExplainInput,
+    platform: Platform,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Option<crate::knowledge::CommandKnowledge> {
     let spec = ProcessSpec {
         command: format!("{} --help", input.command),
         cwd: None,
@@ -114,7 +199,7 @@ pub fn handle_explain(
         || result.exit_code != Some(0)
     {
         evolution.fail("IAC-1104", format!("命令 {} 无法解释（--help 不可得）", input.command));
-        return false;
+        return None;
     }
     let help = crate::common::help_parser::HelpText {
         command: input.command.clone(),
@@ -129,15 +214,7 @@ pub fn handle_explain(
         source_hash: String::new(),
         verified: false,
     };
-    if !crate::common::help_parser::parse_help_text(&help, &mut knowledge, context, metrics, evolution) {
-        return ai_explain_fallback(input, platform, context, metrics, evolution, output);
-    }
-    let mut ack = crate::knowledge::KnowledgeAck::default();
-    if !cache_knowledge(&knowledge, &mut ack, context, metrics, evolution) {
-        evolution.propagate("handle_explain", "写缓存失败");
-        return false;
-    }
-    build_explain_doc(&knowledge, output, context, metrics, evolution)
+    crate::common::help_parser::parse_help_text(&help, &mut knowledge, context, metrics, evolution).then_some(knowledge)
 }
 
 /// I-007：命令知识 → 参数文档（data）。

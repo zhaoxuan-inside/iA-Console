@@ -34,36 +34,64 @@ pub fn handle_execute(
     let gate = gate_decision(&risk, input, context);
     let mut record = build_record(input, &command, &risk, context);
     if gate.requires_confirm && !input.confirm_dangerous {
-        record.status = ExecStatus::Rejected;
-        record.id = persist(&record, context, metrics, evolution).unwrap_or_default();
-        *output = outcome(&record, &gate, None);
-        evolution.fail("IAC-2105", format!("高危命令需确认：{}", risk.impact));
-        evolution.ok = true; // 业务结果：rejected 属正常分支，错误码供信封层参考
-        return true;
+        return reject_and_record(&mut record, &gate, output, &risk, context, metrics, evolution);
     }
+    run_and_record(command, input, &mut record, &gate, output, context, metrics, evolution)
+}
+
+/// 拒绝分支：高危未确认 → rejected 留痕（业务结果 true，IAC-2105 供信封参考）。
+fn reject_and_record(
+    record: &mut ExecutionRecord,
+    gate: &GateInfo,
+    output: &mut ExecutionOutcome,
+    risk: &RiskAssessment,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> bool {
+    record.status = ExecStatus::Rejected;
+    record.id = persist(record, context, metrics, evolution).unwrap_or_default();
+    *output = outcome(record, gate, None);
+    evolution.fail("IAC-2105", format!("高危命令需确认：{}", risk.impact));
+    evolution.ok = true; // 业务结果：rejected 属正常分支
+    true
+}
+
+/// 执行分支：进程 → 摘要截断 → 留账 → 失败转诊断。
+#[allow(clippy::too_many_arguments)]
+fn run_and_record(
+    command: String,
+    input: &ExecuteInput,
+    record: &mut ExecutionRecord,
+    gate: &GateInfo,
+    output: &mut ExecutionOutcome,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> bool {
     let timeout = input.timeout_ms.unwrap_or(context.config.exec.timeout_ms);
     let spec = ProcessSpec { command, cwd: None, env: vec![], timeout_ms: timeout };
     let mut result = ProcessResult::default();
     if !context.deps.process.spawn_process(&spec, &mut result, context, metrics, evolution) {
         record.status = if evolution.reason_code.as_deref() == Some("IAC-2103") { ExecStatus::Timeout } else { ExecStatus::Failed };
-        record.id = persist(&record, context, metrics, evolution).unwrap_or_default();
-        *output = outcome(&record, &gate, None);
+        record.id = persist(record, context, metrics, evolution).unwrap_or_default();
+        *output = outcome(record, gate, None);
         evolution.ok = true;
         return true;
     }
     record.exit_code = result.exit_code;
     record.duration_ms = Some(result.duration_ms);
     record.stdout_summary = Some(truncate(&result.stdout, context.config.exec.stdout_summary_max));
-    record.stderr_summary = Some(truncate(&result.stderr, context.config.exec.stderr_summary_max.max(context.config.exec.stdout_summary_max)));
+    record.stderr_summary = Some(truncate(&result.stderr, context.config.exec.stderr_summary_max));
     record.status = if result.exit_code == Some(0) { ExecStatus::Ok } else { ExecStatus::Failed };
-    record.id = persist(&record, context, metrics, evolution).unwrap_or_default();
+    record.id = persist(record, context, metrics, evolution).unwrap_or_default();
     metrics.counter("executed", 1);
     let diagnosis = if record.status == ExecStatus::Failed {
-        run_diagnosis(&record, context, metrics, evolution)
+        run_diagnosis(record, context, metrics, evolution)
     } else {
         None
     };
-    *output = outcome(&record, &gate, diagnosis);
+    *output = outcome(record, gate, diagnosis);
     true
 }
 

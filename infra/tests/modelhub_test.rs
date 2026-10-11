@@ -124,7 +124,7 @@ fn local_engine_starts_and_reports_handle() {
     let engine = dir.join("fake-engine.py");
     std::fs::write(
         &engine,
-        "#!/usr/bin/env python3\nimport sys, http.server\nport = int(sys.argv[sys.argv.index('--port') + 1])\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.send_header('Content-Length', '2')\n        self.end_headers()\n        self.wfile.write(b'ok')\n    def log_message(self, *a):\n        pass\nhttp.server.HTTPServer(('127.0.0.1', port), H).serve_forever()\n",
+        "#!/usr/bin/env python3\nimport sys, http.server\nport = int(sys.argv[sys.argv.index('--port') + 1])\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.send_header('Content-Length', '2')\n        self.end_headers()\n        self.wfile.write(b'ok')\n    def log_message(self, *a):\n        pass\nserver = http.server.HTTPServer(('127.0.0.1', port), H)\nimport threading\nthreading.Timer(3.0, server.shutdown).start()\nserver.serve_forever()\n",
     )
     .expect("engine script");
     #[cfg(unix)]

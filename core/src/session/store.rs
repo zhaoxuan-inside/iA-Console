@@ -59,7 +59,7 @@ pub fn append_session_event(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let now = now_ms();
+
     let mut rows = QueryRows::default();
     let seq_q = SqlQuery {
         sql: "SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM session_events WHERE session_id = ?1".into(),
@@ -70,6 +70,24 @@ pub fn append_session_event(
         return false;
     }
     let seq = rows.int(0, "next_seq").unwrap_or(1);
+    if !insert_event(input, seq, context, metrics, evolution, output) {
+        return false;
+    }
+    touch_session(&input.session_id, context, metrics, evolution);
+    metrics.counter("session.event_appended", 1);
+    true
+}
+
+/// 事件插入（append_session_event 子步骤）。
+fn insert_event(
+    input: &SessionEventInput,
+    seq: i64,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+    output: &mut RecordAck,
+) -> bool {
+    let now = now_ms();
     let insert = "INSERT INTO session_events (id, session_id, seq, kind, payload, created_at) \
                   VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, ?5) RETURNING id";
     let q = SqlQuery {
@@ -87,9 +105,7 @@ pub fn append_session_event(
         evolution.propagate("append_session_event", "写入事件失败");
         return false;
     }
-    touch_session(&input.session_id, context, metrics, evolution);
     output.id = ack_rows.text(0, "id").unwrap_or_default().to_string();
-    metrics.counter("session.event_appended", 1);
     true
 }
 
@@ -116,25 +132,43 @@ pub fn load_session(
         return true;
     }
     let mut info = session_from_row(&rows, 0);
+    match load_events(&input.id, context, metrics, evolution, &mut info.status) {
+        Ok(events) => {
+            info.events = events;
+            *output = Some(info);
+            true
+        }
+        Err(()) => false,
+    }
+}
+
+/// 事件流载入（load_session 子步骤）：损坏 payload 跳过并标 corrupted。
+/// 返回 Err(()) 表示存储故障（evolution 已写）；Ok((events, corrupted)) 为查询成功。
+fn load_events(
+    session_id: &str,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+    status: &mut String,
+) -> Result<Vec<SessionEvent>, ()> {
     let mut ev_rows = QueryRows::default();
     let eq = SqlQuery {
         sql: "SELECT id, seq, kind, payload, created_at FROM session_events WHERE session_id = ?1 ORDER BY seq".into(),
-        params: vec![input.id.as_str().into()],
+        params: vec![session_id.into()],
     };
     if !context.deps.store.storage_query(&eq, &mut ev_rows, context, metrics, evolution) {
         evolution.propagate("load_session", "查询事件流失败");
-        return false;
+        return Err(());
     }
     let mut corrupted = false;
-    info.events = (0..ev_rows.len())
-        .filter_map(|i| event_from_row(&ev_rows, i, &input.id, &mut corrupted))
+    let events: Vec<SessionEvent> = (0..ev_rows.len())
+        .filter_map(|i| event_from_row(&ev_rows, i, session_id, &mut corrupted))
         .collect();
     if corrupted {
-        info.status = "corrupted".into();
+        *status = "corrupted".into();
         metrics.counter("session.corrupted", 1);
     }
-    *output = Some(info);
-    true
+    Ok(events)
 }
 
 /// I-019：会话列表（updated_at 倒序，limit 缺省 20）。

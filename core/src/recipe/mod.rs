@@ -111,6 +111,24 @@ pub struct DeleteAck {
 
 const COLS: &str = "id, title, description, kind, name, command_template, tags, platform, risk_level, usage_count, source_execution_id, created_at, updated_at";
 
+const INSERT_RECIPE: &str = "INSERT INTO recipes (id, title, description, kind, name, command_template, tags, platform, risk_level, usage_count, source_execution_id, created_at, updated_at) VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, ?10, ?10) RETURNING id";
+
+/// 方案输入 → INSERT 参数（save_recipe 子步骤）。
+fn recipe_params(input: &RecipeInput) -> Vec<SqlValue> {
+    vec![
+        input.title.as_str().into(),
+        opt(input.description.as_deref()),
+        input.kind.clone().unwrap_or_else(|| "command".into()).as_str().into(),
+        opt(input.name.as_deref()),
+        input.command_template.as_str().into(),
+        serde_json::to_string(&input.tags).unwrap_or_else(|_| "[]".into()).as_str().into(),
+        input.platform.as_str().into(),
+        risk_text(&input.risk_level).into(),
+        opt(input.source_execution_id.as_deref()),
+        now_ms().into(),
+    ]
+}
+
 /// I-012：保存方案（AC-10；name 唯一约束冲突转译 IAC-4101 语义）。
 pub fn save_recipe(
     input: &RecipeInput,
@@ -124,27 +142,7 @@ pub fn save_recipe(
         evolution.fail("IAC-4101", "方案标题与命令模板不能为空");
         return false;
     }
-    let now = now_ms();
-    let kind = input.kind.clone().unwrap_or_else(|| "command".into());
-    let tags = serde_json::to_string(&input.tags).unwrap_or_else(|_| "[]".into());
-    let sql = "INSERT INTO recipes (id, title, description, kind, name, command_template, tags, platform, risk_level, usage_count, source_execution_id, created_at, updated_at) \
-               VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, ?10, ?10) \
-               RETURNING id";
-    let q = SqlQuery {
-        sql: sql.into(),
-        params: vec![
-            input.title.as_str().into(),
-            opt(input.description.as_deref()),
-            kind.as_str().into(),
-            opt(input.name.as_deref()),
-            input.command_template.as_str().into(),
-            tags.as_str().into(),
-            input.platform.as_str().into(),
-            risk_text(&input.risk_level).into(),
-            opt(input.source_execution_id.as_deref()),
-            now.into(),
-        ],
-    };
+    let q = SqlQuery { sql: INSERT_RECIPE.into(), params: recipe_params(input) };
     let mut rows = QueryRows::default();
     if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
         evolution.propagate("save_recipe", "保存方案失败（name 重复?）");

@@ -43,21 +43,17 @@ pub fn lookup_knowledge(
             return true;
         }
     }
-    let schema = rows.text(0, "schema_json").unwrap_or_default();
-    match serde_json::from_str::<CommandKnowledge>(schema) {
-        Ok(mut k) => {
-            k.verified = rows.int(0, "verified").unwrap_or(0) == 1;
-            k.source_hash = stored_hash;
-            metrics.counter("knowledge.hit", 1);
-            *output = Some(k);
-            true
-        }
-        Err(_) => {
-            metrics.counter("knowledge.corrupted", 1);
-            *output = None;
-            true
-        }
-    }
+    *output = parse_cached(&rows);
+    true
+}
+
+/// 行 → CommandKnowledge（lookup_knowledge 子步骤；损坏视为未命中）。
+fn parse_cached(rows: &QueryRows) -> Option<CommandKnowledge> {
+    let schema = rows.text(0, "schema_json")?;
+    let mut k: CommandKnowledge = serde_json::from_str(schema).ok()?;
+    k.verified = rows.int(0, "verified").unwrap_or(0) == 1;
+    k.source_hash = rows.text(0, "source_hash").unwrap_or_default().to_string();
+    Some(k)
 }
 
 /// I-004：写入/更新缓存（upsert；source_hash 变更覆盖）。

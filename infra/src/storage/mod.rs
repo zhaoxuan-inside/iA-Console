@@ -82,22 +82,10 @@ impl StorePort for Storage {
             Ok(r) => r,
             Err(e) => return fail_storage(evolution, e),
         };
-        let mut out = Vec::new();
-        loop {
-            match rows.next() {
-                Ok(Some(row)) => {
-                    let mut vals = Vec::with_capacity(names.len());
-                    for i in 0..names.len() {
-                        vals.push(from_sqlite(row.get_ref_unwrap(i)));
-                    }
-                    out.push(vals);
-                }
-                Ok(None) => break,
-                Err(e) => return fail_storage(evolution, e),
-            }
+        if !collect_rows(&mut rows, &names, output, evolution) {
+            return false;
         }
         output.columns = names;
-        output.rows = out;
         metrics.counter("storage.query_rows", output.rows.len() as u64);
         true
     }
@@ -162,6 +150,31 @@ impl StorePort for Storage {
         metrics.counter("storage.migrated", output.applied.len() as u64);
         true
     }
+}
+
+/// 行集收集（storage_query 子步骤）。
+fn collect_rows(
+    rows: &mut rusqlite::Rows<'_>,
+    names: &[String],
+    output: &mut QueryRows,
+    evolution: &mut Evolution,
+) -> bool {
+    let mut out = Vec::new();
+    loop {
+        match rows.next() {
+            Ok(Some(row)) => {
+                let mut vals = Vec::with_capacity(names.len());
+                for i in 0..names.len() {
+                    vals.push(from_sqlite(row.get_ref_unwrap(i)));
+                }
+                out.push(vals);
+            }
+            Ok(None) => break,
+            Err(e) => return fail_storage(evolution, e),
+        }
+    }
+    output.rows = out;
+    true
 }
 
 /// 查询/执行失败转译（IAC-3102）。

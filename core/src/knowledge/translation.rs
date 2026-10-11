@@ -3,11 +3,13 @@
 use crate::types::{Platform, RiskLevel};
 use serde::{Deserialize, Serialize};
 
-/// 翻译输入（_06 TranslationInput）。
+/// 翻译输入（_06 TranslationInput；to 缺省=运行时检测，from 缺省=配置习惯方言）。
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct TranslationInput {
     pub command: String,
+    #[serde(default)]
     pub from_dialect: Platform,
+    #[serde(default = "Platform::detect")]
     pub to_platform: Platform,
 }
 
