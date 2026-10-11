@@ -2,6 +2,7 @@
 //! 设计动机见 method-spec：观测统一走 metrics 门面，业务方法禁止手写埋点。
 
 use crate::config::Config;
+use crate::ports::StorePort;
 
 /// 会话与追踪上下文（dispatch 边界注入）。
 #[derive(Debug, Clone, Default)]
@@ -38,9 +39,23 @@ pub struct Locale {
     pub timezone: String,
 }
 
-/// infra Adapter 句柄集合：随任务卡逐步挂载（store/process/ai/config…）。
-#[derive(Debug, Default)]
-pub struct Deps {}
+/// infra Adapter 句柄集合：随任务卡逐步挂载（store/ai/process/config…）。
+/// store 以 Box 持有，使 Context 可按共享引用贯穿整条调用链。
+pub struct Deps {
+    pub store: Box<dyn StorePort>,
+}
+
+impl Default for Deps {
+    fn default() -> Self {
+        Self { store: Box::new(crate::ports::NullStore) }
+    }
+}
+
+impl std::fmt::Debug for Deps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Deps").field("store", &"Box<dyn StorePort>").finish()
+    }
+}
 
 /// 运行环境（方法内只读）。五段签名第 3 段。
 pub struct Context<'a> {
@@ -158,7 +173,7 @@ impl TestEnv {
                 actor: Actor::Human,
             },
             config: Config::defaults(),
-            deps: Deps {},
+            deps: Deps::default(),
             locale: Locale { lang: "zh-CN".into(), timezone: "Asia/Shanghai".into() },
         }
     }

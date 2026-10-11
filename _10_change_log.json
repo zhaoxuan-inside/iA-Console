@@ -358,13 +358,20 @@
         "infra/src/config.rs",
         "infra/tests/config_test.rs",
         "_07_method_idx.json",
-        "_06_interface_design/01_external_api.md"
+        "_06_interface_design/01_external_api.md",
+        "core/src/ports.rs",
+        "infra/src/storage/mod.rs",
+        "infra/src/storage/migrations/0001_init.sql",
+        "infra/tests/storage_test.rs"
       ],
       "commits": [],
       "changed_methods": [
         "m-001",
         "m-002",
-        "m-003"
+        "m-003",
+        "m-004",
+        "m-005",
+        "m-006"
       ],
       "author": "Agent",
       "verified": false

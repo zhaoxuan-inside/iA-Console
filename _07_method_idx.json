@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:24:25+08:00",
+  "updated_at": "2026-10-11T15:29:03+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -46,14 +46,59 @@
       "description": "写盘实现（save_config 的路径解析包装；测试可直调临时路径）",
       "reusable": true,
       "id": "m-003"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/storage_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn storage_query(&self, input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "storage_query",
+      "category": "data",
+      "layer": "infra",
+      "module": "storage",
+      "location": "infra/src/storage/mod.rs",
+      "description": "IF-001：只读查询（参数化绑定，行集转译 SqlValue），失败转译 IAC-3102",
+      "reusable": true,
+      "id": "m-004"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/storage_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn storage_execute(&self, input: &SqlQuery, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "storage_execute",
+      "category": "data",
+      "layer": "infra",
+      "module": "storage",
+      "location": "infra/src/storage/mod.rs",
+      "description": "IF-002：写执行（影响行数+last_rowid），失败转译 IAC-3102",
+      "reusable": true,
+      "id": "m-005"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/storage_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn storage_migrate(&self, input: &MigrationDir, output: &mut MigrationAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "storage_migrate",
+      "category": "orchestration",
+      "layer": "infra",
+      "module": "storage",
+      "location": "infra/src/storage/mod.rs",
+      "description": "IF-004：版本化迁移（schema_migrations 记账，幂等），失败转译 IAC-3103",
+      "reusable": true,
+      "id": "m-006"
     }
   ],
   "stats": {
-    "total": 3,
+    "total": 6,
     "by_category": {
       "algorithm": 0,
-      "orchestration": 0,
-      "data": 3
+      "orchestration": 1,
+      "data": 5
     }
   }
 }

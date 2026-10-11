@@ -360,11 +360,11 @@
   "method_index": {
     "path": "_07_method_idx.json",
     "stats": {
-      "total": 3,
+      "total": 6,
       "by_category": {
         "algorithm": 0,
-        "orchestration": 0,
-        "data": 3
+        "orchestration": 1,
+        "data": 5
       }
     }
   },
