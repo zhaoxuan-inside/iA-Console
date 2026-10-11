@@ -128,6 +128,20 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-005",
+      "date": "2026-10-11",
+      "requirement": "REQ-NO-GIT：评审意见——回滚链路彻底移除 git：Q6-S3 由『可选避让增强』改为废弃，明确快照仓库为纯 Rust 自实现内容寻址存储（零 git 组件/命令/格式依赖），并在 _02 Q6 结论登记无 git 备选方案盘点（OS 原生快照/overlay 沙盒/事件监听/syscall 拦截均不优于效果日志主线）",
+      "changed_files": [
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
