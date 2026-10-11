@@ -21,9 +21,9 @@
 
 | 编号 | 命令 | 用途 | 对应 _05 任务 | 模块 |
 |---|---|---|---|---|
-| CMD-001 | `iac ask <意图> [--json] [--cwd <dir>]` | 意图→提案 | T-016 | intent |
-| CMD-002 | `iac explain <命令...>` | 参数白话解释 | T-016 | intent |
-| CMD-003 | `iac run <命令...> [--yes] [--cwd <dir>]` | 执行（过闸门） | T-017 | executor |
+| CMD-001 | `iac ask <意图> [--json] [--explain] [--cwd <dir>]` | 意图→提案（默认摘要级，--explain 展开详解） | T-016 | intent |
+| CMD-002 | `iac explain <命令...>` | 参数白话解释（显式索要） | T-016 | intent |
+| CMD-003 | `iac run <命令...> [--yes] [--explain] [--cwd <dir>]` | 执行（默认不解释，闸门生效） | T-017 | executor |
 | CMD-004 | `iac run --proposal <id> [--yes]` | 执行已确认提案 | T-017 | executor |
 | CMD-005 | `iac doctor [--last\|--execution <id>]` | 诊断失败 | T-018 | doctor |
 | CMD-006 | `iac history list\|show <id>\|search <q>` | 历史检索 | T-008/009 | history |
@@ -33,7 +33,7 @@
 | CMD-010 | `iac mcp serve` | MCP stdio 服务 | T-023 | server |
 | CMD-011 | `iac chat` | TUI 交互界面 | T-024 | tui |
 | CMD-012 | `iac config get <key>\|set <key> <val>\|path` | 配置管理 | T-002 | config |
-| CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>]` | 习惯方言→主机方言翻译 | T-025/032 | intent |
+| CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>] [--explain]` | 习惯方言→主机方言翻译（默认仅译文，--explain 展开差异） | T-025/032 | intent |
 | CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
 | CMD-015 | `iac rollback --list \| --to <行\|时间\|exec_id> \| --from <行> [--to <行>] [--on-conflict <ask\|skip\|abort>]` | 回滚点列表与范围回放（v2，M7） | T-036/038 | rollback |
 | CMD-016 | `iac file history <路径>` / `iac file restore <路径> --to <版本>` | 文件版本历史与恢复（v2） | T-037 | rollback |
