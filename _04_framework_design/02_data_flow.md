@@ -135,6 +135,31 @@ sequenceDiagram
     RB->>SS: 取该版本内容直接替换
 ```
 
+### 流 6：脚本工坊——范围变一个命令（v2，AC-38/39/40）
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant S as server(dispatch)
+    participant SC as script
+    participant RC as recipe
+    participant AI as infra::ai
+    participant E as executor(链)
+
+    U->>S: iac script make --segment <任务段> \| --from <行> [--to <行>] --name <名> [--refine]
+    S->>SC: collect_commands(范围)
+    SC-->>SC: assemble_script（确定性拼接 + 平台头部 set -e / ErrorActionPreference）
+    alt --refine 显式触发
+        SC->>AI: ai_complete(参数化/预检/跨方言精修)
+        SC-->>U: 修订 diff → 确认后覆盖（原稿保留）
+    end
+    SC->>RC: save_recipe(kind=script, name 唯一, platform=all)
+    Note over U,E: 此后"变成一个命令"
+    U->>S: iac run @<名>（或 script run）
+    S->>SC: run_script → 风险评估（内部最高）→ 闸门 → 执行 → 记录 + 审计
+    Note over SC,E: 文件效果纳入回滚日志（流 5 覆盖）
+```
+
 ## 2. 主调用链
 
 以"用户意图到执行落库"为例（方法名以 _06 编号为准）：

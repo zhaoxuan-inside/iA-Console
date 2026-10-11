@@ -68,6 +68,7 @@ graph TB
 | history | domain | 执行记录写入/查询/详情、审计条目追加 | US-9 | record_execution 等 4 方法 |
 | recipe | domain | 方案保存/检索/详情/删除 | US-5 | save_recipe 等 4 方法 |
 | knowledge | domain | 命令知识查询/缓存写回；**跨方言翻译映射的查询与缓存** | US-1/2/13 | lookup_knowledge、cache_knowledge、lookup_translation、cache_translation |
+| **script** | app+domain | **脚本工坊（v2，M8）**：范围收集→确定性装配（算法）→AI 精修编排→命名脚本运行（闸门+记录） | US-21 | collect_commands、assemble_script、refine_script、run_script |
 | common | domain(算法集中地) | 纯算法：风险规则匹配、help 文本→参数 schema 解析 | US-8/2 | match_risk_rules、parse_help_text |
 | ai | infra | LLM OpenAI 兼容调用、Provider 档案管理、**本地引擎子进程 supervisor** | US-11/14 | ai_complete、local_engine_ensure |
 | storage | infra | SQLite 连接、查询/执行/迁移原语、ID 生成 | US-9 | storage_query/execute/migrate |
