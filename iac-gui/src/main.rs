@@ -10,6 +10,16 @@ mod sidebar;
 mod theme;
 
 fn main() -> eframe::Result {
+    // 版本查询/无图形会话保护：不进 GUI（安装脚本与 CI 冒烟依赖）
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("ia-console 0.1.0");
+        return Ok(());
+    }
+    if std::env::var("DISPLAY").is_err() && std::env::var("WAYLAND_DISPLAY").is_err() {
+        eprintln!("ia-console 需要图形会话（DISPLAY/WAYLAND_DISPLAY 未设置）");
+        std::process::exit(1);
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 820.0])
