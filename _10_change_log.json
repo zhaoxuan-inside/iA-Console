@@ -145,6 +145,26 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-006",
+      "date": "2026-10-11",
+      "requirement": "REQ-ROLLBACK-FINETUNE：回滚细化四条——① 回滚日志长度限制 max_entries（默认 1024、可配、硬上限 65536，超限清退最旧执行点）；② 范围回放语义：--to <行>（回滚到指定行）/ --from <行> [--to <行>]（区间/到最远）；③ history 式回滚点列表（seq/时间/当时命令/可回滚标识 full|partial|none+原因，新增 I-040）；④ 逐行倒序回放遇冲突按 --on-conflict <ask|skip|abort> 决策（可默认跳过），新增 IAC-1604",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_04_framework_design/02_data_flow.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }

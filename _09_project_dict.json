@@ -36,6 +36,7 @@
     { "term": "回滚日志", "code_name": "RollbackJournal", "definition": "按全局单调 seq 记录每次执行的文件级效果（op=created|modified|deleted|renamed，含前后像引用），回滚=逆序回放到任意执行点；不逐命令判断可逆性", "aliases": ["效果日志", "操作日志"], "domain": "回滚", "related_terms": ["效果条目", "快照仓库"], "source": "_02_principle/01_candidates.md" },
     { "term": "效果条目", "code_name": "EffectEntry", "definition": "回滚日志中单文件一条记录：路径、操作类型、前像/后像内容引用、捕获范围标记（in|out_of_scope）", "aliases": [], "domain": "回滚", "related_terms": ["回滚日志"], "source": "_06_interface_design/02_internal_interfaces.md" },
     { "term": "快照仓库", "code_name": "SnapshotStore", "definition": "内容寻址的前像/后像存储（去重+压缩，位于 ~/.local/share/iac/snapshots/），小文件全量复制、大文件 reflink/硬链接、超限仅记路径", "aliases": ["内容仓库"], "domain": "回滚", "related_terms": ["回滚日志", "回收策略"], "source": "_02_principle/01_candidates.md" },
-    { "term": "回收策略", "code_name": "RetentionPolicy", "definition": "快照与回收站的统一清理策略：默认保留 7 天/1GB（LRU），到期自动清理；删除类回滚效果先入回收站而非直接抹除", "aliases": ["保留策略"], "domain": "回滚", "related_terms": ["快照仓库"], "source": "_02_principle/01_candidates.md" }
+    { "term": "回收策略", "code_name": "RetentionPolicy", "definition": "快照与回收站的统一清理策略：默认保留 7 天/1GB（LRU）+ 执行点数上限 max_entries（默认 1024，硬上限 65536），到期/超限自动清退最旧执行点", "aliases": ["保留策略"], "domain": "回滚", "related_terms": ["快照仓库", "回滚点"], "source": "_02_principle/01_candidates.md" },
+    { "term": "回滚点", "code_name": "RollbackPointView", "definition": "回滚日志的 history 式聚合视图：行号 seq、时间、当时命令、效果条数、可回滚标识（full 可回滚/partial 部分可回滚/none 不可回滚+原因）；范围回放（--to/--from）以此行号为定位", "aliases": ["回滚行", "执行点"], "domain": "回滚", "related_terms": ["回滚日志"], "source": "_06_interface_design/01_external_api.md" }
   ]
 }
