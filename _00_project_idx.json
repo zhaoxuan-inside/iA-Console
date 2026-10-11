@@ -3,7 +3,7 @@
   "project": {
     "name": "iA-console",
     "version": "0.1.0",
-    "description": "天下没有难用的 Console：伴生智能内核（daemon + CLI/TUI），把自然语言意图变成可信、可解释、可审计的命令执行闭环，并经 MCP 对外部 Agent 开放同等能力。",
+    "description": "天下没有难用的 Console：独立 GUI 客户端（egui 真终端 + AI 侧栏）+ 伴生 daemon（iacd），把自然语言意图变成可信、可解释、可审计的命令执行闭环，并经 MCP 对外部 Agent 开放同等能力。",
     "languages": [
       "Rust"
     ],
@@ -229,10 +229,11 @@
   },
   "code": {
     "path": "iA-console/",
-    "layout": "Cargo workspace：iac(CLI/TUI 前端 bin)、iacd(daemon bin)、iac-core(应用编排+领域逻辑 lib，目录 core/)、infra(外部组件 Adapter lib)",
+    "layout": "Cargo workspace：ia-console(GUI 主形态 bin, iac-gui)、iac(CLI/TUI/MCP 前端 bin)、iacd(daemon bin)、iac-core(应用编排+领域逻辑 lib，目录 core/)、infra(外部组件 Adapter lib)",
     "entry_points": [
       "iA-console/iac/src/main.rs",
-      "iA-console/iacd/src/main.rs"
+      "iA-console/iacd/src/main.rs",
+      "iac-gui/src/main.rs"
     ],
     "modules": [
       {
@@ -354,6 +355,12 @@
         "path": "iA-console/core/src/script/",
         "summary": "脚本工坊（v2）：范围收集、脚本装配运行、AI 精修编排",
         "owner": null
+      },
+      {
+        "name": "gui",
+        "path": "iac-gui/src/",
+        "summary": "独立 GUI 客户端（主形态）：eframe 窗口、egui_term 真终端、AI 侧栏与面板（入口豁免）",
+        "owner": null
       }
     ]
   },
@@ -370,7 +377,7 @@
   },
   "dictionary": {
     "path": "_09_project_dict.json",
-    "terms": 40
+    "terms": 41
   },
   "change_log": {
     "path": "_10_change_log.json",

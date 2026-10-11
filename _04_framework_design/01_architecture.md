@@ -7,7 +7,8 @@
 ```mermaid
 graph TB
     subgraph entry[接入端（框架签名豁免，薄适配）]
-        TUI[iac tui<br/>TUI 前端]
+        GUI[ia-console gui<br/>独立 GUI 客户端<br/>（主形态，egui+真终端）]
+        TUI[iac tui<br/>TUI 前端<br/>（SSH 辅助通道）]
         CLI[iac cli<br/>CLI 子命令]
         MCPS[iac mcp serve<br/>MCP stdio Server]
     end

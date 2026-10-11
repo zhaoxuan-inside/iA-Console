@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T14:00:00+08:00",
+  "updated_at": "2026-10-11T19:00:00+08:00",
   "terms": [
     {
       "term": "iA-console",
@@ -510,6 +510,33 @@
         "错误医生"
       ],
       "source": "_04_framework_design/03_ui_principles.md"
+    },
+    {
+      "term": "独立客户端",
+      "code_name": "ia-console-gui",
+      "definition": "主产品形态：egui/eframe 独立窗口应用（二进制 ia-console），内置真终端内核与 AI 侧栏，点击图标直接开窗，无第三方终端包装",
+      "aliases": [
+        "GUI 客户端"
+      ],
+      "domain": "接入",
+      "related_terms": [
+        "守护进程",
+        "前端"
+      ],
+      "source": "_03_tech_stack/ADR-008-gui-eframe.md"
+    },
+    {
+      "term": "真终端内核",
+      "code_name": "TerminalKernel",
+      "definition": "GUI 内的完整终端仿真：egui_term（alacritty_terminal 后端）+ portable-pty，真实 shell 会话（cd/环境变量持久，vim/htop 可交互）",
+      "aliases": [
+        "PTY 终端"
+      ],
+      "domain": "接入",
+      "related_terms": [
+        "独立客户端"
+      ],
+      "source": "_03_tech_stack/ADR-009-terminal-kernel.md"
     }
   ]
 }
