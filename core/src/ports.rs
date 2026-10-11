@@ -32,6 +32,12 @@ impl From<i64> for SqlValue {
     }
 }
 
+impl From<u64> for SqlValue {
+    fn from(n: u64) -> Self {
+        SqlValue::Int(n as i64)
+    }
+}
+
 /// SQL 输入（查询与写共用形状；SQL 一律参数化，禁止拼接）。
 #[derive(Debug, Clone, Default)]
 pub struct SqlQuery {

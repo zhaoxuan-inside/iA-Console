@@ -1,6 +1,8 @@
 //! LLM Adapter（IF-005）：OpenAI 兼容 + Anthropic 原生双协议，Provider 档案化（ADR-006 修订）。
 //! 本模块是项目唯一 HTTP 出口；第三方异常转译 IAC-1101/5102 进 evolution。
 
+pub mod local;
+
 use iac_core::config::ProviderProfile;
 use iac_core::types::ProviderKind;
 use iac_core::error::codes;

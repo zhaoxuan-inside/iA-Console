@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T16:43:07+08:00",
+  "updated_at": "2026-10-11T16:51:29+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -649,14 +649,59 @@
       "description": "I-033：翻译编排（内置表→缓存→AI/组合闭环；降级返回原文；缓存命中重评估风险）",
       "reusable": true,
       "id": "m-041"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/modelhub_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn modelhub_install(input: &PluginRef, output: &mut InstallResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "modelhub_install",
+      "category": "data",
+      "layer": "infra",
+      "module": "modelhub",
+      "location": "infra/src/modelhub/mod.rs",
+      "description": "IF-008：清单→逐文件下载→sha256 强校验→落盘→注册（HF/魔搭/镜像多源）",
+      "reusable": true,
+      "id": "m-042"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/modelhub_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn modelhub_list(input: &(), output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "modelhub_list",
+      "category": "data",
+      "layer": "infra",
+      "module": "modelhub",
+      "location": "infra/src/modelhub/mod.rs",
+      "description": "IF-009：已装插件行集",
+      "reusable": true,
+      "id": "m-043"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/modelhub_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn local_engine_ensure(input: &EngineSpec, output: &mut EngineHandle, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "local_engine_ensure",
+      "category": "orchestration",
+      "layer": "infra",
+      "module": "ai",
+      "location": "infra/src/ai/local.rs",
+      "description": "IF-010：本地引擎 supervisor（健康复用/拉起/端口扫描），未装引导 IAC-1401，失败 IAC-1403",
+      "reusable": true,
+      "id": "m-044"
     }
   ],
   "stats": {
-    "total": 41,
+    "total": 44,
     "by_category": {
       "algorithm": 2,
-      "orchestration": 10,
-      "data": 29
+      "orchestration": 11,
+      "data": 31
     }
   }
 }

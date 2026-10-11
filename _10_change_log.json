@@ -410,7 +410,10 @@
         "core/src/intent/translation_table.rs",
         "core/src/intent/translate.rs",
         "core/tests/translate_test.rs",
-        "_06_interface_design/02_internal_interfaces.md"
+        "_06_interface_design/02_internal_interfaces.md",
+        "infra/src/modelhub/mod.rs",
+        "infra/src/ai/local.rs",
+        "infra/tests/modelhub_test.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -454,7 +457,10 @@
         "m-038",
         "m-039",
         "m-040",
-        "m-041"
+        "m-041",
+        "m-042",
+        "m-043",
+        "m-044"
       ],
       "author": "Agent",
       "verified": false
