@@ -80,7 +80,7 @@ sequenceDiagram
     CORE-->>A: 结构化结果（exit_code/输出摘要/记录 ID）
 ```
 
-### 流 4：跨方言直接输入翻译（AC-19/20，零 AI 成本优先）
+### 流 4：跨方言直接输入翻译（AC-19/20/23/24，零 AI 成本优先）
 
 ```mermaid
 sequenceDiagram
@@ -89,18 +89,23 @@ sequenceDiagram
     participant T as intent(translate_command)
     participant K as knowledge
     participant AI as infra::ai
+    participant RC as recipe
 
     U->>S: 直接输入命令（如 ls -la；习惯方言=linux，主机=windows）
     Note over S,T: 习惯方言=主机方言 → 不翻译，直入风险闸门
     S->>T: translate_command(command, from=habit, to=host)
-    T->>K: lookup_translation(静态映射表)
-    alt 静态命中
-        K-->>T: 等价命令+差异说明（零 AI 调用，AC-20）
-    else 未命中
-        T->>AI: ai_complete(双方言翻译 prompt)
+    T->>K: lookup_translation(静态映射表：命令级+参数级)
+    alt 静态命中（含参数四类映射说明）
+        K-->>T: 等价命令+参数映射表+差异说明（零 AI 调用，AC-23）
+    else 一对一可译但未收录
+        T->>AI: ai_complete(双方言翻译)
         T->>K: cache_translation(verified=false 回写)
+    else 需命令组合（不可一对一）
+        T->>AI: ai_complete(组合规划)
+        T->>RC: save_recipe(平台化脚本, tags=translation/auto)
+        T->>K: cache_translation(kind=composition, recipe_id)
     end
-    T-->>U: 翻译提案（等价命令+差异说明+风险）→ 确认后走流 1 执行
+    T-->>U: 翻译提案（等价命令/脚本+差异说明+风险）→ 确认后走流 1 执行（verified 转正）
     Note over T: AI 不可用时返回原命令+说明，不阻塞直接执行
 ```
 
