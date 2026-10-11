@@ -2,6 +2,10 @@
 
 /// 机器可读错误码常量。命名 = 表中错误码的语义化名字。
 pub mod codes {
+    pub const AI_UNAVAILABLE: &str = "IAC-1101";
+    pub const EXEC_NOT_FOUND: &str = "IAC-2101";
+    pub const EXEC_TIMEOUT: &str = "IAC-2103";
+    pub const EXEC_PLATFORM: &str = "IAC-2106";
     pub const STORAGE: &str = "IAC-3102";
     pub const STORAGE_MIGRATE: &str = "IAC-3103";
     pub const CONFIG_INVALID: &str = "IAC-5101";

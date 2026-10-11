@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T15:29:03+08:00",
+  "updated_at": "2026-10-11T15:33:57+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -91,14 +91,44 @@
       "description": "IF-004：版本化迁移（schema_migrations 记账，幂等），失败转译 IAC-3103",
       "reusable": true,
       "id": "m-006"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/process_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "spawn_process",
+      "category": "data",
+      "layer": "infra",
+      "module": "process",
+      "location": "infra/src/process/mod.rs",
+      "description": "IF-003：跨平台 shell 解释执行（unix=sh -c / windows=powershell），输出完整捕获，超时杀进程；非零退出为正常产出，超时 IAC-2103",
+      "reusable": true,
+      "id": "m-007"
+    },
+    {
+      "dependencies": [],
+      "tests": "infra/tests/ai_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn ai_complete(provider: &ProviderProfile, input: &AiRequest, output: &mut LlmResponse, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "ai_complete",
+      "category": "data",
+      "layer": "infra",
+      "module": "ai",
+      "location": "infra/src/ai/mod.rs",
+      "description": "IF-005：统一补全调用（OpenAI 兼容/Anthropic 原生双协议），密钥仅经环境变量，失败转译 IAC-1101/5102",
+      "reusable": true,
+      "id": "m-008"
     }
   ],
   "stats": {
-    "total": 6,
+    "total": 8,
     "by_category": {
       "algorithm": 0,
       "orchestration": 1,
-      "data": 5
+      "data": 7
     }
   }
 }

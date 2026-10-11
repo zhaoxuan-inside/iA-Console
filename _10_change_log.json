@@ -362,7 +362,11 @@
         "core/src/ports.rs",
         "infra/src/storage/mod.rs",
         "infra/src/storage/migrations/0001_init.sql",
-        "infra/tests/storage_test.rs"
+        "infra/tests/storage_test.rs",
+        "infra/src/process/mod.rs",
+        "infra/tests/process_test.rs",
+        "infra/src/ai/mod.rs",
+        "infra/tests/ai_test.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -371,7 +375,9 @@
         "m-003",
         "m-004",
         "m-005",
-        "m-006"
+        "m-006",
+        "m-007",
+        "m-008"
       ],
       "author": "Agent",
       "verified": false

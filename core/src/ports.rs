@@ -91,6 +91,41 @@ pub struct MigrationAck {
     pub applied: Vec<String>,
 }
 
+/// 进程执行输入（IF-003）：命令为 shell 语法串，按平台经 shell 解释。
+#[derive(Debug, Clone, Default)]
+pub struct ProcessSpec {
+    pub command: String,
+    pub cwd: Option<std::path::PathBuf>,
+    pub env: Vec<(String, String)>,
+    pub timeout_ms: u64,
+}
+
+/// 进程执行结果。exit_code=None 表示超时被终止。
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ProcessResult {
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    pub duration_ms: u64,
+    pub shell_used: String,
+}
+
+/// 模型调用输入（IF-005）：system+messages、温度、超时。
+#[derive(Debug, Clone, Default)]
+pub struct AiRequest {
+    pub system: String,
+    pub messages: Vec<(String, String)>,
+    pub temperature: f32,
+    pub timeout_ms: u64,
+}
+
+/// 模型调用统一输出（OpenAI/Anthropic/本地引擎均在 infra::ai 内转译为本结构）。
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LlmResponse {
+    pub text: String,
+    pub model: String,
+}
+
 /// 存储 Port（IF-001/002/004 的 trait 形态；infra::storage 实现）。
 pub trait StorePort {
     /// 只读查询（SELECT）。失败转译 IAC-3102。
