@@ -195,11 +195,41 @@ impl ConsoleApp {
     }
 
     /// 右侧 AI 侧栏：条目流 + 输入行（Enter 提交，标记分发；IPC 全异步）。
+    /// 输入行用子 BottomPanel 先占位钉底——ScrollArea(auto_shrink=false) 会占满剩余高度，
+    /// 在其后追加的控件会被挤出面板可视区（输入框不可见不可点的根因）。
     fn draw_sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::right("ai_sidebar")
             .default_width(380.0)
             .resizable(true)
             .show(ctx, |ui| {
+                egui::TopBottomPanel::bottom("ai_sidebar_input")
+                    .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(8, 6)))
+                    .show_inside(ui, |ui| {
+                        ui.separator();
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.sidebar.input)
+                                .hint_text("直接命令 / ??问 AI / yes 确认提案 / /help")
+                                .desired_width(f32::INFINITY)
+                                .font(egui::TextStyle::Monospace),
+                        );
+                        if response.clicked() {
+                            self.terminal_focus = false;
+                            // 显式夺焦点：终端组件在稳态帧会维持自身焦点，
+                            // 仅靠 TextEdit 默认聚焦在帧序上会被吃掉
+                            response.request_focus();
+                        }
+                        if response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                            let line = self.sidebar.input.trim().to_string();
+                            self.sidebar.input.clear();
+                            if !line.is_empty() {
+                                let action = sidebar::plan_action(
+                                    &line,
+                                    self.sidebar.last_proposal.is_some(),
+                                );
+                                sidebar::perform(&mut self.sidebar, action, &self.ipc_tx);
+                            }
+                        }
+                    });
                 ui.heading(egui::RichText::new("AI").color(theme::color(self.mode, Token::Fg)));
                 ui.add_space(4.0);
                 egui::ScrollArea::vertical()
@@ -218,25 +248,6 @@ impl ConsoleApp {
                             ));
                         }
                     });
-                ui.separator();
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut self.sidebar.input)
-                        .hint_text("直接命令 / ??问 AI / yes 确认提案 / /help")
-                        .desired_width(f32::INFINITY)
-                        .font(egui::TextStyle::Monospace),
-                );
-                if response.clicked() {
-                    self.terminal_focus = false;
-                }
-                if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    let line = self.sidebar.input.trim().to_string();
-                    self.sidebar.input.clear();
-                    if !line.is_empty() {
-                        let action =
-                            sidebar::plan_action(&line, self.sidebar.last_proposal.is_some());
-                        sidebar::perform(&mut self.sidebar, action, &self.ipc_tx);
-                    }
-                }
             });
     }
 

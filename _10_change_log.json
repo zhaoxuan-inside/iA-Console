@@ -605,6 +605,20 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-022",
+      "date": "2026-10-11",
+      "requirement": "REQ-GUI-USABILITY-FIX 第二批（安装版本陈旧排查+GUI 深度测试）：①排查确认已装 0.1.0-1 包构建于 20:36，早于 vendor egui_term 修复写入（20:55~21:03）——用户手里是修复前旧代码，重打包重装修正；②GUI 深度测试（KWin 脚本+截图+ydotool/xdotool 注入）实测：终端 PTY/键入/执行/语法高亮/starship 提示符全链路正常（TERM=dumb 为测试启动环境带入，非应用缺陷）、iacd IPC ping/execute/explain 全通、clippy 0 警告、146 测试全绿；③修复侧栏输入框不可见：ScrollArea(auto_shrink=[false,false]) 占满剩余高度致 separator+TextEdit 被挤出面板可视区——改 TopBottomPanel::bottom 子面板先占位钉底（iac-gui/src/app.rs draw_sidebar）；④焦点加固：点击输入框显式 request_focus、提交条件改 has_focus&&Enter（不依赖 lost_focus 帧序）；⑤遗留待真机复核：侧栏输入首轮交互正常（/help、直接执行、提交→IPC→条目渲染实测通过），后续轮次存在间歇性按键丢失，疑与 egui 0.31 焦点路由×egui_term 每帧 request_focus 交互有关，自动化注入环境无法稳定复现，需真人键鼠验证；⑥PKGBUILD pkgrel 1→2",
+      "changed_files": [
+        "iac-gui/src/app.rs",
+        "packaging/arch/PKGBUILD",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "zhaoxuan",
+      "verified": true
     }
   ]
 }
