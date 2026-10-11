@@ -2,10 +2,12 @@
 
 pub mod store;
 pub mod translation;
+pub use translation::{
+    TranslationAck, TranslationInput, TranslationKind, TranslationResult, TranslationSource,
+};
 pub mod translation_store;
 
 pub use store::{cache_knowledge, lookup_knowledge};
-pub use translation::TranslationAck;
 pub use translation_store::{cache_translation, lookup_translation, CacheTranslationInput};
 
 use crate::types::Platform;

@@ -415,7 +415,10 @@
         "infra/src/ai/local.rs",
         "infra/tests/modelhub_test.rs",
         "core/src/common/marker_parser.rs",
-        "core/src/common/render.rs"
+        "core/src/common/render.rs",
+        "iac/src/theme.rs",
+        "iac/src/tui.rs",
+        "iac/src/ipc.rs"
       ],
       "commits": [],
       "changed_methods": [

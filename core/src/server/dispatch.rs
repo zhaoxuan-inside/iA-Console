@@ -36,6 +36,7 @@ pub fn dispatch_request(
         "iac_recipes_search" => route_recipes_search(&params, context, metrics, evolution),
         "iac_recipe_save" => route_recipe_save(&params, context, metrics, evolution),
         "iac_sessions_current" => route_sessions_current(&params, context, metrics, evolution),
+        "iac_translate" => route_translate(&params, context, metrics, evolution),
         "iac_config_get" => Ok(serde_json::to_value(context.config).unwrap_or_default()),
         "iac_daemon_stop" => Err((codes::DAEMON_STOP.to_string(), "停机指令已受理（由 daemon 入口处理）".to_string())),
         other => Err((codes::UNKNOWN_METHOD.to_string(), format!("未知方法 {other}，可用方法见 _06 external 第 2.2 节"))),
@@ -174,6 +175,17 @@ fn route_recipe_save(params: &Value, context: &Context, metrics: &mut Metrics, e
         return Err((evolution.reason_code.clone().unwrap_or_default(), evolution.reason.clone().unwrap_or_default()));
     }
     serde_json::to_value(&out).map_err(|e| ("IAC-3102".into(), format!("序列化失败: {e}")))
+}
+
+/// iac_translate：跨方言翻译（AC-19/20）。
+fn route_translate(params: &Value, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> Result<Value, (String, String)> {
+    let input: crate::knowledge::TranslationInput = serde_json::from_value(params.clone())
+        .map_err(|e| (codes::UNKNOWN_METHOD.to_string(), format!("参数解析失败: {e}")))?;
+    let mut out = crate::knowledge::TranslationResult::native_fallback(&input);
+    if !intent::translate::translate_command(&input, &mut out, context, metrics, evolution) {
+        return Err((evolution.reason_code.clone().unwrap_or_default(), evolution.reason.clone().unwrap_or_default()));
+    }
+    serde_json::to_value(&out).map_err(|e| ("IAC-1301".to_string(), format!("序列化失败: {e}")))
 }
 
 /// iac_sessions_current：当前会话。

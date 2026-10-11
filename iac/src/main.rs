@@ -288,17 +288,22 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
         Commands::Mcp { action } => match action {
             McpAction::Serve => mcp::serve(),
         },
-        Commands::Chat => {
-            println!("TUI 交互界面随 M6 落地（T-028~T-031）");
-            2
-        }
-        Commands::Translate { from: _, command } => {
+        Commands::Chat => tui::run_chat(json_mode),
+        Commands::Translate { from, command } => {
             if command.is_empty() {
-                eprintln!("用法：iac translate <命令...>");
+                eprintln!("用法：iac translate <命令...> [--from linux|macos|windows]");
                 return 2;
             }
-            println!("方言翻译随 M5 落地（T-025）");
-            2
+            let from = from.map(|d| match d {
+                Dialect::Linux => "linux",
+                Dialect::Macos => "macos",
+                Dialect::Windows => "windows",
+            });
+            let mut params = serde_json::json!({"command": command.join(" ")});
+            if let Some(f) = from {
+                params["from_dialect"] = serde_json::json!(f);
+            }
+            emit(ipc::request("iac_translate", params, None), json_mode)
         }
     }
 }
@@ -373,6 +378,8 @@ impl UnixStreamProbe {
     }
 }
 
-mod ipc;
-mod mcp;
+pub mod ipc;
+pub mod mcp;
+pub mod theme;
+pub mod tui;
 
