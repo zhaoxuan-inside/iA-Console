@@ -44,6 +44,11 @@
 | I-032 | `fn cache_translation(input: &TranslationResult, output: &mut RecordAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | knowledge | T-024 | AI 译文回写，verified=false |
 | I-033 | `fn translate_command(input: &TranslationInput, output: &mut TranslationResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | intent | T-025 | 静态命中零 AI；一对一未收录→AI；需组合→AI 规划脚本入库+登记映射；降级返回原文 |
 | I-034 | `fn parse_input_marker(input: &RawInput, output: &mut InputDecision, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | server | T-029 | 纯函数：标记分发（??//---/#/\ 转义），普通命令原样通过 |
+| I-035 | `fn capture_pre_image(input: &CaptureScope, output: &mut ManifestRef, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-035 | 执行前统一捕获前像（v2，M7） |
+| I-036 | `fn diff_effects(input: &ManifestRef, output: &mut Vec<EffectEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-035 | manifest vs 现况 → 效果日志入库（v2） |
+| I-037 | `fn rollback_to(input: &RollbackPoint, output: &mut RollbackReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-036 | 逆序回放至目标位置（v2） |
+| I-038 | `fn file_history(input: &FilePath, output: &mut Vec<FileVersion>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-037 | 路径版本列表=各次执行效果条目（v2） |
+| I-039 | `fn restore_file(input: &FileVersionRef, output: &mut RestoreReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-037 | 取版本内容直接替换，过风险闸门（v2） |
 | IF-001 | `fn storage_query(input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | SQL 原语，rusqlite 封装 |
 | IF-002 | `fn storage_execute(input: &SqlStatement, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | 写原语，含 ID 生成 |
 | IF-003 | `fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | process | T-005 | 平台 shell 选择+超时+捕获 |
@@ -54,6 +59,9 @@
 | IF-008 | `fn modelhub_install(input: &PluginRef, output: &mut InstallResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | modelhub | T-026 | 多源下载+sha256+断点续传；IO 边界 |
 | IF-009 | `fn modelhub_list(input: &PluginFilter, output: &mut Vec<PluginInfo>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | modelhub | T-026 | 已装插件清单 |
 | IF-010 | `fn local_engine_ensure(input: &EngineSpec, output: &mut EngineHandle, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | infra | ai | T-027 | 引擎子进程 supervisor：拉起/健康检查/端口；未装→引导 |
+| IF-011 | `fn snapstore_put(input: &SnapshotData, output: &mut ContentRef, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | snapstore | T-034 | 内容寻址写入，去重+压缩（v2） |
+| IF-012 | `fn snapstore_fetch(input: &ContentRef, output: &mut SnapshotData, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | snapstore | T-034 | 按引用取回（v2） |
+| IF-013 | `fn sweep_expired(input: &RetentionPolicy, output: &mut SweepReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | infra | snapstore | T-034 | retention LRU 清理快照与回收站（v2） |
 
 ## 2. 关键接口契约
 
@@ -205,7 +213,7 @@ CREATE TABLE executions (
   stdout_ref TEXT, stderr_ref TEXT,          -- 超限原文落盘引用
   started_at INTEGER NOT NULL,
   duration_ms INTEGER,
-  pre_snapshot_ref TEXT                      -- v2 回滚预留
+  journal_ref TEXT                          -- v2 回滚：执行前像 manifest 在快照仓库的引用（效果日志入口）
 );
 CREATE INDEX idx_exec_time ON executions(started_at DESC);
 CREATE INDEX idx_exec_cwd ON executions(cwd);
@@ -276,6 +284,20 @@ CREATE TABLE model_plugins (
   source TEXT NOT NULL,                      -- hf|modelscope|hf-mirror
   installed_at INTEGER NOT NULL
 );
+
+CREATE TABLE rollback_journal (               -- v2（M7）启用，v1 建表不写入
+  seq INTEGER PRIMARY KEY,                   -- 全局单调，回滚点定位
+  execution_id TEXT NOT NULL REFERENCES executions(id),
+  path TEXT NOT NULL,
+  op TEXT NOT NULL,                          -- created|modified|deleted|renamed
+  before_ref TEXT,                           -- 快照仓库内容引用（前像）
+  after_ref TEXT,                            -- 快照仓库内容引用（后像）
+  extra_path TEXT,                           -- renamed 的原路径
+  scope TEXT NOT NULL DEFAULT 'in',          -- in|out_of_scope
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_rj_exec ON rollback_journal(execution_id, seq);
+CREATE INDEX idx_rj_path ON rollback_journal(path, seq);
 ```
 
 ### 核心 payload 类型（Rust）
@@ -336,6 +358,19 @@ pub struct PluginInfo { pub plugin_id: String, pub name: String, pub engine: Str
     pub total_size: u64, pub status: PluginStatus, pub installed_at: i64 }
 pub struct EngineSpec { pub plugin_id: String, pub context_len: u32, pub preferred_port: Option<u16> }
 pub struct EngineHandle { pub base_url: String, pub pid: u32, pub model: String }
+pub struct CaptureScope { pub execution_hint: String, pub cwd: String, pub explicit_paths: Vec<String>, pub impact_paths: Vec<String> }
+pub struct ManifestRef { pub execution_id: String, pub manifest_ref: String, pub journal_ref: String }
+pub enum EffectOp { Created, Modified, Deleted, Renamed }
+pub struct EffectEntry { pub seq: i64, pub execution_id: String, pub path: String, pub op: EffectOp,
+    pub before_ref: Option<String>, pub after_ref: Option<String>, pub extra_path: Option<String>,
+    pub scope: CaptureScopeFlag, pub created_at: i64 }
+pub enum CaptureScopeFlag { In, OutOfScope }
+pub enum RollbackPoint { ExecutionId(String), Seq(i64), Timestamp(i64), Last }
+pub struct RollbackReport { pub applied: Vec<EffectEntry>, pub skipped: Vec<EffectEntry>, pub trash_dir: String }
+pub struct FileVersion { pub seq: i64, pub execution_id: String, pub op: EffectOp,
+    pub content_ref: String, pub at: i64, pub command: String }
+pub struct FileVersionRef { pub path: String, pub seq: i64 }
+pub struct RestoreReport { pub path: String, pub restored_from: i64, pub gate: GateInfo }
 ```
 
 ### 支撑类型（五段签名公共段，P7 随 T-002 定稿实现）

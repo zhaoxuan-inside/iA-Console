@@ -35,6 +35,8 @@
 | CMD-012 | `iac config get <key>\|set <key> <val>\|path` | 配置管理 | T-002 | config |
 | CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>]` | 习惯方言→主机方言翻译 | T-025/032 | intent |
 | CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
+| CMD-015 | `iac rollback [<execution_id>\|--to <时间\|seq>]` | 回滚到指定位置（v2，M7） | T-036 | rollback |
+| CMD-016 | `iac file history <路径>` / `iac file restore <路径> --to <版本>` | 文件版本历史与恢复（v2） | T-037 | rollback |
 
 ### 2.2 MCP 工具 / IPC methods（同名同构）
 
@@ -51,6 +53,7 @@
 | API-009 | `iac_config_get` | 配置只读（不含密钥） | T-002 | config |
 | API-010 | `iac_translate` | 跨方言命令翻译 | T-025 | intent |
 | API-011 | `iac_model_list` | 已装模型插件列表 | T-026 | modelhub |
+| API-012 | `iac_rollback` | 回滚到指定位置 / 查询回滚点（v2，M7） | T-036 | rollback |
 
 ## 3. 接口定义（关键 API）
 
@@ -170,6 +173,9 @@
 | IAC-1402 | 422 | 插件下载校验失败（sha256/大小不符） | 换源重试；勿绕过校验 |
 | IAC-1403 | 503 | 本地引擎启动失败 | 查日志；确认插件完整或回退云后端 |
 | IAC-1501 | 400 | 未知斜杠标记命令 | 用 `/help` 查看可用标记 |
+| IAC-1601 | 507 | 快照仓库超限且无法回收 | 调大 retention 上限或手动清理 |
+| IAC-1602 | 410 | 回滚目标条目已被 retention 回收 | 选择最近可用回滚点 |
+| IAC-1603 | 409 | 回放冲突（目标路径已被后续操作改变） | 确认后用 --force 或先回滚更晚条目 |
 
 ## 6. 输入标记规范（G13，仅在 iA 输入框/TUI 输入行解析，不改变 shell 语义）
 
@@ -194,6 +200,9 @@
 | providers.<name>.path | string | local-path 型的模型文件路径（GGUF） |
 | ai.default_provider / ai.fallback_local | string/bool | 默认后端与云→本地降级开关 |
 | modelhub.source | hf/modelscope/hf-mirror | 插件下载源 |
+| rollback.enabled | bool | 效果日志与回滚开关（v2 默认开） |
+| rollback.capture_scope | cwd_tree/explicit/all_home | 捕获范围策略（统一策略，无逐命令判断） |
+| rollback.retention_days / retention_max_bytes | int | 快照与回收站保留期/容量上限（默认 7 天/1GB，LRU 自动清理） |
 
 *HTTP 语义列仅作状态码语义参照（CLI `--json` 与 IPC error 复用该语义），实际无 HTTP 服务。
 
