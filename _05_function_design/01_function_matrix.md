@@ -20,6 +20,9 @@
 | ai | — | — | — | ai_complete(IF-005)、local_engine_ensure(IF-010) |
 | modelhub | — | — | — | modelhub_install(IF-008)、modelhub_list(IF-009) |
 | 输入解析 | — | — | parse_input_marker(I-034，归属 server) | — |
+| rollback | — | diff_effects(I-036)、file_history(I-038) | — | — |
+| rollback（编排） | — | capture_pre_image(I-035)、rollback_to(I-037)、restore_file(I-039)（编排） | — | — |
+| snapstore | — | — | — | snapstore_put(IF-011)、snapstore_fetch(IF-012)、sweep_expired(IF-013) |
 | storage | — | — | — | storage_query(IF-001)、storage_execute(IF-002)、storage_migrate(IF-004) |
 | config | — | — | — | load_config(IF-006)、save_config(IF-007) |
 | tui / cli | 事件循环、子命令入口（豁免） | — | — | — |
@@ -382,3 +385,46 @@
 | M4 服务与接入 | T-020~T-023 | daemon + CLI + MCP 三入口可用 |
 | M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用（含参数映射与组合闭环）；本地模型插件可装可切 |
 | M6 体验与收敛 | T-028~T-033 | 标记语言、日夜主题可用，E2E 全链路通过 → v0.1.0 |
+| M7 执行回滚（v2 → v0.2.0） | T-034~T-037 | 效果日志回滚全链路可用（point-in-time + 单文件版本 + 回收站） |
+
+## 4. v2 预排任务卡（M7 执行回滚，机制见 _02 Q6-S4 效果日志方案）
+
+### T-034 快照仓库 Adapter（US-18，AC-29）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `infra/src/snapstore/mod.rs`、`infra/tests/snapstore_test.rs` |
+| 产出方法 | `snapstore_put`（IF-011）、`snapstore_fetch`（IF-012）、`sweep_expired`（IF-013，retention 清理） |
+| 验收方式 | 单测：内容寻址去重（同内容单存储）、压缩往返、reflink/硬链接/复制降级链、retention LRU 清理边界 |
+| 依赖任务 | T-003 |
+| 预估 | 30 分钟 |
+
+### T-035 前像捕获与效果 diff（US-18，AC-29）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/rollback/capture.rs`、`core/src/rollback/diff.rs` |
+| 产出方法 | `capture_pre_image`（I-035，orchestration：圈定范围→manifest→入库）、`diff_effects`（I-036，data：manifest vs 现况→EffectEntry 入库） |
+| 验收方式 | 单测：范围圈定（cwd 子树/显式路径/影响面并集）、created/modified/deleted/renamed 四类 diff、范围外写入标 out_of_scope |
+| 依赖任务 | T-034、T-008 |
+| 预估 | 30 分钟 |
+
+### T-036 回滚回放（US-18，AC-30/31）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/rollback/replay.rs`、`core/src/rollback/trash.rs` |
+| 产出方法 | `rollback_to`（I-037，orchestration：目标点逆序回放；created→trash 而非抹除；IAC-1602/1603 语义） |
+| 验收方式 | 单测：多执行点连续回放、回滚到中间位置、trash 落位、目标已回收报错、范围外条目跳过并报告 |
+| 依赖任务 | T-035 |
+| 预估 | 30 分钟 |
+
+### T-037 文件版本历史与恢复（US-18，AC-30）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/rollback/file_history.rs` |
+| 产出方法 | `file_history`（I-038，data：路径版本列表=各次执行的效果条目）、`restore_file`（I-039，orchestration：取版本内容直接替换，过风险闸门） |
+| 验收方式 | 单测：同一文件多次修改的版本链、恢复到任一版本内容断言、恢复动作过闸门 |
+| 依赖任务 | T-036 |
+| 预估 | 25 分钟 |
