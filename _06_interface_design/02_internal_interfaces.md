@@ -46,9 +46,10 @@
 | I-034 | `fn parse_input_marker(input: &RawInput, output: &mut InputDecision, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | server | T-029 | 纯函数：标记分发（??//---/#/\ 转义），普通命令原样通过 |
 | I-035 | `fn capture_pre_image(input: &CaptureScope, output: &mut ManifestRef, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-035 | 执行前统一捕获前像（v2，M7） |
 | I-036 | `fn diff_effects(input: &ManifestRef, output: &mut Vec<EffectEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-035 | manifest vs 现况 → 效果日志入库（v2） |
-| I-037 | `fn rollback_to(input: &RollbackPoint, output: &mut RollbackReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-036 | 逆序回放至目标位置（v2） |
+| I-037 | `fn rollback_to(input: &RollbackRequest, output: &mut RollbackReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-036 | 范围回放（--to/--from）逐行倒序+冲突决策（v2） |
 | I-038 | `fn file_history(input: &FilePath, output: &mut Vec<FileVersion>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-037 | 路径版本列表=各次执行效果条目（v2） |
 | I-039 | `fn restore_file(input: &FileVersionRef, output: &mut RestoreReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-037 | 取版本内容直接替换，过风险闸门（v2） |
+| I-040 | `fn list_rollback_points(input: &RollbackListFilter, output: &mut Vec<RollbackPointView>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-038 | history 式回滚点聚合视图：seq/时间/命令/可回滚标识（v2） |
 | IF-001 | `fn storage_query(input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | SQL 原语，rusqlite 封装 |
 | IF-002 | `fn storage_execute(input: &SqlStatement, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | 写原语，含 ID 生成 |
 | IF-003 | `fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | process | T-005 | 平台 shell 选择+超时+捕获 |
@@ -366,7 +367,15 @@ pub struct EffectEntry { pub seq: i64, pub execution_id: String, pub path: Strin
     pub scope: CaptureScopeFlag, pub created_at: i64 }
 pub enum CaptureScopeFlag { In, OutOfScope }
 pub enum RollbackPoint { ExecutionId(String), Seq(i64), Timestamp(i64), Last }
-pub struct RollbackReport { pub applied: Vec<EffectEntry>, pub skipped: Vec<EffectEntry>, pub trash_dir: String }
+pub struct RollbackRange { pub from: Option<i64>, pub to: Option<i64> }   // 回放 (to, from] 区间；from 缺省=最新，to 缺省=最远
+pub enum ConflictPolicy { Ask, Skip, Abort }                              // --on-conflict；非交互缺省 Abort
+pub struct RollbackRequest { pub range: RollbackRange, pub on_conflict: ConflictPolicy }
+pub struct RollbackListFilter { pub q: Option<String>, pub since: Option<i64>, pub limit: u32 }
+pub enum Rollbackable { Full, Partial { reason: String }, None { reason: String } }
+pub struct RollbackPointView { pub seq: i64, pub at: i64, pub command: String,
+    pub effect_count: u32, pub rollbackable: Rollbackable }
+pub struct RollbackReport { pub applied: Vec<EffectEntry>, pub skipped: Vec<SkippedEntry>, pub trash_dir: String }
+pub struct SkippedEntry { pub entry: EffectEntry, pub reason: String }    // ask 拒绝/skip 策略/引用缺失/out_of_scope
 pub struct FileVersion { pub seq: i64, pub execution_id: String, pub op: EffectOp,
     pub content_ref: String, pub at: i64, pub command: String }
 pub struct FileVersionRef { pub path: String, pub seq: i64 }

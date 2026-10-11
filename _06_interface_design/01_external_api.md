@@ -35,7 +35,7 @@
 | CMD-012 | `iac config get <key>\|set <key> <val>\|path` | 配置管理 | T-002 | config |
 | CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>]` | 习惯方言→主机方言翻译 | T-025/032 | intent |
 | CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
-| CMD-015 | `iac rollback [<execution_id>\|--to <时间\|seq>]` | 回滚到指定位置（v2，M7） | T-036 | rollback |
+| CMD-015 | `iac rollback --list \| --to <行\|时间\|exec_id> \| --from <行> [--to <行>] [--on-conflict <ask\|skip\|abort>]` | 回滚点列表与范围回放（v2，M7） | T-036/038 | rollback |
 | CMD-016 | `iac file history <路径>` / `iac file restore <路径> --to <版本>` | 文件版本历史与恢复（v2） | T-037 | rollback |
 
 ### 2.2 MCP 工具 / IPC methods（同名同构）
@@ -53,7 +53,7 @@
 | API-009 | `iac_config_get` | 配置只读（不含密钥） | T-002 | config |
 | API-010 | `iac_translate` | 跨方言命令翻译 | T-025 | intent |
 | API-011 | `iac_model_list` | 已装模型插件列表 | T-026 | modelhub |
-| API-012 | `iac_rollback` | 回滚到指定位置 / 查询回滚点（v2，M7） | T-036 | rollback |
+| API-012 | `iac_rollback` | 回滚点列表（history 式）与范围回放（v2，M7） | T-036/038 | rollback |
 
 ## 3. 接口定义（关键 API）
 
@@ -175,7 +175,16 @@
 | IAC-1501 | 400 | 未知斜杠标记命令 | 用 `/help` 查看可用标记 |
 | IAC-1601 | 507 | 快照仓库超限且无法回收 | 调大 retention 上限或手动清理 |
 | IAC-1602 | 410 | 回滚目标条目已被 retention 回收 | 选择最近可用回滚点 |
-| IAC-1603 | 409 | 回放冲突（目标路径已被后续操作改变） | 确认后用 --force 或先回滚更晚条目 |
+| IAC-1603 | 409 | 回放冲突（目标路径已被后续操作改变） | 按 --on-conflict 决策；ask 时逐条询问 |
+| IAC-1604 | 400 | 回滚范围/参数无效（from≤to、行号不存在） | 用 iac rollback --list 查看有效行号 |
+
+### API-012 `iac_rollback`（v2，M7）
+
+- **两种用法**：
+  1. 列表（对应 `--list`）：入参 `{filter: {q?, since?, limit?}}`，出参 `RollbackPointView[]`——`{seq, at, command, effect_count, rollbackable: full|partial|none, reason?}`（history 式：行号/时间/当时命令/可回滚标识）。
+  2. 回放（对应 `--to` / `--from`）：入参 `{range: {from?, to?}, on_conflict: ask|skip|abort}`，出参 `RollbackReport`——`{applied[], skipped[{entry, reason}], trash_dir}`。
+- **范围语义**：`--to <行>`=回滚到指定行（其后全部逆序回放）；`--from <行> [--to <行>]`=回放 (to, from] 区间（缺省 to=最远）。
+- **错误**：IAC-1601~1604 / IAC-3102
 
 ## 6. 输入标记规范（G13，仅在 iA 输入框/TUI 输入行解析，不改变 shell 语义）
 
@@ -202,6 +211,8 @@
 | modelhub.source | hf/modelscope/hf-mirror | 插件下载源 |
 | rollback.enabled | bool | 效果日志与回滚开关（v2 默认开） |
 | rollback.capture_scope | cwd_tree/explicit/all_home | 捕获范围策略（统一策略，无逐命令判断） |
+| rollback.max_entries | int | 回滚日志执行点数上限：默认 1024，可配置，硬上限 65536；超限清退最旧执行点 |
+| rollback.on_conflict | ask/skip/abort | 回放冲突默认策略（CLI --on-conflict 可逐次覆盖；非交互环境缺省 abort） |
 | rollback.retention_days / retention_max_bytes | int | 快照与回收站保留期/容量上限（默认 7 天/1GB，LRU 自动清理） |
 
 *HTTP 语义列仅作状态码语义参照（CLI `--json` 与 IPC error 复用该语义），实际无 HTTP 服务。
