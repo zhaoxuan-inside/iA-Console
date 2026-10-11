@@ -551,6 +551,22 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-019",
+      "date": "2026-10-11",
+      "requirement": "REQ-APPIMAGE：AppImage 发行包——dist/ia-console-0.1.0-x86_64.AppImage（官方 type2 runtime + backhand gzip squashfs，AppRun 多路分发 ia-console/iac/iacd，Icon=ia-console 自有图标）；scripts/build-appimage.sh 可重复构建（runtime 资产 dist/runtime-x86_64 固化，sqfs-helper 用 backhand 纯 Rust 写镜像）。排障记录：GitHub release 直连抖动→appimagetool.AppImage 成功下载后按真实偏移 944632 抠官方 runtime（194183 处 hsqs 为代码假阳性）；捆绑 mksquashfs 仅支持 zstd 且官方 runtime 解析其镜像 core dump → 改 backhand gzip 解决",
+      "changed_files": [
+        "scripts/build-appimage.sh",
+        "scripts/gen-icon.py",
+        "scripts/ia-console.png",
+        "dist/runtime-x86_64",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }
