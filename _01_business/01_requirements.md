@@ -142,7 +142,7 @@ flowchart TD
 | 输出超大 | stdout/stderr > 1MB | 记录截断摘要 + 原文落盘引用（stdout_ref/stderr_ref），不阻塞 |
 | 多客户端并发 | TUI/CLI/MCP 同时读写 | SQLite WAL 模式，写经 daemon 串行化，不互锁 |
 | daemon 未启动 | 前端连接失败 | 明确报 IAC-6101 并给出启动命令（不静默自动拉起） |
-| 高危命令确认超时 | 30 秒未确认 | 自动取消，IAC-2104，审计记录 rejected |
+| 高危确认超时（仅翻译/Agent 路径） | 30 秒未确认 | 自动取消，IAC-2104，审计记录 rejected |
 | Agent 请求执行 destructive | 未携带确认标志 | 拒绝执行并返回影响面说明，要求 Agent 带确认重试（闸门与人一致） |
 | 会话文件损坏 | load 校验失败 | 该会话标记 corrupted，列表其余会话不受影响 |
 | 密钥安全 | 配置含 API Key | 默认从环境变量读取；日志与执行记录中密钥一律脱敏 |
@@ -163,7 +163,7 @@ flowchart TD
 AC-01  WHEN 用户以自然语言提交意图 THE SYSTEM SHALL 在网络正常时 10 秒内返回结构化提案：完整命令、一句话摘要、风险等级；逐参数白话解释与影响面**默认收起**，经 `--explain` / TUI `e` 键按需展开。
 AC-02  WHEN 用户执行 iac explain <命令> THE SYSTEM SHALL 返回参数规格表，优先本地知识缓存，未命中时经 help 解析与 AI 补全并回写缓存。
 AC-03  WHEN 命令执行退出码非零 THE SYSTEM SHALL 自动生成诊断报告：根因假设（引用 stderr 原文为证据）+ 至少一条修复提案。
-AC-04  WHEN 命令命中 destructive 规则（如 rm -rf 于系统路径、mkfs、dd 写块设备） THE SYSTEM SHALL 拒绝直接执行，展示影响面并要求显式二次确认。
+AC-04  WHEN 人类直接输入的命令命中 dangerous/destructive 规则（如 rm -rf 于系统路径、mkfs、dd 写块设备） THE SYSTEM SHALL 以**弱提醒**呈现（命令红字 + ⚠ 告警标识 + 视口边缘红描边）并正常回车执行，不做强确认拦截；WHEN 翻译后命令或 Agent 发起命令命中 dangerous/destructive THE SYSTEM SHALL 经用户确认后方可执行（前者执行内容≠用户输入内容，后者发起方非人类）。
 AC-05  WHEN 任意命令执行完成（含 Agent 发起） THE SYSTEM SHALL 写入执行记录（命令、argv、cwd、shell、host、发起方、退出码、耗时、时间、会话）与审计条目。
 AC-06  WHEN 用户执行 iac session resume <id> THE SYSTEM SHALL 恢复该会话事件流上下文，后续执行与 AI 对话延续该会话。
 AC-07  WHEN daemon 重启 THE SYSTEM SHALL 保留全部会话、执行记录、方案库与审计数据，无丢失。
@@ -194,7 +194,8 @@ AC-31  (v2) WHEN 发生删除类回滚或快照回收 THE SYSTEM SHALL 删除效
 AC-32  (v2) WHEN 回滚日志执行点数超过上限 THE SYSTEM SHALL 按配置自动清退最旧执行点（rollback.max_entries 默认 1024，可配置，上限 65536），与天数/容量策略并行生效。
 AC-33  (v2) WHEN 用户查看回滚列表 THE SYSTEM SHALL 以 history 风格展示每个执行点：行号(seq)、时间、当时命令、可回滚标识（可回滚/部分可回滚/不可回滚+原因）；并支持范围回放——回滚到指定行（其后全部逆序回放）、从指定行回滚到指定行（区间）、从指定行一直回滚到最远。
 AC-34  (v2) WHEN 逐行倒序回放遇到不可回滚条目（冲突/引用缺失/权限） THE SYSTEM SHALL 提示用户逐条决策是否跳过；--on-conflict <ask|skip|abort> 参数可改变策略（skip 即默认跳过），决策结果计入回滚报告。
-AC-35  WHEN 用户直接输入确定命令或执行方案库条目 THE SYSTEM SHALL 默认不渲染参数解释与影响面（解释仍生成入库但不铺开），闸门仅对 caution 及以上风险展示确认；解释仅在显式请求时出现：`??`、`iac explain`、TUI `e` 键、`--explain` 参数。
+AC-35  WHEN 用户直接输入确定命令或执行方案库条目 THE SYSTEM SHALL 默认不渲染参数解释与影响面（解释仍生成入库但不铺开），人类直接输入一律弱提醒不拦截（AC-04），确认仅出现在翻译高危与 Agent 路径；解释仅在显式请求时出现：`??`、`iac explain`、TUI `e` 键、`--explain` 参数。
+AC-36  WHEN 翻译产生的命令呈现给用户 THE SYSTEM SHALL 显示转换逻辑：原命令以删除线呈现（终端不支持时降级为灰阶 + → 箭头），后跟译文；非高危回车直接执行，高危经确认后执行。
 ```
 
 ## 8. 未决问题
