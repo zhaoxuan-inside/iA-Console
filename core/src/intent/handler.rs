@@ -278,7 +278,7 @@ fn violates_known_params(draft: &ProposalDraft, knowledge: &crate::knowledge::Co
 }
 
 /// 默认 Provider 档案（local-builtin 为隐式档案，引擎端点随 T-027 接线）。
-fn default_provider(config: &crate::config::Config) -> ProviderProfile {
+pub fn default_provider(config: &crate::config::Config) -> ProviderProfile {
     let name = &config.ai.default_provider;
     config
         .providers

@@ -110,6 +110,8 @@ pub struct ExecConfig {
     pub timeout_ms: u64,
     #[serde(default = "default_summary_max")]
     pub stdout_summary_max: usize,
+    #[serde(default = "default_summary_max")]
+    pub stderr_summary_max: usize,
     #[serde(default = "default_raw_max")]
     pub output_raw_max: usize,
 }
@@ -149,7 +151,12 @@ impl Default for RenderConfig {
 }
 impl Default for ExecConfig {
     fn default() -> Self {
-        Self { timeout_ms: default_timeout_ms(), stdout_summary_max: default_summary_max(), output_raw_max: default_raw_max() }
+        Self {
+            timeout_ms: default_timeout_ms(),
+            stdout_summary_max: default_summary_max(),
+            stderr_summary_max: default_summary_max(),
+            output_raw_max: default_raw_max(),
+        }
     }
 }
 

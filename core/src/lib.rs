@@ -6,11 +6,14 @@
 pub mod common;
 pub mod config;
 pub mod error;
+pub mod doctor;
 pub mod framework;
+pub mod executor;
 pub mod intent;
 pub mod knowledge;
 pub mod history;
 pub mod ports;
+pub mod recipe;
 pub mod risk;
 pub mod session;
 pub mod types;

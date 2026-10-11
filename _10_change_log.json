@@ -388,7 +388,13 @@
         "core/src/intent/parse.rs",
         "core/src/intent/store.rs",
         "core/src/intent/handler.rs",
-        "core/tests/intent_test.rs"
+        "core/tests/intent_test.rs",
+        "core/src/doctor/mod.rs",
+        "core/src/doctor/handler.rs",
+        "core/src/executor/mod.rs",
+        "core/src/executor/handler.rs",
+        "core/tests/executor_test.rs",
+        "core/tests/doctor_test.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -419,7 +425,12 @@
         "m-025",
         "m-026",
         "m-027",
-        "m-028"
+        "m-028",
+        "m-029",
+        "m-030",
+        "m-031",
+        "m-032",
+        "m-033"
       ],
       "author": "Agent",
       "verified": false

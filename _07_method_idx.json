@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T16:00:24+08:00",
+  "updated_at": "2026-10-11T16:06:26+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -435,14 +435,101 @@
       "description": "I-026：参数解释（缓存→help 解析→AI 补全三级降链，均回写缓存）",
       "reusable": true,
       "id": "m-028"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/doctor_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn build_failure_context(input: &ExecutionRecord, output: &mut DiagnosePromptBundle, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "build_failure_context",
+      "category": "data",
+      "layer": "domain",
+      "module": "doctor",
+      "location": "core/src/doctor/handler.rs",
+      "description": "I-021：失败上下文构建（stderr/退出码/近史；静态快速通道命中标记）",
+      "reusable": true,
+      "id": "m-029"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/tests/doctor_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn parse_diagnosis_response(input: &LlmResponse, output: &mut Diagnosis, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "parse_diagnosis_response",
+      "category": "data",
+      "layer": "domain",
+      "module": "doctor",
+      "location": "core/src/doctor/handler.rs",
+      "description": "I-022：LLM 诊断→Diagnosis（无证据引用标 speculation）",
+      "reusable": true,
+      "id": "m-030"
+    },
+    {
+      "dependencies": [
+        "m-014",
+        "m-017",
+        "m-024"
+      ],
+      "tests": "core/tests/doctor_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn diagnose_failure(input: &DiagnoseInput, output: &mut Diagnosis, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "diagnose_failure",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "doctor",
+      "location": "core/src/doctor/handler.rs",
+      "description": "I-029：诊断编排（静态命中即返；否则 LLM 证据链；AI 失败降级报错）",
+      "reusable": true,
+      "id": "m-031"
+    },
+    {
+      "dependencies": [
+        "m-020",
+        "m-007",
+        "m-014",
+        "m-016",
+        "m-029"
+      ],
+      "tests": "core/tests/executor_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn handle_execute(input: &ExecuteInput, output: &mut ExecutionOutcome, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "handle_execute",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "executor",
+      "location": "core/src/executor/handler.rs",
+      "description": "I-027：执行主流程（闸门→进程→三账→失败转诊断；人类直输弱提醒不拦截）",
+      "reusable": true,
+      "id": "m-032"
+    },
+    {
+      "dependencies": [
+        "m-027"
+      ],
+      "tests": "core/tests/executor_test.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn confirm_and_execute(input: &ExecuteInput, output: &mut ExecutionOutcome, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "confirm_and_execute",
+      "category": "orchestration",
+      "layer": "app",
+      "module": "executor",
+      "location": "core/src/executor/handler.rs",
+      "description": "I-028：确认后执行（置提案 confirmed，confirm_dangerous=true）",
+      "reusable": true,
+      "id": "m-033"
     }
   ],
   "stats": {
-    "total": 28,
+    "total": 33,
     "by_category": {
       "algorithm": 2,
-      "orchestration": 5,
-      "data": 21
+      "orchestration": 8,
+      "data": 23
     }
   }
 }
