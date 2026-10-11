@@ -20,6 +20,8 @@
 | ai | — | — | — | ai_complete(IF-005)、local_engine_ensure(IF-010) |
 | modelhub | — | — | — | modelhub_install(IF-008)、modelhub_list(IF-009) |
 | 输入解析 | — | — | parse_input_marker(I-034，归属 server) | — |
+| script | — | collect_commands(I-041) | assemble_script(I-042) | — |
+| script（编排） | refine_script(I-043)、run_script(I-044) | — | — | — |
 | rollback | — | diff_effects(I-036)、file_history(I-038)、list_rollback_points(I-040) | — | — |
 | rollback（编排） | — | capture_pre_image(I-035)、rollback_to(I-037)、restore_file(I-039)（编排） | — | — |
 | snapstore | — | — | — | snapstore_put(IF-011)、snapstore_fetch(IF-012)、sweep_expired(IF-013) |
@@ -396,6 +398,49 @@
 | M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用（含参数映射与组合闭环）；本地模型插件可装可切 |
 | M6 体验与收敛 | T-028~T-034 | 标记语言、日夜主题、复制三档可用，E2E 全链路通过 → v0.1.0 |
 | M7 执行回滚（v2 → v0.2.0） | T-035~T-039 | 效果日志回滚全链路可用（范围回放 + 单文件版本 + 回收站 + history 式列表） |
+| M8 脚本工坊（v2 → v0.2.0） | T-040~T-043 | 命令范围→sh/bat 脚本→命名注册→`iac run @名` 全链路可用 |
+
+## 5. v2 预排任务卡（M8 脚本工坊，机制见 _02 Q9 拼接+可选精修）
+
+### T-040 范围收集与确定性装配（US-21，AC-38）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/script/collect.rs`、`core/src/common/script_assembler.rs` |
+| 产出方法 | `collect_commands`（I-041，data：任务段/行号区间统一取命令序列）、`assemble_script`（I-042，algorithm：拼接 + 平台头部，sh/PS 双版本） |
+| 验收方式 | 单测：任务段/区间两种范围、头部注入断言（set -euo pipefail / ErrorActionPreference）、方言混合原样保留、零 AI 断言 |
+| 依赖任务 | T-009、T-017 |
+| 预估 | 30 分钟 |
+
+### T-041 AI 精修（US-21，AC-40）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/script/refine.rs` |
+| 产出方法 | `refine_script`（I-043，orchestration：参数化/依赖预检/跨方言适配 → 修订 diff，确认后覆盖，原稿保留） |
+| 验收方式 | 单测（mock ai）：diff 结构、未确认不覆盖、AI 不可用时拼接稿仍可用 |
+| 依赖任务 | T-040、T-006 |
+| 预估 | 25 分钟 |
+
+### T-042 注册与运行（US-21，AC-38/39）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/script/run.rs`、`infra/src/process/mod.rs`（ProcessSpec 增 script 模式：stdin 传入 `sh -s` / `pwsh -Command -`） |
+| 产出方法 | `run_script`（I-044，orchestration：platform 选版本 → 风险评估（内部最高）→ 闸门 → 执行 → 记录+审计）；save_recipe 扩展 name 唯一注册 |
+| 验收方式 | 单测：name 唯一约束、@名 运行解析、闸门 risk=内部最高、执行记录含脚本名、回滚日志覆盖断言 |
+| 依赖任务 | T-040、T-012、T-019 |
+| 预估 | 30 分钟 |
+
+### T-043 v2 端到端（P8 输入扩充）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `tests/e2e/`（v2 用例追加） |
+| 产出方法 | 无 |
+| 验收方式 | E2E：回滚全链路（范围回放/文件恢复）+ 脚本工坊全链路（make→refine(mock)→run @名→rollback 覆盖脚本效果）；输出验收清单 |
+| 依赖任务 | T-039、T-042 |
+| 预估 | 25 分钟 |
 
 ## 4. v2 预排任务卡（M7 执行回滚，机制见 _02 Q6-S4 效果日志方案）
 
