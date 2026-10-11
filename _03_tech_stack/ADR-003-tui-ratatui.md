@@ -23,6 +23,7 @@ TUI 选定 **ratatui**（渲染）+ **crossterm**（跨平台终端事件/原始
 | tui-rs | 已停止维护 |
 | egui | 即时模式 GUI，需 OpenGL/wgpu 上下文，与终端伴生定位不符 |
 | Bubbletea | Go 生态，与 ADR-001 冲突 |
+| Flutter（Dart UI） | ① 主战场是终端与 SSH/无显示环境，GUI embedder 直接失效；② 引入 Dart+Rust 双语言双栈，违背"代码统一性"；③ 桌面端每平台 bundle 体积大（20MB+）且 Linux 桌面支持弱。若未来确需图形界面，经 IPC 增加 Web Dashboard 前端即可，内核零改动（前端可替换性是伴生内核形态的既有红利） |
 
 ## 后果
 
