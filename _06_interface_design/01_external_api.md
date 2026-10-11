@@ -33,6 +33,8 @@
 | CMD-010 | `iac mcp serve` | MCP stdio 服务 | T-023 | server |
 | CMD-011 | `iac chat` | TUI 交互界面 | T-024 | tui |
 | CMD-012 | `iac config get <key>\|set <key> <val>\|path` | 配置管理 | T-002 | config |
+| CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>]` | 习惯方言→主机方言翻译 | T-025/030 | intent |
+| CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
 
 ### 2.2 MCP 工具 / IPC methods（同名同构）
 
@@ -47,6 +49,8 @@
 | API-007 | `iac_recipe_save` | 保存方案 | T-019 | recipe |
 | API-008 | `iac_sessions_current` | 当前会话信息 | T-007 | session |
 | API-009 | `iac_config_get` | 配置只读（不含密钥） | T-002 | config |
+| API-010 | `iac_translate` | 跨方言命令翻译 | T-025 | intent |
+| API-011 | `iac_model_list` | 已装模型插件列表 | T-026 | modelhub |
 
 ## 3. 接口定义（关键 API）
 
@@ -122,6 +126,19 @@
 - **响应**：Diagnosis：`{root_cause, evidence[](stderr 原文引用), confidence(0~1), fix_proposals: FixProposal[], rollback_note}`（v1 恒提示无自动回滚）
 - **错误**：IAC-1201 / IAC-2101(记录不存在→3101 语义归 3101)
 
+### API-010 `iac_translate`
+
+- **请求**：`command`（必填，非空）、`from`（习惯方言，缺省取配置 `ui.habit_dialect`）、`to`（目标平台，缺省运行时检测）
+- **响应**（TranslationResult）：`{translated_command, notes(差异说明), source(static|ai), verified, risk_level}`
+- **行为**：习惯方言=目标平台 → 原样返回（source=native）；静态映射命中零 AI 调用（AC-20）；未命中走 AI 翻译并回写缓存；AI 不可用返回原命令+说明（IAC-1301）。翻译结果一律为提案，须经确认执行。
+- **错误**：IAC-1301 / IAC-1101 / IAC-5102
+
+### API-011 `iac_model_list`
+
+- **请求**：无参
+- **响应**：`{items: [{plugin_id, name, engine, model, size_bytes, status(available|active|broken), installed_at}]}`
+- **错误**：IAC-3102；安装/删除经 CLI（CMD-014）触发，Agent 侧 v1 不开放写操作。
+
 ### 其余 API（API-004/006/007/008/009）payload 按 internal 数据模型同构映射，实现前如需调整在 _05 任务卡内确认并回填本文件。
 
 ## 4. 错误码表
@@ -148,6 +165,10 @@
 | IAC-6101 | 503 | daemon 未运行 | `iac daemon start` |
 | IAC-6102 | 400 | 协议版本不匹配 | 升级 iac / iacd 至一致版本 |
 | IAC-6103 | 409 | daemon 已在运行 | 直接使用现有实例 |
+| IAC-1301 | 404 | 翻译未命中且 AI 不可用 | 使用原命令或配置后端后重试 |
+| IAC-1401 | 404 | 模型插件不存在 | 用 iac model list 查看可用插件 |
+| IAC-1402 | 422 | 插件下载校验失败（sha256/大小不符） | 换源重试；勿绕过校验 |
+| IAC-1403 | 503 | 本地引擎启动失败 | 查日志；确认插件完整或回退云后端 |
 
 *HTTP 语义列仅作状态码语义参照（CLI `--json` 与 IPC error 复用该语义），实际无 HTTP 服务。
 

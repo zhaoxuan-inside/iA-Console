@@ -40,6 +40,9 @@
 | I-028 | `fn confirm_and_execute(input: &ExecuteInput, output: &mut ExecutionOutcome, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | executor | T-017 | 确认分支：置 proposal 状态→I-027 语义 |
 | I-029 | `fn diagnose_failure(input: &DiagnoseInput, output: &mut Diagnosis, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | doctor | T-018 | I-010→I-021→IF-005→I-022 |
 | I-030 | `fn dispatch_request(input: &IpcRequest, output: &mut IpcResponse, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | server | T-020 | 唯一路由入口，注入 metrics/evolution |
+| I-031 | `fn lookup_translation(input: &TranslationInput, output: &mut Option<TranslationResult>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | knowledge | T-024 | 静态表+缓存双层查找 |
+| I-032 | `fn cache_translation(input: &TranslationResult, output: &mut RecordAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | knowledge | T-024 | AI 译文回写，verified=false |
+| I-033 | `fn translate_command(input: &TranslationInput, output: &mut TranslationResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | intent | T-025 | 静态命中零 AI；未命中 AI 兜底；降级返回原文 |
 | IF-001 | `fn storage_query(input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | SQL 原语，rusqlite 封装 |
 | IF-002 | `fn storage_execute(input: &SqlStatement, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | 写原语，含 ID 生成 |
 | IF-003 | `fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | process | T-005 | 平台 shell 选择+超时+捕获 |
@@ -47,6 +50,9 @@
 | IF-005 | `fn ai_complete(input: &AiRequest, output: &mut LlmResponse, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | ai | T-006 | OpenAI 兼容，Provider 档案 |
 | IF-006 | `fn load_config(input: &ConfigPath, output: &mut Config, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | config | T-002 | TOML+env 覆盖 |
 | IF-007 | `fn save_config(input: &Config, output: &mut ConfigWriteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | config | T-002 | 密钥不落盘 |
+| IF-008 | `fn modelhub_install(input: &PluginRef, output: &mut InstallResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | modelhub | T-026 | 多源下载+sha256+断点续传；IO 边界 |
+| IF-009 | `fn modelhub_list(input: &PluginFilter, output: &mut Vec<PluginInfo>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | modelhub | T-026 | 已装插件清单 |
+| IF-010 | `fn local_engine_ensure(input: &EngineSpec, output: &mut EngineHandle, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | infra | ai | T-027 | 引擎子进程 supervisor：拉起/健康检查/端口；未装→引导 |
 
 ## 2. 关键接口契约
 
@@ -101,6 +107,20 @@
 | evolution | `&mut Evolution` | AI 失败→降级静态通道结果或 IAC-1201 |
 
 - **失败语义**：静态快速通道命中即返回（true，不调 AI）；AI 不可达且静态未命中→IAC-1201；证据引用为空的假设标 speculation=true。
+
+### I-033 `translate_command`（跨方言翻译）
+
+| 段 | 类型 | 约束 |
+|---|---|---|
+| input | `&TranslationInput` | command 非空；from/to 均为 Platform 枚举 |
+| output | `&mut TranslationResult` | command_to/notes/source/verified/risk_level |
+| context | `&Context` | config(habit_dialect)、deps(StorePort/AiAdapter) |
+| metrics | `&mut Metrics` | 记录 source(static\|ai\|native)、AI 调用次数 |
+| evolution | `&mut Evolution` | AI 不可用且静态未命中→降级返回原文（true，source=native 并附说明），不报 IAC-1301 除非调用方显式要求失败 |
+
+- **前置条件**：无（幂等、只读翻译，不执行命令）。
+- **后置条件**：AI 翻译成功时结果已回写缓存（verified=false）；不产生执行与审计之外的副作用。
+- **失败语义**：仅存储不可用（IAC-3102）返回 false；翻译"无等价命令"属于成功（true）并以 notes 说明。
 
 ### IF-003 `spawn_process`（infra Adapter）
 
@@ -209,11 +229,36 @@ CREATE TABLE audit_log (
   ts INTEGER NOT NULL,
   session_id TEXT,
   actor TEXT NOT NULL,                       -- human|agent:<client>|system
-  action TEXT NOT NULL,                      -- execute|confirm|reject|save_recipe|session_resume|...
+  action TEXT NOT NULL,                      -- execute|confirm|reject|save_recipe|session_resume|translate|...
   target TEXT,
   detail TEXT                                -- JSON
 );
 CREATE INDEX idx_audit_ts ON audit_log(ts DESC);
+
+CREATE TABLE translations (
+  id TEXT PRIMARY KEY,                       -- hash(from_dialect+to_platform+command_from)
+  from_dialect TEXT NOT NULL,                -- linux|macos|windows（习惯方言）
+  to_platform TEXT NOT NULL,                 -- linux|macos|windows（主机平台）
+  command_from TEXT NOT NULL,
+  command_to TEXT NOT NULL,
+  notes TEXT,                                -- 差异说明
+  verified INTEGER NOT NULL DEFAULT 0,       -- 用户确认后转正
+  source TEXT NOT NULL,                      -- builtin|ai|user
+  updated_at INTEGER NOT NULL,
+  UNIQUE(from_dialect, to_platform, command_from)
+);
+
+CREATE TABLE model_plugins (
+  id TEXT PRIMARY KEY,                       -- plugin_id
+  name TEXT NOT NULL,
+  engine TEXT NOT NULL,                      -- llama-server 及版本
+  model TEXT NOT NULL,                       -- GGUF 文件标识
+  files TEXT NOT NULL,                       -- JSON: [{path,sha256,size}]
+  total_size INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'available',  -- available|active|broken
+  source TEXT NOT NULL,                      -- hf|modelscope|hf-mirror
+  installed_at INTEGER NOT NULL
+);
 ```
 
 ### 核心 payload 类型（Rust）
@@ -255,6 +300,16 @@ pub struct IpcRequest { pub v: u32, pub id: String, pub method: String, pub para
 pub struct IpcResponse { pub v: u32, pub id: String, pub ok: bool,
     pub result: Option<serde_json::Value>, pub error: Option<IacError> }
 pub struct IacError { pub code: String, pub message: String, pub detail: Option<serde_json::Value> }
+pub struct TranslationInput { pub command: String, pub from_dialect: Platform, pub to_platform: Platform }
+pub struct TranslationResult { pub command_from: String, pub command_to: String, pub notes: String,
+    pub source: TranslationSource, pub verified: bool, pub risk_level: RiskLevel }
+pub enum TranslationSource { Native, Static, Ai }
+pub struct PluginRef { pub plugin_id: String, pub source: DownloadSource }
+pub struct InstallResult { pub plugin_id: String, pub files: Vec<InstalledFile>, pub total_size: u64, pub duration_ms: u64 }
+pub struct PluginInfo { pub plugin_id: String, pub name: String, pub engine: String, pub model: String,
+    pub total_size: u64, pub status: PluginStatus, pub installed_at: i64 }
+pub struct EngineSpec { pub plugin_id: String, pub context_len: u32, pub preferred_port: Option<u16> }
+pub struct EngineHandle { pub base_url: String, pub pid: u32, pub model: String }
 ```
 
 ### 支撑类型（五段签名公共段，P7 随 T-002 定稿实现）
