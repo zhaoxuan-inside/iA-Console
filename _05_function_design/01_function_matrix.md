@@ -19,6 +19,7 @@
 | knowledge | — | lookup_knowledge(I-003)、cache_knowledge(I-004)、lookup_translation(I-031)、cache_translation(I-032) | parse_help_text(I-002) | — |
 | ai | — | — | — | ai_complete(IF-005)、local_engine_ensure(IF-010) |
 | modelhub | — | — | — | modelhub_install(IF-008)、modelhub_list(IF-009) |
+| 输入解析 | — | — | parse_input_marker(I-034，归属 server) | — |
 | storage | — | — | — | storage_query(IF-001)、storage_execute(IF-002)、storage_migrate(IF-004) |
 | config | — | — | — | load_config(IF-006)、save_config(IF-007) |
 | tui / cli | 事件循环、子命令入口（豁免） | — | — | — |
@@ -279,15 +280,15 @@
 | 依赖任务 | T-004 |
 | 预估 | 15 分钟 |
 
-### T-025 翻译编排与静态映射表（US-13，AC-19/20）
+### T-025 翻译编排与静态映射数据集（US-13/15，AC-19/20/23/24）
 
 | 字段 | 内容 |
 |---|---|
-| 涉及文件 | `core/src/intent/translate.rs`、`core/src/intent/translation_table.rs`（内置高频映射 ≥40 条） |
+| 涉及文件 | `core/src/intent/translate.rs`、`core/src/intent/translation_table/`（内置数据集：官方常用命令全集核心条目，含参数级四类映射，目标 200~400 条随版本维护） |
 | 产出方法 | `translate_command`（I-033，orchestration） |
-| 验收方式 | 单测（mock ai）：习惯=主机→不翻译；ls→Get-ChildItem 静态命中零 AI；未命中→AI 翻译回写缓存；AI 不可用→返回原文+说明不阻塞 |
-| 依赖任务 | T-024、T-016 |
-| 预估 | 30 分钟 |
+| 验收方式 | 单测（mock ai）：习惯=主机→不翻译；`ls`/`grep`/`rm -r` 等静态命中零 AI 且返回参数级映射表（直映/改名/值变换/无等价四类）；一对一可译未收录→AI 翻译回写；需组合（如管道类）→AI 规划生成脚本→存方案库(tags=translation/auto)→登记映射 kind=composition→再次输入静态命中；AI 不可用→返回原文+说明不阻塞 |
+| 依赖任务 | T-024、T-016、T-019 |
+| 预估 | 40 分钟 |
 
 ### T-026 modelhub 插件下载安装（US-14，AC-21）
 
@@ -321,34 +322,54 @@
 | 依赖任务 | T-022 |
 | 预估 | 30 分钟 |
 
-### T-029 TUI 面板与方言设置（US-4/6/13）
+### T-029 输入标记解析器（US-16，AC-25/26/27）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/common/marker_parser.rs`、`core/tests/marker_parser_test.rs` |
+| 产出方法 | `parse_input_marker`（I-034，algorithm）：`??`→AI 解释/提问、`/`→管理命令、`---`→任务分隔、`#`→备注、`\`→转义字面 |
+| 验收方式 | 单测样本表：各标记正例、转义反例、未知斜杠命令（IAC-1501）、普通命令不受影响 |
+| 依赖任务 | T-001 |
+| 预估 | 20 分钟 |
+
+### T-030 主题系统与设计令牌（US-17，AC-28）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `iac/src/tui/theme.rs`、`themes/day.toml`、`themes/night.toml`（豁免组件+数据资产） |
+| 产出方法 | 豁免组件：主题令牌加载、day/night/auto（OSC 11 探测终端背景）、256/16 色降级、Nerd Font 渐进增强 |
+| 验收方式 | 组件单测：令牌解析、auto 探测 mock、降级映射表；iA-Writer 式排版令牌（间距/灰阶）断言 |
+| 依赖任务 | T-028 |
+| 预估 | 25 分钟 |
+
+### T-031 TUI 面板与方言设置（US-4/6/13/16）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `iac/src/tui/panels.rs`（豁免组件） |
-| 产出方法 | 豁免组件：AI 对话面板（`??` 显式唤起）、历史浏览面板、习惯方言设置与翻译模式展示 |
+| 产出方法 | 豁免组件：AI 对话面板（`??` 显式唤起）、历史浏览、习惯方言设置、`/config` 配置面板（终端类型/本地与远端模型地址/主题）、`---` 任务分隔展示 |
 | 验收方式 | 组件数据单测 + 手动冒烟脚本 |
-| 依赖任务 | T-028、T-025 |
-| 预估 | 25 分钟 |
+| 依赖任务 | T-028、T-025、T-029、T-030 |
+| 预估 | 30 分钟 |
 
-### T-030 CLI translate 子命令（US-13）
+### T-032 CLI translate/config 适配（US-13/16）
 
 | 字段 | 内容 |
 |---|---|
-| 涉及文件 | `iac/src/cli/translate.rs`（入口豁免） |
-| 产出方法 | 豁免入口：`iac translate <命令...> [--from <方言>]` 适配 dispatch（CMD-013） |
-| 验收方式 | assert_cmd：翻译请求/响应、--json 输出 |
-| 依赖任务 | T-025 |
-| 预估 | 10 分钟 |
+| 涉及文件 | `iac/src/cli/translate.rs`、`iac/src/cli/config_wizard.rs`（入口豁免） |
+| 产出方法 | 豁免入口：`iac translate`（CMD-013）适配 dispatch；`iac config` 交互式向导（对应 TUI /config） |
+| 验收方式 | assert_cmd：翻译请求/响应、--json 输出、向导写入配置往返 |
+| 依赖任务 | T-025、T-029 |
+| 预估 | 15 分钟 |
 
-### T-031 端到端验证与文档（P8 输入）
+### T-033 端到端验证与文档（P8 输入）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `tests/e2e/main.rs`（或集成测试目录）、`README.md` quickstart 更新 |
 | 产出方法 | 无 |
-| 验收方式 | E2E：daemon 启动→ask(mock AI)→confirm→execute→history 查到→session resume→方言翻译链路→MCP 工具调用全链路；输出验收清单 |
-| 依赖任务 | T-023、T-027、T-029 |
+| 验收方式 | E2E：daemon 启动→ask(mock AI)→confirm→execute→history→session resume→方言翻译（含组合闭环）→标记解析→MCP 工具调用全链路；输出验收清单 |
+| 依赖任务 | T-023、T-027、T-031 |
 | 预估 | 30 分钟 |
 
 ## 3. 里程碑
@@ -359,5 +380,5 @@
 | M2 记录域 | T-007~T-010 | 执行/会话/审计/检索落库可查 |
 | M3 智能域 | T-011~T-019 | ask→gate→execute→doctor 库级闭环（mock AI） |
 | M4 服务与接入 | T-020~T-023 | daemon + CLI + MCP 三入口可用 |
-| M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用；本地模型插件可装可切 |
-| M6 体验与收敛 | T-028~T-031 | TUI 可用，E2E 全链路通过 → v0.1.0 |
+| M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用（含参数映射与组合闭环）；本地模型插件可装可切 |
+| M6 体验与收敛 | T-028~T-033 | 标记语言、日夜主题可用，E2E 全链路通过 → v0.1.0 |
