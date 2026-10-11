@@ -8,9 +8,8 @@
 
 ## 决策
 
-- **PTY 层**：portable-pty（WezTerm 项目出品，MIT/Apache-2.0，跨平台 winpty/conpty/openpty 封装）
-- **仿真内核**：alacritty_terminal（alacritty 的核心 crate，MIT/Apache-2.0）
-- **egui 组件**：egui_term（封装上述两者；若 API 不稳则回退：portable-pty + vte + 自绘网格组件，内核不变）
+- **仿真内核**：alacritty_terminal ^0.25（alacritty 的核心 crate，MIT/Apache-2.0，自带跨平台 tty 模块 openpty/conpty）
+- **egui 组件**：egui_term 0.1（封装 alacritty_terminal + PTY 生命周期；实施确认其自带 tty，无需 portable-pty；若 API 不稳则回退：vte + 自绘网格组件，内核不变）
 
 ## 理由
 

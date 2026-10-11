@@ -21,10 +21,10 @@ iA-console 是一个**伴生智能内核**（daemon + CLI/TUI），不替换你�
 
 ## 快速开始（v0.1.0，已安装到本机）
 
-**主入口——全屏 Console 客户端**（应用菜单搜 "iA Console"，或任意终端）：
+**主入口——独立 GUI 应用**（应用菜单搜 "iA Console" 点击即开窗，或任意位置执行）：
 
 ```bash
-iac console        # 全屏 UI：输入区+输出流+提案卡+标记语言+日夜主题（/theme 切换）
+ia-console         # 独立窗口：真终端（多标签，cd/htop 等与 Konsole 同级）+ AI 侧栏
 ```
 
 Console 内：直接敲命令；`??ls` 问 AI；`yes/no` 确认提案；`---` 新任务段；`yc/yt/ya` 复制三档；`/help` 全部标记。
@@ -42,7 +42,7 @@ iac ask "找出最近7天修改的10个最大文件"     # AI 提案（配置 Pr
 
 ## 状态
 
-**v0.1.0 已实现并安装到本机**：全屏 Console 客户端（`iac console`）+ daemon + CLI/MCP 通道。M1 基础设施 / M2 记录域 / M3 智能域 / M4 服务接入 / M5 翻译+modelhub / M6 体验件。v2 预排：执行回滚（M7 效果日志）与脚本工坊（M8）。
+**v0.1.0 已实现并安装到本机**：独立 GUI 应用（`ia-console`，egui 真终端 + AI 侧栏）+ daemon + CLI/TUI/MCP 通道（`iac console` 为 SSH 辅助 TUI）。M1 基础设施 / M2 记录域 / M3 智能域 / M4 服务接入 / M5 翻译+modelhub / M6 体验件。v2 预排：执行回滚（M7 效果日志）与脚本工坊（M8）。
 
 架构与流程文档从 [`_00_project_idx.json`](_00_project_idx.json) 读起；120 项自动化测试（`cargo test --workspace`）。
 

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["iac", "iacd", "core", "infra"]
+members = ["iac", "iac-gui", "iacd", "core", "infra"]
 
 [workspace.package]
 version = "0.1.0"
@@ -25,6 +25,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 # TUI
 ratatui = "0.29"
+eframe = "0.31"
+egui_term = "0.1"
 crossterm = "0.28"
 # 观测
 tracing = "0.1"

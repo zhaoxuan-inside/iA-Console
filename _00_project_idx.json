@@ -181,6 +181,14 @@
     ],
     "key_dependencies": [
       {
+        "name": "eframe/egui 0.31",
+        "purpose": "独立 GUI 客户端窗口（主形态，ADR-008）"
+      },
+      {
+        "name": "egui_term 0.1 / alacritty_terminal 0.25",
+        "purpose": "真终端内核（ADR-009）"
+      },
+      {
         "name": "tokio",
         "purpose": "daemon 异步 IO（IPC/子进程/网络）"
       },

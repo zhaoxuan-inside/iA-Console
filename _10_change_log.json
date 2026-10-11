@@ -506,6 +506,36 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-016",
+      "date": "2026-10-11",
+      "requirement": "REQ-STANDALONE-GUI：产品形态升级——独立 GUI 客户端为主形态（G18/US-23/AC-44~46）：新增 iac-gui crate（二进制 ia-console），eframe/egui 0.31 窗口 + egui_term 0.1（alacritty_terminal 0.25 真终端内核，多标签/滚动/真实 shell cd 持久）+ AI 侧栏（标记语言 yes/no 提案确认流/弱提醒，经 IPC 与 CLI/TUI/MCP 同闸门同构）；桌面集成 Exec=ia-console 无终端包装；文档演进 _01/_02(Q11)/_03(ADR-008/009,ADR-003 注记)/_04/_05(M9/M10)/_09/_00。工具链事件：系统 rust 因 LLVM 升级损坏，改用用户级 rustup stable 1.99",
+      "changed_files": [
+        "Cargo.toml",
+        "iac-gui/Cargo.toml",
+        "iac-gui/src/lib.rs",
+        "iac-gui/src/main.rs",
+        "iac-gui/src/app.rs",
+        "iac-gui/src/theme.rs",
+        "iac-gui/src/sidebar.rs",
+        "iac-gui/src/ipc.rs",
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_03_tech_stack/ADR-003-tui-ratatui.md",
+        "_03_tech_stack/ADR-008-gui-eframe.md",
+        "_03_tech_stack/ADR-009-terminal-kernel.md",
+        "_04_framework_design/01_architecture.md",
+        "_05_function_design/01_function_matrix.md",
+        "_09_project_dict.json",
+        "README.md",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }
