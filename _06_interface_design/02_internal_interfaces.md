@@ -45,15 +45,17 @@
 | I-033 | `fn translate_command(input: &TranslationInput, output: &mut TranslationResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | intent | T-025 | 静态命中零 AI；一对一未收录→AI；需组合→AI 规划脚本入库+登记映射；降级返回原文 |
 | I-034 | `fn parse_input_marker(input: &RawInput, output: &mut InputDecision, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | server | T-029 | 纯函数：标记分发（??//---/#/\ 转义），普通命令原样通过 |
 | I-035 | `fn capture_pre_image(input: &CaptureScope, output: &mut ManifestRef, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-036 | 执行前统一捕获前像（v2，M7） |
-| I-036 | `fn diff_effects(input: &ManifestRef, output: &mut Vec<EffectEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-036 | manifest vs 现况 → 效果日志入库（v2） |
+| I-036 | `fn diff_effects(input: &ManifestRef, output: &mut Vec<EffectEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-038 | manifest vs 现况 → 效果日志入库（v2） |
 | I-037 | `fn rollback_to(input: &RollbackRequest, output: &mut RollbackReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-036 | 范围回放（--to/--from）逐行倒序+冲突决策（v2） |
-| I-038 | `fn file_history(input: &FilePath, output: &mut Vec<FileVersion>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-038 | 路径版本列表=各次执行效果条目（v2） |
-| I-039 | `fn restore_file(input: &FileVersionRef, output: &mut RestoreReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-038 | 取版本内容直接替换，过风险闸门（v2） |
-| I-040 | `fn list_rollback_points(input: &RollbackListFilter, output: &mut Vec<RollbackPointView>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-039 | history 式回滚点聚合视图：seq/时间/命令/可回滚标识（v2） |
-| I-041 | `fn collect_commands(input: &CollectRange, output: &mut Vec<CommandEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | script | T-040 | 任务段/行号区间统一取命令序列（v2） |
-| I-042 | `fn assemble_script(input: &ScriptAssemblyInput, output: &mut AssembledScript, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | script | T-040 | 确定性拼接 + 平台头部（set -e / ErrorActionPreference）（v2） |
-| I-043 | `fn refine_script(input: &AssembledScript, output: &mut ScriptRefineDiff, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | script | T-041 | AI 精修：参数化/预检/跨方言适配，diff 确认（v2） |
-| I-044 | `fn run_script(input: &ScriptRunInput, output: &mut ExecutionOutcome, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | script | T-042 | 命名脚本执行：platform 选版本、闸门（内部最高风险）、记录（v2） |
+| I-038 | `fn file_history(input: &FilePath, output: &mut Vec<FileVersion>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-040 | 路径版本列表=各次执行效果条目（v2） |
+| I-039 | `fn restore_file(input: &FileVersionRef, output: &mut RestoreReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | domain | rollback | T-040 | 取版本内容直接替换，过风险闸门（v2） |
+| I-040 | `fn list_rollback_points(input: &RollbackListFilter, output: &mut Vec<RollbackPointView>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | rollback | T-041 | history 式回滚点聚合视图：seq/时间/命令/可回滚标识（v2） |
+| I-041 | `fn collect_commands(input: &CollectRange, output: &mut Vec<CommandEntry>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | script | T-042 | 任务段/行号区间统一取命令序列（v2） |
+| I-042 | `fn assemble_script(input: &ScriptAssemblyInput, output: &mut AssembledScript, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | script | T-042 | 确定性拼接 + 平台头部（set -e / ErrorActionPreference）（v2） |
+| I-043 | `fn refine_script(input: &AssembledScript, output: &mut ScriptRefineDiff, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | script | T-043 | AI 精修：参数化/预检/跨方言适配，diff 确认（v2） |
+| I-044 | `fn run_script(input: &ScriptRunInput, output: &mut ExecutionOutcome, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | script | T-044 | 命名脚本执行：platform 选版本、闸门（内部最高风险）、记录（v2） |
+| I-045 | `fn detect_format(input: &RawText, output: &mut TextFormat, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | common | T-034 | 格式检测=解析验证，失败即纯文本（AC-41） |
+| I-046 | `fn highlight(input: &HighlightInput, output: &mut StyledSpans, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | common | T-034 | 轻量词法高亮，语言集配置化（AC-42/43） |
 | IF-001 | `fn storage_query(input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | SQL 原语，rusqlite 封装 |
 | IF-002 | `fn storage_execute(input: &SqlStatement, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | 写原语，含 ID 生成 |
 | IF-003 | `fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | process | T-005 | 平台 shell 选择+超时+捕获 |
@@ -64,9 +66,9 @@
 | IF-008 | `fn modelhub_install(input: &PluginRef, output: &mut InstallResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | modelhub | T-026 | 多源下载+sha256+断点续传；IO 边界 |
 | IF-009 | `fn modelhub_list(input: &PluginFilter, output: &mut Vec<PluginInfo>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | modelhub | T-026 | 已装插件清单 |
 | IF-010 | `fn local_engine_ensure(input: &EngineSpec, output: &mut EngineHandle, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | infra | ai | T-027 | 引擎子进程 supervisor：拉起/健康检查/端口；未装→引导 |
-| IF-011 | `fn snapstore_put(input: &SnapshotData, output: &mut ContentRef, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | snapstore | T-035 | 内容寻址写入，去重+压缩（v2） |
-| IF-012 | `fn snapstore_fetch(input: &ContentRef, output: &mut SnapshotData, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | snapstore | T-035 | 按引用取回（v2） |
-| IF-013 | `fn sweep_expired(input: &RetentionPolicy, output: &mut SweepReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | infra | snapstore | T-035 | retention LRU 清理快照与回收站（v2） |
+| IF-011 | `fn snapstore_put(input: &SnapshotData, output: &mut ContentRef, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | snapstore | T-037 | 内容寻址写入，去重+压缩（v2） |
+| IF-012 | `fn snapstore_fetch(input: &ContentRef, output: &mut SnapshotData, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | snapstore | T-037 | 按引用取回（v2） |
+| IF-013 | `fn sweep_expired(input: &RetentionPolicy, output: &mut SweepReport, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | infra | snapstore | T-037 | retention LRU 清理快照与回收站（v2） |
 
 ## 2. 关键接口契约
 
@@ -397,6 +399,11 @@ pub struct AssembledScript { pub name_hint: String, pub sh_body: Option<String>,
     pub target: ScriptTarget, pub max_risk: RiskLevel }
 pub struct ScriptRefineDiff { pub refined: AssembledScript, pub notes: Vec<String> }
 pub struct ScriptRunInput { pub name: String, pub args: Vec<String>, pub confirm_dangerous: bool }
+pub struct RawText { pub content: String, pub hint: Option<String> }         // hint=代码块语言标记/shebang
+pub enum TextFormat { Plain, Json, Yaml, Xml, Markdown, Code(String) }
+pub struct HighlightInput { pub text: String, pub format: TextFormat }
+pub struct StyledSpans { pub spans: Vec<(usize, usize, TokenKind)> }          // (start,end,token) 半开区间
+pub enum TokenKind { Keyword, Str, Comment, Number, Punct }
 ```
 
 ### 支撑类型（五段签名公共段，P7 随 T-002 定稿实现）

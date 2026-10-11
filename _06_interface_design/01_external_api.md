@@ -35,10 +35,10 @@
 | CMD-012 | `iac config get <key>\|set <key> <val>\|path` | 配置管理 | T-002 | config |
 | CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>] [--explain]` | 习惯方言→主机方言翻译（默认仅译文，--explain 展开差异） | T-025/032 | intent |
 | CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
-| CMD-015 | `iac rollback --list \| --to <行\|时间\|exec_id> \| --from <行> [--to <行>] [--on-conflict <ask\|skip\|abort>]` | 回滚点列表与范围回放（v2，M7） | T-037/039 | rollback |
-| CMD-016 | `iac file history <路径>` / `iac file restore <路径> --to <版本>` | 文件版本历史与恢复（v2） | T-038 | rollback |
-| CMD-017 | `iac script make (--segment <任务段> \| --from <行> [--to <行>]) --name <名> [--target sh\|bat\|both] [--refine]` | 命令范围→脚本制作（v2，M8） | T-040/041 | script |
-| CMD-018 | `iac script list\|show <name>\|run <name> [--args...]\|rm <name>`；`iac run @<name>` 等价 | 脚本管理与运行（v2） | T-042 | script |
+| CMD-015 | `iac rollback --list \| --to <行\|时间\|exec_id> \| --from <行> [--to <行>] [--on-conflict <ask\|skip\|abort>]` | 回滚点列表与范围回放（v2，M7） | T-039/041 | rollback |
+| CMD-016 | `iac file history <路径>` / `iac file restore <路径> --to <版本>` | 文件版本历史与恢复（v2） | T-040 | rollback |
+| CMD-017 | `iac script make (--segment <任务段> \| --from <行> [--to <行>]) --name <名> [--target sh\|bat\|both] [--refine]` | 命令范围→脚本制作（v2，M8） | T-042/043 | script |
+| CMD-018 | `iac script list\|show <name>\|run <name> [--args...]\|rm <name>`；`iac run @<name>` 等价 | 脚本管理与运行（v2） | T-044 | script |
 
 ### 2.2 MCP 工具 / IPC methods（同名同构）
 
@@ -55,9 +55,9 @@
 | API-009 | `iac_config_get` | 配置只读（不含密钥） | T-002 | config |
 | API-010 | `iac_translate` | 跨方言命令翻译 | T-025 | intent |
 | API-011 | `iac_model_list` | 已装模型插件列表 | T-026 | modelhub |
-| API-012 | `iac_rollback` | 回滚点列表（history 式）与范围回放（v2，M7） | T-037/039 | rollback |
-| API-013 | `iac_script_make` | 命令范围→脚本制作与注册（v2，M8） | T-040/041 | script |
-| API-014 | `iac_script_run` | 运行命名脚本（v2） | T-042 | script |
+| API-012 | `iac_rollback` | 回滚点列表（history 式）与范围回放（v2，M7） | T-039/041 | rollback |
+| API-013 | `iac_script_make` | 命令范围→脚本制作与注册（v2，M8） | T-042/043 | script |
+| API-014 | `iac_script_run` | 运行命名脚本（v2） | T-044 | script |
 
 ## 3. 接口定义（关键 API）
 
@@ -214,6 +214,8 @@
 | ai.default_provider / ai.fallback_local | string/bool | 默认后端与云→本地降级开关 |
 | modelhub.source | hf/modelscope/hf-mirror | 插件下载源 |
 | risk.confirm_mode | weak/ask | 高危弱提醒（weak：红字+⚠+边缘描边，不拦截，默认）或强确认（ask）；**翻译高危与 Agent 路径恒走确认，不受此开关影响** |
+| render.languages | [python, shell, bat, ...] | 代码高亮语言集（可扩展 java/go 等） |
+| render.output_detection | on/off | 命令输出自动格式检测开关 |
 | rollback.enabled | bool | 效果日志与回滚开关（v2 默认开） |
 | rollback.capture_scope | cwd_tree/explicit/all_home | 捕获范围策略（统一策略，无逐命令判断） |
 | rollback.max_entries | int | 回滚日志执行点数上限：默认 1024，可配置，硬上限 65536；超限清退最旧执行点 |
