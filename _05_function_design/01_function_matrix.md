@@ -9,15 +9,16 @@
 | 模块 \ 层 | app（编排） | domain（数据+域内编排） | common（算法） | infra（Adapter） |
 |---|---|---|---|---|
 | server | dispatch_request(I-030)；daemon 监听循环/MCP handler（豁免） | — | — | — |
-| intent | handle_ask(I-025)、handle_explain(I-026) | build_intent_prompt(I-005)、parse_proposal_response(I-006)、build_explain_doc(I-007) | — | — |
+| intent | handle_ask(I-025)、handle_explain(I-026)、translate_command(I-033) | build_intent_prompt(I-005)、parse_proposal_response(I-006)、build_explain_doc(I-007) | — | — |
 | executor | handle_execute(I-027)、confirm_and_execute(I-028) | — | — | spawn_process(IF-003) |
 | doctor | diagnose_failure(I-029) | build_failure_context(I-021)、parse_diagnosis_response(I-022) | — | — |
 | risk | — | assess_risk(I-023，编排) | match_risk_rules(I-001) | — |
 | session | — | create_session(I-016)、append_session_event(I-017)、load_session(I-018)、list_sessions(I-019)、get_or_create_current(I-020)、resume_session(I-024，编排) | — | — |
 | history | — | record_execution(I-008)、query_history(I-009)、get_execution_detail(I-010)、append_audit_entry(I-011) | — | — |
 | recipe | — | save_recipe(I-012)、search_recipes(I-013)、get_recipe(I-014)、delete_recipe(I-015) | — | — |
-| knowledge | — | lookup_knowledge(I-003)、cache_knowledge(I-004) | parse_help_text(I-002) | — |
-| ai | — | — | — | ai_complete(IF-005) |
+| knowledge | — | lookup_knowledge(I-003)、cache_knowledge(I-004)、lookup_translation(I-031)、cache_translation(I-032) | parse_help_text(I-002) | — |
+| ai | — | — | — | ai_complete(IF-005)、local_engine_ensure(IF-010) |
+| modelhub | — | — | — | modelhub_install(IF-008)、modelhub_list(IF-009) |
 | storage | — | — | — | storage_query(IF-001)、storage_execute(IF-002)、storage_migrate(IF-004) |
 | config | — | — | — | load_config(IF-006)、save_config(IF-007) |
 | tui / cli | 事件循环、子命令入口（豁免） | — | — | — |
@@ -266,9 +267,51 @@
 | 依赖任务 | T-021 |
 | 预估 | 25 分钟 |
 
-### M5 体验与收敛
+### M5 方言翻译与内置模型
 
-### T-024 TUI 骨架与提案流（US-4，AC-09）
+### T-024 翻译映射存取（US-13，AC-19）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/knowledge/translation.rs` |
+| 产出方法 | `lookup_translation`（I-031）、`cache_translation`（I-032）（data） |
+| 验收方式 | 单测：命中/未命中、verified=false→true 转正、方言+平台组合键 |
+| 依赖任务 | T-004 |
+| 预估 | 15 分钟 |
+
+### T-025 翻译编排与静态映射表（US-13，AC-19/20）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `core/src/intent/translate.rs`、`core/src/intent/translation_table.rs`（内置高频映射 ≥40 条） |
+| 产出方法 | `translate_command`（I-033，orchestration） |
+| 验收方式 | 单测（mock ai）：习惯=主机→不翻译；ls→Get-ChildItem 静态命中零 AI；未命中→AI 翻译回写缓存；AI 不可用→返回原文+说明不阻塞 |
+| 依赖任务 | T-024、T-016 |
+| 预估 | 30 分钟 |
+
+### T-026 modelhub 插件下载安装（US-14，AC-21）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `infra/src/modelhub/mod.rs`、`infra/tests/modelhub_test.rs` |
+| 产出方法 | `modelhub_install`（IF-008）、`modelhub_list`（IF-009）（data，layer=infra） |
+| 验收方式 | 单测（mock HTTP）：HF/魔搭源下载、sha256 校验失败拒绝、断点续传、安装注册 model_plugins 表 |
+| 依赖任务 | T-002 |
+| 预估 | 30 分钟 |
+
+### T-027 本地引擎 Provider 接线（US-14，AC-22）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `infra/src/ai/local.rs` |
+| 产出方法 | `local_engine_ensure`（IF-010，orchestration，layer=infra）：拉起插件引擎子进程+健康检查+端口管理；Provider 档案 local-builtin；云→本地降级开关 |
+| 验收方式 | 单测：引擎未安装→引导提示；健康检查通过；降级路径断言 |
+| 依赖任务 | T-026、T-005 |
+| 预估 | 25 分钟 |
+
+### M6 体验与收敛
+
+### T-028 TUI 骨架与提案流（US-4，AC-09）
 
 | 字段 | 内容 |
 |---|---|
@@ -278,24 +321,34 @@
 | 依赖任务 | T-022 |
 | 预估 | 30 分钟 |
 
-### T-025 TUI 对话与历史面板（US-4/6）
+### T-029 TUI 面板与方言设置（US-4/6/13）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `iac/src/tui/panels.rs`（豁免组件） |
-| 产出方法 | 豁免组件：AI 对话面板（回答命令块一键转提案）、历史浏览面板 |
+| 产出方法 | 豁免组件：AI 对话面板（`??` 显式唤起）、历史浏览面板、习惯方言设置与翻译模式展示 |
 | 验收方式 | 组件数据单测 + 手动冒烟脚本 |
-| 依赖任务 | T-024 |
+| 依赖任务 | T-028、T-025 |
 | 预估 | 25 分钟 |
 
-### T-026 端到端验证与文档（P8 输入）
+### T-030 CLI translate 子命令（US-13）
+
+| 字段 | 内容 |
+|---|---|
+| 涉及文件 | `iac/src/cli/translate.rs`（入口豁免） |
+| 产出方法 | 豁免入口：`iac translate <命令...> [--from <方言>]` 适配 dispatch（CMD-013） |
+| 验收方式 | assert_cmd：翻译请求/响应、--json 输出 |
+| 依赖任务 | T-025 |
+| 预估 | 10 分钟 |
+
+### T-031 端到端验证与文档（P8 输入）
 
 | 字段 | 内容 |
 |---|---|
 | 涉及文件 | `tests/e2e/main.rs`（或集成测试目录）、`README.md` quickstart 更新 |
 | 产出方法 | 无 |
-| 验收方式 | E2E：daemon 启动→ask(mock AI)→confirm→execute→history 查到→session resume→MCP 工具调用全链路；输出验收清单 |
-| 依赖任务 | T-023、T-025 |
+| 验收方式 | E2E：daemon 启动→ask(mock AI)→confirm→execute→history 查到→session resume→方言翻译链路→MCP 工具调用全链路；输出验收清单 |
+| 依赖任务 | T-023、T-027、T-029 |
 | 预估 | 30 分钟 |
 
 ## 3. 里程碑
@@ -306,4 +359,5 @@
 | M2 记录域 | T-007~T-010 | 执行/会话/审计/检索落库可查 |
 | M3 智能域 | T-011~T-019 | ask→gate→execute→doctor 库级闭环（mock AI） |
 | M4 服务与接入 | T-020~T-023 | daemon + CLI + MCP 三入口可用 |
-| M5 体验与收敛 | T-024~T-026 | TUI 可用，E2E 全链路通过 → v0.1.0 |
+| M5 方言翻译与内置模型 | T-024~T-027 | 翻译零 AI 成本路径可用；本地模型插件可装可切 |
+| M6 体验与收敛 | T-028~T-031 | TUI 可用，E2E 全链路通过 → v0.1.0 |
