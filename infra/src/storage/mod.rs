@@ -1,9 +1,9 @@
 //! 存储 Adapter（IF-001/002/004）：rusqlite 唯一封装入口。
 //! WAL 模式 + 写串行化（Mutex）；第三方异常一律转译 IAC-3102/3103 进 evolution。
 
-use core::error::codes;
-use core::framework::{Context, Evolution, Metrics};
-use core::ports::{ExecuteAck, MigrationAck, MigrationDir, QueryRows, SqlQuery, SqlValue, StorePort};
+use iac_core::error::codes;
+use iac_core::framework::{Context, Evolution, Metrics};
+use iac_core::ports::{ExecuteAck, MigrationAck, MigrationDir, QueryRows, SqlQuery, SqlValue, StorePort};
 use rusqlite::types::Value as SqliteValue;
 use rusqlite::Connection;
 use std::sync::Mutex;

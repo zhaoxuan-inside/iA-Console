@@ -1,9 +1,9 @@
 //! T-006 AI Adapter 测试：本地 mock HTTP server 覆盖 OpenAI/Anthropic 形态与错误路径。
 
-use core::config::ProviderProfile;
-use core::types::ProviderKind;
-use core::framework::{Evolution, Metrics, TestEnv};
-use core::ports::{AiRequest, LlmResponse};
+use iac_core::config::ProviderProfile;
+use iac_core::types::ProviderKind;
+use iac_core::framework::{Evolution, Metrics, TestEnv};
+use iac_core::ports::{AiRequest, LlmResponse};
 use infra::ai::ai_complete;
 use std::io::{Read, Write};
 use std::net::TcpListener;

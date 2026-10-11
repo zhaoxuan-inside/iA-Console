@@ -1,7 +1,7 @@
 //! T-003/T-004 存储测试：迁移幂等、写查往返、参数绑定、错误转译。
 
-use core::framework::{Evolution, Metrics, TestEnv};
-use core::ports::{ExecuteAck, MigrationAck, MigrationDir, QueryRows, SqlQuery, SqlValue, StorePort};
+use iac_core::framework::{Evolution, Metrics, TestEnv};
+use iac_core::ports::{ExecuteAck, MigrationAck, MigrationDir, QueryRows, SqlQuery, SqlValue, StorePort};
 use infra::storage::Storage;
 
 fn store() -> Storage {

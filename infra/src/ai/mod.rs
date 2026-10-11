@@ -1,11 +1,11 @@
 //! LLM Adapter（IF-005）：OpenAI 兼容 + Anthropic 原生双协议，Provider 档案化（ADR-006 修订）。
 //! 本模块是项目唯一 HTTP 出口；第三方异常转译 IAC-1101/5102 进 evolution。
 
-use core::config::ProviderProfile;
-use core::types::ProviderKind;
-use core::error::codes;
-use core::framework::{Context, Evolution, Metrics};
-use core::ports::{AiRequest, LlmResponse};
+use iac_core::config::ProviderProfile;
+use iac_core::types::ProviderKind;
+use iac_core::error::codes;
+use iac_core::framework::{Context, Evolution, Metrics};
+use iac_core::ports::{AiRequest, LlmResponse};
 use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -13,22 +13,28 @@ use std::time::Duration;
 /// IF-005：统一补全调用。按 Provider 档案选协议，密钥经环境变量（IAC-5102）。
 pub fn ai_complete(
     provider: &ProviderProfile,
-    input: &core::ports::AiRequest,
+    input: &iac_core::ports::AiRequest,
     output: &mut LlmResponse,
     _context: &Context,
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let Some(key) = api_key(provider) else {
-        evolution.fail(codes::CONFIG_KEY_MISSING, format!("环境变量 {} 未设置", provider.api_key_env.as_deref().unwrap_or("<未配置 api_key_env>")));
+    let key = api_key(provider);
+    let remote = matches!(provider.kind, ProviderKind::Openai | ProviderKind::Anthropic);
+    if remote && key.is_none() {
+        evolution.fail(
+            codes::CONFIG_KEY_MISSING,
+            format!("环境变量 {} 未设置", provider.api_key_env.as_deref().unwrap_or("<未配置 api_key_env>")),
+        );
         return false;
-    };
+    }
     let client = Client::builder().timeout(Duration::from_millis(input.timeout_ms)).build();
     let Ok(client) = client else {
         evolution.fail(codes::AI_UNAVAILABLE, "HTTP 客户端构建失败");
         return false;
     };
+    let key = key.unwrap_or_default();
     let (url, body, headers) = match provider.kind {
         ProviderKind::Anthropic => anthropic_payload(provider, input, &key),
         _ => openai_payload(provider, input, &key),
@@ -68,7 +74,7 @@ fn api_key(p: &ProviderProfile) -> Option<String> {
 }
 
 /// OpenAI 兼容：POST {base}/chat/completions，Bearer 鉴权。
-fn openai_payload(p: &ProviderProfile, input: &core::ports::AiRequest, key: &str) -> (String, Value, reqwest::header::HeaderMap) {
+fn openai_payload(p: &ProviderProfile, input: &iac_core::ports::AiRequest, key: &str) -> (String, Value, reqwest::header::HeaderMap) {
     let url = format!("{}/chat/completions", p.base_url.clone().unwrap_or_default());
     let mut msgs = vec![json!({"role": "system", "content": input.system})];
     for (role, content) in &input.messages {
@@ -83,7 +89,7 @@ fn openai_payload(p: &ProviderProfile, input: &core::ports::AiRequest, key: &str
 }
 
 /// Anthropic 原生：POST {base}/v1/messages，x-api-key + anthropic-version。
-fn anthropic_payload(p: &ProviderProfile, input: &core::ports::AiRequest, key: &str) -> (String, Value, reqwest::header::HeaderMap) {
+fn anthropic_payload(p: &ProviderProfile, input: &iac_core::ports::AiRequest, key: &str) -> (String, Value, reqwest::header::HeaderMap) {
     let base = p.base_url.clone().unwrap_or_default();
     let url = if base.ends_with("/v1") { format!("{base}/messages") } else { format!("{base}/v1/messages") };
     let msgs: Vec<Value> = input.messages.iter().map(|(r, c)| json!({"role": r, "content": c})).collect();
@@ -131,7 +137,7 @@ fn truncate(s: &str, n: usize) -> String {
 /// AiPort 装配实现（iacd 接线用）。
 pub struct RealAi;
 
-impl core::ports::AiPort for RealAi {
+impl iac_core::ports::AiPort for RealAi {
     #[allow(clippy::too_many_arguments)]
     fn ai_complete(
         &self,

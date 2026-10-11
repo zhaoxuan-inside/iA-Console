@@ -1,16 +1,16 @@
 //! T-019 方案库测试：保存/检索（关键词+标签+平台）/详情/删除。
 
-use core::framework::TestEnv;
-use core::ports::{MigrationAck, MigrationDir};
-use core::recipe::{delete_recipe, get_recipe, save_recipe, search_recipes, RecipeFilter, RecipeId, RecipeInput};
-use core::types::RiskLevel;
+use iac_core::framework::TestEnv;
+use iac_core::ports::{MigrationAck, MigrationDir};
+use iac_core::recipe::{delete_recipe, get_recipe, save_recipe, search_recipes, RecipeFilter, RecipeId, RecipeInput};
+use iac_core::types::RiskLevel;
 use infra::storage::Storage;
 
 fn env_with_db() -> TestEnv {
     let store = Storage::open_in_memory().expect("db");
     let env = TestEnv::new().with_store(Box::new(store));
-    let mut evo = core::framework::Evolution::default();
-    let mut m = core::framework::Metrics::default();
+    let mut evo = iac_core::framework::Evolution::default();
+    let mut m = iac_core::framework::Metrics::default();
     let mut mig = MigrationAck::default();
     assert!(env.deps.store.storage_migrate(&MigrationDir {}, &mut mig, &env.context(), &mut m, &mut evo));
     env
@@ -33,9 +33,9 @@ fn input(title: &str, cmd: &str, tags: Vec<&str>, platform: &str) -> RecipeInput
 #[test]
 fn save_get_delete_lifecycle() {
     let env = env_with_db();
-    let mut evo = core::framework::Evolution::default();
-    let mut m = core::framework::Metrics::default();
-    let mut recipe = core::recipe::Recipe {
+    let mut evo = iac_core::framework::Evolution::default();
+    let mut m = iac_core::framework::Metrics::default();
+    let mut recipe = iac_core::recipe::Recipe {
         id: String::new(), title: String::new(), description: None, kind: String::new(), name: None,
         command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe,
         usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0,
@@ -51,7 +51,7 @@ fn save_get_delete_lifecycle() {
     assert_eq!(got.usage_count, 1);
 
     // delete：删除后 get 为 None
-    let mut del = core::recipe::DeleteAck::default();
+    let mut del = iac_core::recipe::DeleteAck::default();
     assert!(delete_recipe(&RecipeId { id: recipe.id.clone() }, &mut del, &env.context(), &mut m, &mut evo));
     assert!(del.deleted);
     let mut gone = None;
@@ -62,9 +62,9 @@ fn save_get_delete_lifecycle() {
 #[test]
 fn search_by_keyword_tag_and_platform() {
     let env = env_with_db();
-    let mut evo = core::framework::Evolution::default();
-    let mut m = core::framework::Metrics::default();
-    let mut r = core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
+    let mut evo = iac_core::framework::Evolution::default();
+    let mut m = iac_core::framework::Metrics::default();
+    let mut r = iac_core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
     save_recipe(&input("备份日志", "tar -czf /tmp/log.tgz /var/log", vec!["备份"], "linux"), &mut r, &env.context(), &mut m, &mut evo);
     save_recipe(&input("清理容器", "docker system prune -f", vec!["清理", "docker"], "linux"), &mut r, &env.context(), &mut m, &mut evo);
     save_recipe(&input("Windows 清理", "Get-ChildItem | Remove-Item", vec!["清理"], "windows"), &mut r, &env.context(), &mut m, &mut evo);
@@ -90,17 +90,17 @@ fn search_by_keyword_tag_and_platform() {
 #[test]
 fn script_name_unique_conflict_fails() {
     let env = env_with_db();
-    let mut evo = core::framework::Evolution::default();
-    let mut m = core::framework::Metrics::default();
+    let mut evo = iac_core::framework::Evolution::default();
+    let mut m = iac_core::framework::Metrics::default();
     let mut i1 = input("脚本 A", "echo a", vec![], "all");
     i1.kind = Some("script".into());
     i1.name = Some("backup".into());
-    let mut r = core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
+    let mut r = iac_core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
     assert!(save_recipe(&i1, &mut r, &env.context(), &mut m, &mut evo));
     let mut i2 = input("脚本 B", "echo b", vec![], "all");
     i2.kind = Some("script".into());
     i2.name = Some("backup".into());
-    let mut r2 = core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
+    let mut r2 = iac_core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
     assert!(!save_recipe(&i2, &mut r2, &env.context(), &mut m, &mut evo), "name 唯一约束应拒绝重复");
     assert!(evo.reason_code.is_some() || !evo.cause.is_empty());
 }
@@ -108,9 +108,9 @@ fn script_name_unique_conflict_fails() {
 #[test]
 fn empty_title_rejected() {
     let env = env_with_db();
-    let mut evo = core::framework::Evolution::default();
-    let mut m = core::framework::Metrics::default();
-    let mut r = core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
+    let mut evo = iac_core::framework::Evolution::default();
+    let mut m = iac_core::framework::Metrics::default();
+    let mut r = iac_core::recipe::Recipe { id: String::new(), title: String::new(), description: None, kind: String::new(), name: None, command_template: String::new(), tags: vec![], platform: String::new(), risk_level: RiskLevel::Safe, usage_count: 0, source_execution_id: None, created_at: 0, updated_at: 0 };
     assert!(!save_recipe(&input("", "echo", vec![], "all"), &mut r, &env.context(), &mut m, &mut evo));
     assert_eq!(evo.reason_code.as_deref(), Some("IAC-4101"));
 }

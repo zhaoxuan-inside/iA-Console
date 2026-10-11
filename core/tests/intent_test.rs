@@ -1,11 +1,11 @@
 //! T-016 意图编排测试：MockAi 覆盖正常提案、解析重试、AI 不可用降级、空意图、explain 缓存回写。
 
-use core::config::ProviderProfile;
-use core::framework::{AiPort, Context, Evolution, Metrics};
-use core::intent::{
+use iac_core::config::ProviderProfile;
+use iac_core::framework::{AiPort, Context, Evolution, Metrics};
+use iac_core::intent::{
     handle_ask, handle_explain, AskInput, ExplainInput, Proposal, ProposalStatus,
 };
-use core::ports::{AiRequest, LlmResponse, MigrationAck, MigrationDir};
+use iac_core::ports::{AiRequest, LlmResponse, MigrationAck, MigrationDir};
 use infra::storage::Storage;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -63,15 +63,15 @@ fn empty_proposal() -> Proposal {
         command: String::new(),
         argv: vec![],
         explanation: Default::default(),
-        risk_level: core::types::RiskLevel::Safe,
-        platform: core::types::Platform::Linux,
+        risk_level: iac_core::types::RiskLevel::Safe,
+        platform: iac_core::types::Platform::Linux,
         verified: false,
         status: ProposalStatus::Proposed,
         created_at: 0,
     }
 }
 
-use core::framework::TestEnv;
+use iac_core::framework::TestEnv;
 
 #[test]
 fn ask_returns_persisted_proposal() {
@@ -84,11 +84,11 @@ fn ask_returns_persisted_proposal() {
     assert_eq!(out.id.len(), 32, "提案已落库");
     assert_eq!(out.command, "ls -la /var/log");
     assert_eq!(out.status, ProposalStatus::Proposed);
-    assert_eq!(out.risk_level, core::types::RiskLevel::Safe);
+    assert_eq!(out.risk_level, iac_core::types::RiskLevel::Safe);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     // 会话事件已记录
     let mut session = None;
-    assert!(core::session::load_session(&core::session::SessionId { id: out.session_id.clone() }, &mut session, &env.context(), &mut m, &mut evo));
+    assert!(iac_core::session::load_session(&iac_core::session::SessionId { id: out.session_id.clone() }, &mut session, &env.context(), &mut m, &mut evo));
     assert_eq!(session.unwrap().events.len(), 1);
 }
 
@@ -143,11 +143,11 @@ fn empty_intent_rejected_without_ai_call() {
 fn explain_uses_help_parser_and_caches() {
     // mock 进程：真实 sh 执行 `printf` 输出 help 文本
     struct MockProc;
-    impl core::ports::ProcessPort for MockProc {
+    impl iac_core::ports::ProcessPort for MockProc {
         fn spawn_process(
             &self,
-            input: &core::ports::ProcessSpec,
-            output: &mut core::ports::ProcessResult,
+            input: &iac_core::ports::ProcessSpec,
+            output: &mut iac_core::ports::ProcessResult,
             _ctx: &Context,
             m: &mut Metrics,
             e: &mut Evolution,
@@ -170,7 +170,7 @@ fn explain_uses_help_parser_and_caches() {
     let env = base
         .with_ai(Box::new(MockAi { responses: vec![], calls: Arc::new(AtomicUsize::new(0)) }))
         .with_process(Box::new(MockProc));
-    let mut out = core::intent::ParamSpecDoc::default();
+    let mut out = iac_core::intent::ParamSpecDoc::default();
     let mut evo = Evolution::default();
     let mut m = Metrics::default();
     let input = ExplainInput { command: "ls".into(), platform: None };
@@ -178,7 +178,7 @@ fn explain_uses_help_parser_and_caches() {
     assert!(out.summary.contains("3 个参数"));
 
     // 第二次调用命中缓存（不再触发进程）
-    let mut out2 = core::intent::ParamSpecDoc::default();
+    let mut out2 = iac_core::intent::ParamSpecDoc::default();
     assert!(handle_explain(&input, &mut out2, &env.context(), &mut m, &mut evo));
     assert_eq!(out2.params.len(), 3);
 }

@@ -1,9 +1,9 @@
 //! 进程执行 Adapter（IF-003）：跨平台 shell 解释执行，输出完整捕获，超时杀进程组。
 //! 命令自身非零退出是正常产出（true）；执行机制失败（找不到 shell/超时/平台不支持）才返回 false。
 
-use core::error::codes;
-use core::framework::{Context, Evolution, Metrics};
-use core::ports::{ProcessResult, ProcessSpec};
+use iac_core::error::codes;
+use iac_core::framework::{Context, Evolution, Metrics};
+use iac_core::ports::{ProcessResult, ProcessSpec};
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -106,7 +106,7 @@ fn kill_tree(child: &mut Child) {
 /// ProcessPort 装配实现（iacd 接线用）。
 pub struct RealProcess;
 
-impl core::ports::ProcessPort for RealProcess {
+impl iac_core::ports::ProcessPort for RealProcess {
     fn spawn_process(
         &self,
         input: &ProcessSpec,

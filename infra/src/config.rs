@@ -1,9 +1,9 @@
 //! 配置 Adapter（IF-006/IF-007）：TOML 文件 IO + 环境变量覆盖 + 校验。
 //! 第三方组件：toml / dirs / std::fs——业务层禁直接触达，一律经本模块。
 
-use core::config::Config;
-use core::error::codes;
-use core::framework::{Context, Evolution, Metrics};
+use iac_core::config::Config;
+use iac_core::error::codes;
+use iac_core::framework::{Context, Evolution, Metrics};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -148,7 +148,7 @@ fn write_atomic(path: &Path, body: &str) -> std::io::Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::framework::TestEnv;
+    use iac_core::framework::TestEnv;
 
     fn env_fixture() -> TestEnv {
         TestEnv::new()
@@ -174,9 +174,9 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("iac-test-{}.toml", std::process::id()));
         let env = env_fixture();
         let mut cfg = Config::defaults();
-        cfg.providers.push(core::config::ProviderProfile {
+        cfg.providers.push(iac_core::config::ProviderProfile {
             name: "glm".into(),
-            kind: core::types::ProviderKind::LocalPlugin,
+            kind: iac_core::types::ProviderKind::LocalPlugin,
             base_url: None,
             api_key_env: None,
             model: None,

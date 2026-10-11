@@ -23,7 +23,7 @@ fn request(stream: &mut UnixStream, id: &str, method: &str, params: serde_json::
     serde_json::from_str(line.trim()).expect("响应 JSON")
 }
 
-fn wait_socket(path: &PathBuf) {
+fn wait_socket(path: &std::path::Path) {
     for _ in 0..100 {
         if path.exists() {
             return;

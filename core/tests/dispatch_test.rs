@@ -1,17 +1,17 @@
 //! T-020 dispatch 测试：路由正确性、未知方法、版本拦截、错误码进信封、人机同构。
 
-use core::framework::{Actor, Context, Evolution, Metrics, TestEnv};
-use core::ports::{MigrationAck, MigrationDir};
-use core::server::{dispatch_request, IpcRequest, IpcResponse};
+use iac_core::framework::{Actor, Context, Evolution, Metrics, TestEnv};
+use iac_core::ports::{MigrationAck, MigrationDir};
+use iac_core::server::{dispatch_request, IpcRequest, IpcResponse};
 use infra::storage::Storage;
 
 /// 真实进程 Adapter（执行回显用）。
 struct RealProc;
-impl core::ports::ProcessPort for RealProc {
+impl iac_core::ports::ProcessPort for RealProc {
     fn spawn_process(
         &self,
-        input: &core::ports::ProcessSpec,
-        output: &mut core::ports::ProcessResult,
+        input: &iac_core::ports::ProcessSpec,
+        output: &mut iac_core::ports::ProcessResult,
         ctx: &Context,
         m: &mut Metrics,
         e: &mut Evolution,
@@ -29,8 +29,8 @@ fn env_with(actor: Actor) -> TestEnv {
     let mut mig = MigrationAck::default();
     assert!(env.deps.store.storage_migrate(&MigrationDir {}, &mut mig, &env.context(), &mut m, &mut evo));
     // 模拟 daemon 行为：连接建立时先确保当前会话，并把真实 session_id 写回 SessionCtx
-    let mut session = core::session::SessionInfo { id: String::new(), title: String::new(), cwd: String::new(), shell: String::new(), host: String::new(), status: String::new(), created_at: 0, updated_at: 0, events: vec![] };
-    assert!(core::session::get_or_create_current(&core::session::CurrentSessionInput { cwd: ".".into(), shell: "sh".into(), host: "local".into() }, &mut session, &env.context(), &mut m, &mut evo));
+    let mut session = iac_core::session::SessionInfo { id: String::new(), title: String::new(), cwd: String::new(), shell: String::new(), host: String::new(), status: String::new(), created_at: 0, updated_at: 0, events: vec![] };
+    assert!(iac_core::session::get_or_create_current(&iac_core::session::CurrentSessionInput { cwd: ".".into(), shell: "sh".into(), host: "local".into() }, &mut session, &env.context(), &mut m, &mut evo));
     env.session.session_id = session.id;
     actor_session(env, actor)
 }
@@ -41,7 +41,7 @@ fn actor_session(mut env: TestEnv, actor: Actor) -> TestEnv {
 }
 
 fn call(env: &TestEnv, method: &str, params: serde_json::Value) -> IpcResponse {
-    let req = IpcRequest { v: 1, id: "t1".into(), method: method.into(), params };
+    let req = IpcRequest { v: 1, id: "t1".into(), method: method.into(), params, actor: None };
     let mut out = IpcResponse { v: 1, id: String::new(), ok: false, result: None, error: None };
     let mut evo = Evolution::default();
     let mut m = Metrics::default();
@@ -67,7 +67,7 @@ fn unknown_method_and_version_mismatch() {
     assert!(!bad.ok);
     assert_eq!(bad.error.unwrap().code, "IAC-6105");
     // 版本不匹配
-    let req = IpcRequest { v: 2, id: "v2".into(), method: "iac_ping".into(), params: serde_json::json!({}) };
+    let req = IpcRequest { v: 2, id: "v2".into(), method: "iac_ping".into(), params: serde_json::json!({}), actor: None };
     let mut out = IpcResponse { v: 1, id: String::new(), ok: false, result: None, error: None };
     let mut evo = Evolution::default();
     let mut m = Metrics::default();

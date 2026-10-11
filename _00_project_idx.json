@@ -229,7 +229,7 @@
   },
   "code": {
     "path": "iA-console/",
-    "layout": "Cargo workspace：iac(CLI/TUI 前端 bin)、iacd(daemon bin)、core(应用编排+领域逻辑 lib)、infra(外部组件 Adapter lib)",
+    "layout": "Cargo workspace：iac(CLI/TUI 前端 bin)、iacd(daemon bin)、iac-core(应用编排+领域逻辑 lib，目录 core/)、infra(外部组件 Adapter lib)",
     "entry_points": [
       "iA-console/iac/src/main.rs",
       "iA-console/iacd/src/main.rs"

@@ -402,7 +402,9 @@
         "core/src/server/dispatch.rs",
         "core/tests/dispatch_test.rs",
         "iacd/src/lib.rs",
-        "iacd/tests/daemon_test.rs"
+        "iacd/tests/daemon_test.rs",
+        "iac/src/mcp.rs",
+        "iac/tests/cli_mcp_test.rs"
       ],
       "commits": [],
       "changed_methods": [

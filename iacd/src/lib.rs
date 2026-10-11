@@ -1,10 +1,11 @@
 //! iacd 库主体：daemon 运行时（tokio UDS 监听 + spawn_blocking dispatch）。
 //! 入口签名豁免（_00.conventions）；业务全部下沉 core 五段方法。
 
-use core::framework::{Actor, Context, Deps, Locale, SessionCtx};
-use core::server::{dispatch_request, IpcRequest, IpcResponse};
+use iac_core::framework::{Actor, Context, Deps, Locale, SessionCtx};
+use iac_core::server::{dispatch_request, IpcRequest, IpcResponse};
 use infra::ai::RealAi;
 use infra::process::RealProcess;
+use iac_core::ports::StorePort;
 use infra::storage::Storage;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -21,11 +22,9 @@ pub struct DaemonOptions {
     pub foreground: bool,
 }
 
-/// 缺省 socket 路径：$XDG_RUNTIME_DIR/iac/daemon.sock，回退 /tmp（ADR-005）。
+/// 缺省 socket 路径（转发 iac_core::server 统一定义）。
 pub fn default_socket_path() -> PathBuf {
-    std::env::var("XDG_RUNTIME_DIR")
-        .map(|d| PathBuf::from(d).join("iac").join("daemon.sock"))
-        .unwrap_or_else(|_| PathBuf::from("/tmp/iac-daemon.sock"))
+    iac_core::server::default_socket_path()
 }
 
 /// 缺省数据目录：~/.local/share/iac。
@@ -39,7 +38,7 @@ pub fn run(options: DaemonOptions, shutdown: tokio::sync::mpsc::Receiver<()>) ->
     runtime.block_on(serve(options, shutdown))
 }
 
-async fn serve(options: DaemonOptions, mut shutdown: tokio::sync::mpsc::Receiver<()>) -> anyhow::Result<u64> {
+async fn serve(options: DaemonOptions, _shutdown: tokio::sync::mpsc::Receiver<()>) -> anyhow::Result<u64> {
     // 单实例：socket 可连接 → 已有 daemon（IAC-6103）
     if UnixStream::connect(&options.socket_path).await.is_ok() {
         anyhow::bail!("daemon 已在运行（IAC-6103）：{}", options.socket_path.display());
@@ -53,6 +52,22 @@ async fn serve(options: DaemonOptions, mut shutdown: tokio::sync::mpsc::Receiver
 
     tokio::fs::create_dir_all(&options.data_dir).await?;
     let storage = Storage::open(&options.data_dir.join("iac.db")).map_err(|e| anyhow::anyhow!("存储打开失败: {e}"))?;
+    {
+        // 启动即迁移（幂等，IAC-3103 失败则拒绝服务）
+        let mut ack = iac_core::ports::MigrationAck::default();
+        let mut evo = iac_core::framework::Evolution::default();
+        let mut m = iac_core::framework::Metrics::default();
+        let ctx = Context {
+            session: &SessionCtx::default(),
+            config: &iac_core::config::Config::default(),
+            deps: &Deps::default(),
+            locale: &Locale::default(),
+        };
+        storage
+            .storage_migrate(&iac_core::ports::MigrationDir {}, &mut ack, &ctx, &mut m, &mut evo)
+            .then_some(())
+            .ok_or_else(|| anyhow::anyhow!("迁移失败（IAC-3103）: {}", evo.reason.unwrap_or_default()))?;
+    }
     let config = Arc::new(load_config());
     let deps = Arc::new(Deps {
         store: Box::new(storage),
@@ -92,7 +107,7 @@ async fn serve(options: DaemonOptions, mut shutdown: tokio::sync::mpsc::Receiver
 async fn handle_connection(
     stream: UnixStream,
     deps: Arc<Deps>,
-    config: Arc<core::config::Config>,
+    config: Arc<iac_core::config::Config>,
     stop_tx: tokio::sync::watch::Sender<bool>,
 ) -> anyhow::Result<()> {
     let (reader, mut writer) = stream.into_split();
@@ -100,19 +115,21 @@ async fn handle_connection(
     let session_id = {
         let deps = Arc::clone(&deps);
         tokio::task::spawn_blocking(move || {
-            let mut info = core::session::SessionInfo::default();
-            let mut evo = core::framework::Evolution::default();
-            let mut m = core::framework::Metrics::default();
-            let input = core::session::CurrentSessionInput { cwd: ".".into(), shell: "sh".into(), host: "local".into() };
+            let mut info = iac_core::session::SessionInfo::default();
+            let mut evo = iac_core::framework::Evolution::default();
+            let mut m = iac_core::framework::Metrics::default();
+            let input = iac_core::session::CurrentSessionInput { cwd: ".".into(), shell: "sh".into(), host: "local".into() };
             let ctx = Context {
                 session: &SessionCtx::default(),
-                config: &core::config::Config::default(),
+                config: &iac_core::config::Config::default(),
                 deps: &deps,
                 locale: &Locale::default(),
             };
-            core::session::get_or_create_current(&input, &mut info, &ctx, &mut m, &mut evo)
-                .then_some(info.id)
-                .unwrap_or_default()
+            if iac_core::session::get_or_create_current(&input, &mut info, &ctx, &mut m, &mut evo) {
+                info.id
+            } else {
+                String::new()
+            }
         })
         .await?
     };
@@ -140,7 +157,7 @@ async fn handle_connection(
 }
 
 /// 单请求处理：解析 → Context 组装 → dispatch → 信封。
-fn handle_request(req_text: &str, deps: &Deps, config: &core::config::Config, session_id: String) -> (String, bool) {
+fn handle_request(req_text: &str, deps: &Deps, config: &iac_core::config::Config, session_id: String) -> (String, bool) {
     let parse_stub = IpcRequest { v: 1, id: "unknown".into(), method: String::new(), params: Value::Null, actor: None };
     let req: IpcRequest = serde_json::from_str(req_text).unwrap_or(parse_stub);
     let actor = match req.actor.as_deref() {
@@ -151,19 +168,19 @@ fn handle_request(req_text: &str, deps: &Deps, config: &core::config::Config, se
     let locale = Locale { lang: "zh-CN".into(), timezone: "Asia/Shanghai".into() };
     let ctx = Context { session: &session, config, deps, locale: &locale };
     let mut out = IpcResponse { v: 1, id: req.id.clone(), ok: false, result: None, error: None };
-    let mut evo = core::framework::Evolution::default();
-    let mut m = core::framework::Metrics::default();
+    let mut evo = iac_core::framework::Evolution::default();
+    let mut m = iac_core::framework::Metrics::default();
     let _ = dispatch_request(&req, &mut out, &ctx, &mut m, &mut evo);
     let is_stop = req.method == "iac_daemon_stop";
     (serde_json::to_string(&out).unwrap_or_default(), is_stop)
 }
 
 /// 启动时加载配置（文件缺失/无效回退默认值并继续）。
-fn load_config() -> core::config::Config {
-    let mut cfg = core::config::Config::defaults();
+fn load_config() -> iac_core::config::Config {
+    let mut cfg = iac_core::config::Config::defaults();
     if let Some(p) = infra::config::default_config_path() {
         if let Ok(raw) = std::fs::read_to_string(&p) {
-            if let Ok(mut parsed) = toml::from_str::<core::config::Config>(&raw) {
+            if let Ok(mut parsed) = toml::from_str::<iac_core::config::Config>(&raw) {
                 parsed.apply_env();
                 if parsed.validate().is_ok() {
                     cfg = parsed;

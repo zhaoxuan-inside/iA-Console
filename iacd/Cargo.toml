@@ -10,7 +10,7 @@ name = "iacd"
 path = "src/main.rs"
 
 [dependencies]
-core = { path = "../core" }
+iac-core = { path = "../core" }
 infra = { path = "../infra" }
 tokio = { workspace = true }
 serde_json = { workspace = true }

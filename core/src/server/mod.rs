@@ -5,3 +5,10 @@ pub mod envelope;
 
 pub use dispatch::dispatch_request;
 pub use envelope::{IpcRequest, IpcResponse};
+
+/// 缺省 socket 路径：$XDG_RUNTIME_DIR/iac/daemon.sock，回退 /tmp（ADR-005；iac/iacd 共用）。
+pub fn default_socket_path() -> std::path::PathBuf {
+    std::env::var("XDG_RUNTIME_DIR")
+        .map(|d| std::path::PathBuf::from(d).join("iac").join("daemon.sock"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/iac-daemon.sock"))
+}

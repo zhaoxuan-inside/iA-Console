@@ -1,7 +1,7 @@
 //! T-005 进程 Adapter 测试：输出捕获、非零退出、超时终止、cwd/env、平台 shell。
 
-use core::framework::{Evolution, Metrics, TestEnv};
-use core::ports::{ProcessResult, ProcessSpec, StorePort};
+use iac_core::framework::{Evolution, Metrics, TestEnv};
+use iac_core::ports::{ProcessResult, ProcessSpec, StorePort};
 use infra::process::spawn_process;
 use std::path::PathBuf;
 
@@ -56,5 +56,5 @@ fn cwd_and_env_are_applied() {
 fn store_trait_object_still_compiles_for_dox() {
     // 守卫：StorePort 作为 trait 对象可用（Deps 持有 Box<dyn StorePort>）
     fn assert_store(_: &dyn StorePort) {}
-    assert_store(&core::ports::NullStore);
+    assert_store(&iac_core::ports::NullStore);
 }
