@@ -536,6 +536,21 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-018",
+      "date": "2026-10-11",
+      "requirement": "REQ-DEB-PACKAGE：发行格式升级——ia-console_0.1.0_amd64.deb（ar 手工组装 deb(5)：debian-binary/control.tar.gz/data.tar.xz，./ 前缀；含 postinst/postrm 桌面缓存刷新；应用图标 256x256 PNG 由 gen-icon.py 零依赖生成）；scripts/build-deb.sh 可重复构建；保留 tar.gz 备选",
+      "changed_files": [
+        "scripts/build-deb.sh",
+        "scripts/gen-icon.py",
+        "dist/ia-console_0.1.0_amd64.deb",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }
