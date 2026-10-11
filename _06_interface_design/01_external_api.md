@@ -33,7 +33,7 @@
 | CMD-010 | `iac mcp serve` | MCP stdio 服务 | T-023 | server |
 | CMD-011 | `iac chat` | TUI 交互界面 | T-024 | tui |
 | CMD-012 | `iac config get <key>\|set <key> <val>\|path` | 配置管理 | T-002 | config |
-| CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>]` | 习惯方言→主机方言翻译 | T-025/030 | intent |
+| CMD-013 | `iac translate <命令...> [--from <linux\|macos\|windows>]` | 习惯方言→主机方言翻译 | T-025/032 | intent |
 | CMD-014 | `iac model install <plugin_id>\|list\|remove <plugin_id>` | 模型插件管理 | T-026 | modelhub |
 
 ### 2.2 MCP 工具 / IPC methods（同名同构）
@@ -169,6 +169,31 @@
 | IAC-1401 | 404 | 模型插件不存在 | 用 iac model list 查看可用插件 |
 | IAC-1402 | 422 | 插件下载校验失败（sha256/大小不符） | 换源重试；勿绕过校验 |
 | IAC-1403 | 503 | 本地引擎启动失败 | 查日志；确认插件完整或回退云后端 |
+| IAC-1501 | 400 | 未知斜杠标记命令 | 用 `/help` 查看可用标记 |
+
+## 6. 输入标记规范（G13，仅在 iA 输入框/TUI 输入行解析，不改变 shell 语义）
+
+| 标记 | 含义 | 示例 | 行为 |
+|---|---|---|---|
+| `??<内容>` | AI 唤起：`??ls` 解释命令（=iac explain）；`??<自然语言>` 生成提案（=iac ask） | `??docker run 的 -v 是什么意思` | 不经 shell；结果同流 1/流 2 |
+| `/<名称>` | iA-console 管理命令：`/config`（配置：输入终端类型=习惯方言、本地模型路径、远端模型地址、主题）、`/help`、`/history`、`/recipe`、`/session`、`/model`、`/theme`、`/exit` | `/config` | TUI 打开对应面板；CLI 进入交互向导；未知命令报 IAC-1501 |
+| `---`（独行） | 任务分隔：归档当前任务段，其后 AI 调用不携带该段之前上下文（AC-27），历史记录仍完整 | 连续多任务时防上下文串味、控 token | 落一条 separator 会话事件 |
+| `#<文字>` | 会话备注（不执行，入会话事件流 kind=note） | `# 这里是在排查磁盘` | 与 shell 注释语义一致，零学习成本 |
+| `\`（转义） | 取消标记语义，按字面执行 | `\??foo`、`\---` | 后续字符原样进入命令路径 |
+
+**冲突说明**：`??`（shell 通配）、`/config`（按路径执行）、`---`、`#`（注释）在 shell 中各有语义，但标记只在 iA 输入框解析、从不注入 shell；用户经现有终端执行同样字符串行为不变。CLI 子命令（iac ask/config/...）始终是标记的等价出口。
+
+**配置项**（`iac config` / `/config` 面板可改）：
+
+| 键 | 取值 | 说明 |
+|---|---|---|
+| ui.habit_dialect | linux/macos/windows | 习惯方言（翻译源） |
+| ui.theme | day/night/auto | 主题，auto 跟随终端背景 |
+| providers.<name>.type | openai/anthropic/local-plugin/local-path | Provider 四类（ADR-006 修订） |
+| providers.<name>.base_url / api_key_env / model | string | 远端两类的地址/密钥环境变量/模型名 |
+| providers.<name>.path | string | local-path 型的模型文件路径（GGUF） |
+| ai.default_provider / ai.fallback_local | string/bool | 默认后端与云→本地降级开关 |
+| modelhub.source | hf/modelscope/hf-mirror | 插件下载源 |
 
 *HTTP 语义列仅作状态码语义参照（CLI `--json` 与 IPC error 复用该语义），实际无 HTTP 服务。
 

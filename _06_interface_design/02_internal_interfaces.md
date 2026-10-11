@@ -42,7 +42,8 @@
 | I-030 | `fn dispatch_request(input: &IpcRequest, output: &mut IpcResponse, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | server | T-020 | 唯一路由入口，注入 metrics/evolution |
 | I-031 | `fn lookup_translation(input: &TranslationInput, output: &mut Option<TranslationResult>, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | knowledge | T-024 | 静态表+缓存双层查找 |
 | I-032 | `fn cache_translation(input: &TranslationResult, output: &mut RecordAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | domain | knowledge | T-024 | AI 译文回写，verified=false |
-| I-033 | `fn translate_command(input: &TranslationInput, output: &mut TranslationResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | intent | T-025 | 静态命中零 AI；未命中 AI 兜底；降级返回原文 |
+| I-033 | `fn translate_command(input: &TranslationInput, output: &mut TranslationResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | orchestration | app | intent | T-025 | 静态命中零 AI；一对一未收录→AI；需组合→AI 规划脚本入库+登记映射；降级返回原文 |
+| I-034 | `fn parse_input_marker(input: &RawInput, output: &mut InputDecision, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | algorithm | common | server | T-029 | 纯函数：标记分发（??//---/#/\ 转义），普通命令原样通过 |
 | IF-001 | `fn storage_query(input: &SqlQuery, output: &mut QueryRows, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | SQL 原语，rusqlite 封装 |
 | IF-002 | `fn storage_execute(input: &SqlStatement, output: &mut ExecuteAck, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | storage | T-003 | 写原语，含 ID 生成 |
 | IF-003 | `fn spawn_process(input: &ProcessSpec, output: &mut ProcessResult, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool` | data | infra | process | T-005 | 平台 shell 选择+超时+捕获 |
@@ -113,14 +114,26 @@
 | 段 | 类型 | 约束 |
 |---|---|---|
 | input | `&TranslationInput` | command 非空；from/to 均为 Platform 枚举 |
-| output | `&mut TranslationResult` | command_to/notes/source/verified/risk_level |
+| output | `&mut TranslationResult` | command_to/params(参数级映射)/notes/source/kind/verified/risk_level/recipe_id |
 | context | `&Context` | config(habit_dialect)、deps(StorePort/AiAdapter) |
-| metrics | `&mut Metrics` | 记录 source(static\|ai\|native)、AI 调用次数 |
-| evolution | `&mut Evolution` | AI 不可用且静态未命中→降级返回原文（true，source=native 并附说明），不报 IAC-1301 除非调用方显式要求失败 |
+| metrics | `&mut Metrics` | 记录 source(static\|ai\|native)、kind(direct\|composition)、AI 调用次数 |
+| evolution | `&mut Evolution` | AI 不可用且静态未命中→降级返回原文（true，source=native 并附说明） |
 
 - **前置条件**：无（幂等、只读翻译，不执行命令）。
-- **后置条件**：AI 翻译成功时结果已回写缓存（verified=false）；不产生执行与审计之外的副作用。
+- **后置条件**：AI 一对一翻译成功→回写缓存（verified=false）；AI 组合规划成功→脚本存方案库（kind=script，tags=translation/auto）+ 登记映射（kind=composition，recipe_id 回填）；不产生执行与审计之外的副作用。
 - **失败语义**：仅存储不可用（IAC-3102）返回 false；翻译"无等价命令"属于成功（true）并以 notes 说明。
+- **参数级映射四类**（AC-23）：direct（直映）/ renamed（改名）/ value_transform（值变换）/ none（无等价，附替代建议）。
+
+### I-034 `parse_input_marker`（输入标记分发）
+
+| 段 | 类型 | 约束 |
+|---|---|---|
+| input | `&RawInput` | 用户输入行原文 |
+| output | `&mut InputDecision` | 枚举：Ai{explain\|ask, content} / Slash{name, args} / TaskSeparator / Note{text} / Literal(escape 后命令) / Command(原样) |
+| metrics | `&mut Metrics` | 记录标记类型计数 |
+| evolution | `&mut Evolution` | 未知斜杠命令→true 但 decision=UnknownSlash（由调用方转 IAC-1501） |
+
+- **失败语义**：纯字符串分发，恒为 true；解析歧义（如 `---` 非独行）按普通命令处理。
 
 ### IF-003 `spawn_process`（infra Adapter）
 
@@ -202,6 +215,7 @@ CREATE TABLE recipes (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
+  kind TEXT NOT NULL DEFAULT 'command',      -- command|script（组合翻译生成的脚本）
   command_template TEXT NOT NULL,
   tags TEXT NOT NULL DEFAULT '[]',           -- JSON array
   platform TEXT NOT NULL,                    -- linux|macos|windows|all
@@ -241,7 +255,10 @@ CREATE TABLE translations (
   to_platform TEXT NOT NULL,                 -- linux|macos|windows（主机平台）
   command_from TEXT NOT NULL,
   command_to TEXT NOT NULL,
+  params_json TEXT,                          -- 参数级映射：[{from,to,kind(direct|renamed|value_transform|none),note}]
   notes TEXT,                                -- 差异说明
+  kind TEXT NOT NULL DEFAULT 'direct',       -- direct（一对一）|composition（组合脚本）
+  recipe_id TEXT REFERENCES recipes(id),     -- composition 时指向生成的脚本方案
   verified INTEGER NOT NULL DEFAULT 0,       -- 用户确认后转正
   source TEXT NOT NULL,                      -- builtin|ai|user
   updated_at INTEGER NOT NULL,
@@ -301,9 +318,18 @@ pub struct IpcResponse { pub v: u32, pub id: String, pub ok: bool,
     pub result: Option<serde_json::Value>, pub error: Option<IacError> }
 pub struct IacError { pub code: String, pub message: String, pub detail: Option<serde_json::Value> }
 pub struct TranslationInput { pub command: String, pub from_dialect: Platform, pub to_platform: Platform }
-pub struct TranslationResult { pub command_from: String, pub command_to: String, pub notes: String,
-    pub source: TranslationSource, pub verified: bool, pub risk_level: RiskLevel }
+pub struct TranslationResult { pub command_from: String, pub command_to: String,
+    pub params: Vec<ParamMapping>, pub notes: String, pub source: TranslationSource,
+    pub kind: TranslationKind, pub recipe_id: Option<String>, pub verified: bool, pub risk_level: RiskLevel }
+pub struct ParamMapping { pub from_param: String, pub to_param: Option<String>,
+    pub kind: ParamMapKind, pub note: Option<String> }
+pub enum ParamMapKind { Direct, Renamed, ValueTransform, None }
 pub enum TranslationSource { Native, Static, Ai }
+pub enum TranslationKind { Direct, Composition }
+pub enum RawInput { Line(String) }
+pub enum InputDecision { AiExplain { command: String }, AiAsk { intent: String },
+    Slash { name: String, args: String }, TaskSeparator, Note { text: String },
+    Literal { command: String }, Command { command: String }, UnknownSlash { name: String } }
 pub struct PluginRef { pub plugin_id: String, pub source: DownloadSource }
 pub struct InstallResult { pub plugin_id: String, pub files: Vec<InstalledFile>, pub total_size: u64, pub duration_ms: u64 }
 pub struct PluginInfo { pub plugin_id: String, pub name: String, pub engine: String, pub model: String,
