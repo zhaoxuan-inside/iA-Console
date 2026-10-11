@@ -413,7 +413,9 @@
         "_06_interface_design/02_internal_interfaces.md",
         "infra/src/modelhub/mod.rs",
         "infra/src/ai/local.rs",
-        "infra/tests/modelhub_test.rs"
+        "infra/tests/modelhub_test.rs",
+        "core/src/common/marker_parser.rs",
+        "core/src/common/render.rs"
       ],
       "commits": [],
       "changed_methods": [
@@ -460,7 +462,10 @@
         "m-041",
         "m-042",
         "m-043",
-        "m-044"
+        "m-044",
+        "m-045",
+        "m-046",
+        "m-047"
       ],
       "author": "Agent",
       "verified": false

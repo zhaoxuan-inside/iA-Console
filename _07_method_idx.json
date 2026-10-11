@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T16:51:29+08:00",
+  "updated_at": "2026-10-11T16:54:02+08:00",
   "methods": [
     {
       "dependencies": [],
@@ -694,12 +694,57 @@
       "description": "IF-010：本地引擎 supervisor（健康复用/拉起/端口扫描），未装引导 IAC-1401，失败 IAC-1403",
       "reusable": true,
       "id": "m-044"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/common/marker_parser.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn parse_input_marker(input: &RawInput, output: &mut InputDecision, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "parse_input_marker",
+      "category": "algorithm",
+      "layer": "common",
+      "module": "server",
+      "location": "core/src/common/marker_parser.rs",
+      "description": "I-034：输入标记分发（??//---/#/\\ 转义），未知斜杠经 decision 表达",
+      "reusable": true,
+      "id": "m-045"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/common/render.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn detect_format(input: &RawText, output: &mut TextFormat, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "detect_format",
+      "category": "algorithm",
+      "layer": "common",
+      "module": "common",
+      "location": "core/src/common/render.rs",
+      "description": "I-045：格式检测=解析验证（JSON/YAML/XML/MD/代码），失败即 Plain",
+      "reusable": true,
+      "id": "m-046"
+    },
+    {
+      "dependencies": [],
+      "tests": "core/src/common/render.rs",
+      "deprecated": false,
+      "replaced_by": null,
+      "signature": "fn highlight(input: &HighlightInput, output: &mut StyledSpans, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool",
+      "name": "highlight",
+      "category": "algorithm",
+      "layer": "common",
+      "module": "common",
+      "location": "core/src/common/render.rs",
+      "description": "I-046：轻量词法高亮（四类 token 映射 2 语法令牌+灰阶）",
+      "reusable": true,
+      "id": "m-047"
     }
   ],
   "stats": {
-    "total": 44,
+    "total": 47,
     "by_category": {
-      "algorithm": 2,
+      "algorithm": 5,
       "orchestration": 11,
       "data": 31
     }

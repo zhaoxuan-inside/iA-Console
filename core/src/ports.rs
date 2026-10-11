@@ -116,6 +116,13 @@ pub struct ProcessResult {
     pub shell_used: String,
 }
 
+/// 结构化渲染检测输入（I-045；hint=代码块语言标记/shebang）。
+#[derive(Debug, Clone, Default)]
+pub struct RawText {
+    pub content: String,
+    pub hint: Option<String>,
+}
+
 /// 模型调用输入（IF-005）：system+messages、温度、超时。
 #[derive(Debug, Clone, Default)]
 pub struct AiRequest {
