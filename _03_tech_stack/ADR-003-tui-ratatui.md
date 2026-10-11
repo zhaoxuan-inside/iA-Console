@@ -1,6 +1,6 @@
 # ADR-003-TUI 选 ratatui + crossterm（_03_tech_stack）
 
-> 状态：accepted　日期：2026-10-11
+> 状态：accepted（2026-10-11 形态演进注记：独立 GUI 升为主产品形态（见 ADR-008/009），本决策降级为 SSH 远程辅助通道的 TUI 方案，继续有效）　日期：2026-10-11
 
 ## 背景
 
