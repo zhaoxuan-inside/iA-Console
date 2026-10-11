@@ -567,6 +567,20 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": true
+    },
+    {
+      "id": "chg-020",
+      "date": "2026-10-11",
+      "requirement": "REQ-PACMAN-PKG：Arch 原生包——packaging/arch/PKGBUILD（cargo release 构建，package() 装 /usr/bin 三二进制 + desktop + hicolor 图标 + license/doc）；排障：makepkg 注入的 Arch 全局 CFLAGS -flto=auto 令 cc 用系统 clang 23 编出 rust-lld(LLVM 21) 无法消费的 LTO 字节码（sqlite3 符号全失）→ PKGBUILD 内剥离 -flto 后构建成功。产物 dist/ia-console-0.1.0-1-x86_64.pkg.tar.zst（8.9MB，pacman -Qip/-Qpl 校验通过）",
+      "changed_files": [
+        "packaging/arch/PKGBUILD",
+        "dist/ia-console-0.1.0-1-x86_64.pkg.tar.zst",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": true
     }
   ]
 }
