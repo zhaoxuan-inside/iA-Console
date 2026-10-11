@@ -39,11 +39,14 @@
 | 目标 In | G8 风险闸门：四级风险、影响面展示、dangerous/destructive 需确认，补充2 |
 | 目标 In | G9 Agent 原生接口：MCP Server（stdio）+ `--json` CLI 输出，痛点 9 |
 | 目标 In | G10 可插拔 AI 后端：OpenAI 兼容协议多供应商档案，本地模型预留，痛点 7 支撑 |
+| 目标 In | G11 习惯方言与命令翻译：用户设定习惯方言（linux/macos/windows），直接输入命令时自动翻译为主机等价命令并解释差异；**直接命令输入是零 AI 成本的一等路径，AI 仅在用户显式唤起时调用**（`iac ask` / TUI `??`） |
+| 目标 In | G12 内置本地模型：模型插件（推理引擎 + 模型权重）可从 HuggingFace/魔搭 ModelScope（含镜像）下载安装，无 API Key 也能开箱使用 AI 能力 |
 | 非目标 Out | 不重写终端模拟器，不替换用户现有 shell |
 | 非目标 Out | 不做 shell 集成 widget（Ctrl+Space 唤起等，v1.1 评估） |
 | 非目标 Out | 不做任务编排/脚本生成（痛点 3）：v2 实现，v1 数据模型留位（提案支持多命令模板字段演进） |
 | 非目标 Out | 不做执行回滚（痛点 6）：v2 实现，v1 留设计位（executions.pre_snapshot_ref 字段与影响面展示钩子），见 _02 第 5 节 |
 | 非目标 Out | 不做远程多主机管理、IDE 插件、团队协作与云同步 |
+| 非目标 Out | 不做模型训练/微调，不做完整模型管理 GUI（仅命令行级插件安装/列表/删除） |
 | 非目标 Out | v1 不做长任务守护与输出结构化适配层（补充4/5，登记为后续需求） |
 
 ## 3. 用户故事
@@ -61,6 +64,8 @@ US-9 作为运维，我希望每一条命令执行（谁、何时、在哪、什
 US-10 作为用户，我希望一条命令管理 daemon 生命周期（start/stop/status），以便服务可控。
 US-11 作为隐私敏感用户，我希望切换/配置多个 AI 后端（云、本地），以便平衡质量与隐私。
 US-12 作为跨平台用户，我希望同一意图在不同平台得到的命令符合该平台 shell 语法，以便提案拿起来就能用。
+US-13 作为在 Windows 上工作的 Linux 老手，我希望直接输入 ls 就拿到等价的 dir/Get-ChildItem 及差异说明，以便不切换命令思维（反向：Windows 用户在 Linux 上输 dir 同理）。
+US-14 作为离线/隐私敏感用户，我希望一键从 HuggingFace 或魔搭下载安装内置模型插件，以便不配置任何 API Key 也能使用意图、诊断与翻译能力。
 ```
 
 ## 4. 业务流程
@@ -132,6 +137,9 @@ flowchart TD
 | Agent 请求执行 destructive | 未携带确认标志 | 拒绝执行并返回影响面说明，要求 Agent 带确认重试（闸门与人一致） |
 | 会话文件损坏 | load 校验失败 | 该会话标记 corrupted，列表其余会话不受影响 |
 | 密钥安全 | 配置含 API Key | 默认从环境变量读取；日志与执行记录中密钥一律脱敏 |
+| 方言翻译未命中且 AI 不可用 | 静态表查不到且后端不可达 | 返回原命令与说明（不阻塞直接执行），错误码 IAC-1301 |
+| 插件下载中断/校验失败 | 网络中断或 sha256 不匹配 | 支持断点续传与重试；校验失败拒绝安装，IAC-1402 |
+| 本地引擎启动失败 | 端口占用/引擎缺失 | 换端口重试一次；仍失败报 IAC-1403 并回退云后端 |
 | 跨平台语法 | 同一意图在不同平台 | 提案命令符合当前平台 shell 语法，方案库按 platform 过滤 |
 
 ## 7. 验收标准（EARS）
@@ -155,6 +163,10 @@ AC-15  WHEN dangerous/destructive 提案被确认后执行失败 THE SYSTEM SHAL
 AC-16  WHILE daemon 运行中 THE SYSTEM SHALL 以 WAL 模式支持多客户端并发读写不互锁。
 AC-17  WHEN 用户执行 iac daemon start|stop|status THE SYSTEM SHALL 返回 daemon 生命周期操作结果与运行状态。
 AC-18  WHEN 配置多个模型后端 THE SYSTEM SHALL 可指定默认后端并可按请求切换，切换不重启 daemon。
+AC-19  WHEN 习惯方言≠主机方言且用户直接输入命令 THE SYSTEM SHALL 优先以静态映射生成主机等价命令提案（含差异说明），未命中时自动经 AI 翻译并把结果回写翻译缓存；全程不静默执行，须经确认。
+AC-20  WHEN 用户直接输入命令且未显式唤起 AI THE SYSTEM SHALL 不产生任何模型调用（静态翻译命中时零 AI 成本）。
+AC-21  WHEN 用户安装模型插件 THE SYSTEM SHALL 从配置源（HuggingFace/魔搭/镜像）下载引擎与模型、校验 sha256、注册为 local Provider 并可设为默认后端。
+AC-22  WHEN 云后端不可用而本地引擎可用 THE SYSTEM SHALL 按配置自动降级到本地 Provider 并在结果中标注来源；两者皆不可用时返回明确错误码。
 ```
 
 ## 8. 未决问题
@@ -165,4 +177,5 @@ AC-18  WHEN 配置多个模型后端 THE SYSTEM SHALL 可指定默认后端并�
 | 密钥存储：v1 环境变量，是否引入系统 keyring | config 设计 | open（v1 用环境变量+文档警示） |
 | 是否内置常见命令知识离线包（ls/docker/git 等） | 冷启动体验 vs 包体积 | open（v1 先靠运行时解析+缓存） |
 | 历史全文检索 FTS5 启用时机 | v1 用 LIKE+索引，v1.1 评估 FTS5 | open |
+| 内置默认模型选型（小参数量 instruct 模型，GGUF 量化档位） | 插件默认项与体积/质量平衡 | open（候选 Qwen2.5-Coder-1.5B / Qwen3-1.7B 级别） |
 | shell 集成 widget（v1.1） | 前端形态扩展 | open |
