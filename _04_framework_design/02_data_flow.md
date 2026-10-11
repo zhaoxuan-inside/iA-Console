@@ -80,6 +80,30 @@ sequenceDiagram
     CORE-->>A: 结构化结果（exit_code/输出摘要/记录 ID）
 ```
 
+### 流 4：跨方言直接输入翻译（AC-19/20，零 AI 成本优先）
+
+```mermaid
+sequenceDiagram
+    participant U as 用户(TUI/CLI)
+    participant S as server(dispatch)
+    participant T as intent(translate_command)
+    participant K as knowledge
+    participant AI as infra::ai
+
+    U->>S: 直接输入命令（如 ls -la；习惯方言=linux，主机=windows）
+    Note over S,T: 习惯方言=主机方言 → 不翻译，直入风险闸门
+    S->>T: translate_command(command, from=habit, to=host)
+    T->>K: lookup_translation(静态映射表)
+    alt 静态命中
+        K-->>T: 等价命令+差异说明（零 AI 调用，AC-20）
+    else 未命中
+        T->>AI: ai_complete(双方言翻译 prompt)
+        T->>K: cache_translation(verified=false 回写)
+    end
+    T-->>U: 翻译提案（等价命令+差异说明+风险）→ 确认后走流 1 执行
+    Note over T: AI 不可用时返回原命令+说明，不阻塞直接执行
+```
+
 ## 2. 主调用链
 
 以"用户意图到执行落库"为例（方法名以 _06 编号为准）：
@@ -113,6 +137,8 @@ sequenceDiagram
 | AuditEntry | ts/actor/action/target/detail(JSON) | SQLite audit_log | history |
 | Recipe | id/title/description/command_template/tags/platform/risk/usage_count | SQLite recipes | recipe |
 | CommandKnowledge | command/platform/schema(JSON)/source_hash/verified | SQLite knowledge_cache | knowledge |
+| CommandTranslation | from_dialect/to_platform/command_from/command_to/notes/verified | SQLite translations | knowledge |
+| ModelPlugin | id/name/engine/files(sha256)/size/status/installed_at | SQLite model_plugins | modelhub |
 
 完整 DDL 见 _06 internal 第 3 节。关系：Session 1—N SessionEvent/ExecutionRecord/Proposal；ExecutionRecord 0—1 Proposal；Recipe 0—1 源 ExecutionRecord。
 

@@ -29,14 +29,16 @@ graph TB
     end
 
     subgraph infra[基础设施层 Adapter]
-        AI[ai<br/>LLM Adapter]
+        AI[ai<br/>LLM Adapter<br/>（云 Provider + 本地引擎）]
         STORE[storage<br/>SQLite Adapter]
         PROC[process<br/>进程执行 Adapter]
         CONFIG[config<br/>配置 Adapter]
+        MODELHUB[modelhub<br/>模型插件 Adapter]
     end
 
     TUI & CLI & MCPS -->|IPC / stdio| SERVER
     SERVER --> INTENT & EXECUTOR & DOCTOR
+    SERVER -->|插件管理| MODELHUB
     INTENT --> RISK & KNOWLEDGE & SESSION & HISTORY & RECIPE
     EXECUTOR --> RISK & HISTORY & SESSION & PROC
     DOCTOR --> HISTORY & SESSION
@@ -46,6 +48,8 @@ graph TB
     SESSION & HISTORY & RECIPE & KNOWLEDGE & RISK --> STORE
     INTENT & EXECUTOR & DOCTOR & SESSION & HISTORY & RECIPE & KNOWLEDGE --> CONFIG
     AI --> PROC2[reqwest<br/>（仅 infra 内可见）]
+    AI --> ENG[llama-server 子进程<br/>（modelhub 安装的本地引擎）]
+    MODELHUB --> DL[HF / 魔搭 / 镜像下载<br/>sha256 校验]
     STORE --> SQL[(SQLite<br/>iac.db)]
 ```
 
@@ -56,19 +60,20 @@ graph TB
 | 模块 | 层 | 职责 | 对应 _01 需求 | 对外暴露（见 _06） |
 |---|---|---|---|---|
 | server | app | IPC/MCP 请求信封解析、dispatch 路由到各编排、协议版本协商 | US-4/7/10 | IPC methods、MCP tools |
-| intent | app | 意图→提案主流程（prompt 组装→AI 调用→解析→风险评估→落库）；参数向导 explain | US-1/2/11/12 | handle_ask、handle_explain |
+| intent | app | 意图→提案主流程（prompt 组装→AI 调用→解析→风险评估→落库）；参数向导 explain；**跨方言命令翻译编排（静态表优先、AI 兜底）** | US-1/2/11/12/13 | handle_ask、handle_explain、translate_command |
 | executor | app | 提案执行主流程（闸门→执行→采集→记录→失败转诊断）；确认流 | US-3/8/9 | handle_execute、confirm_and_execute |
 | doctor | app | 失败上下文构建→AI 诊断→结构化 Diagnosis + 修复提案 | US-3 | diagnose_failure |
 | risk | domain | 风险规则装载、闸门决策（orchestration） | US-8 | assess_risk |
 | session | domain | 会话与事件流的建立、追加、载入、列表、恢复 | US-6 | resume_session 等 5 方法 |
 | history | domain | 执行记录写入/查询/详情、审计条目追加 | US-9 | record_execution 等 4 方法 |
 | recipe | domain | 方案保存/检索/详情/删除 | US-5 | save_recipe 等 4 方法 |
-| knowledge | domain | 命令知识查询/缓存写回 | US-1/2 | lookup_knowledge、cache_knowledge |
+| knowledge | domain | 命令知识查询/缓存写回；**跨方言翻译映射的查询与缓存** | US-1/2/13 | lookup_knowledge、cache_knowledge、lookup_translation、cache_translation |
 | common | domain(算法集中地) | 纯算法：风险规则匹配、help 文本→参数 schema 解析 | US-8/2 | match_risk_rules、parse_help_text |
-| ai | infra | LLM OpenAI 兼容调用、Provider 档案管理 | US-11 | ai_complete |
+| ai | infra | LLM OpenAI 兼容调用、Provider 档案管理、**本地引擎子进程 supervisor** | US-11/14 | ai_complete、local_engine_ensure |
 | storage | infra | SQLite 连接、查询/执行/迁移原语、ID 生成 | US-9 | storage_query/execute/migrate |
 | process | infra | 跨平台进程执行：shell 选择、输出捕获、超时、kill | US-12 | spawn_process |
 | config | infra | TOML 配置加载/保存、环境变量覆盖、路径定位 | US-10/11 | load_config、save_config |
+| **modelhub** | infra | 模型插件下载/校验/安装/列表：HF/魔搭/镜像多源、sha256、断点续传 | US-14 | modelhub_install、modelhub_list |
 | tui | 接入端（豁免） | TUI 事件循环与渲染组件；业务逻辑全部下沉 core | US-4/6 | —（UI 豁免） |
 | cli | 接入端（豁免） | clap 子命令定义与参数适配到 IPC 请求；`--json` 出口 | US-1~10 | —（入口豁免） |
 
