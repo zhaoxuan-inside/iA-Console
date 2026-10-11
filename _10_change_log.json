@@ -236,6 +236,22 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-010",
+      "date": "2026-10-11",
+      "requirement": "REQ-GRAY-CONVERSION：评审意见——翻译转换显示统一改为灰阶形式：原命令一律灰阶弱化（fg-25）+ → + 译文正常着色，移除删除线（ANSI SGR 9 兼容性参差）及其降级分支；ConversionView 移除 strikethrough_supported 字段；AC-36、_04 翻译行规范、T-024 验收同步修订",
+      "changed_files": [
+        "_01_business/01_requirements.md",
+        "_04_framework_design/03_ui_principles.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
