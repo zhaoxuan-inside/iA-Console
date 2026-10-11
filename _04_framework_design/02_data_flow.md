@@ -123,11 +123,12 @@ sequenceDiagram
     E->>E: 正常执行（不转译、不判断可逆性）
     E->>RB: diff_effects(前像 manifest vs 现况)
     RB->>RB: 效果日志入库（每文件 op/before/after，全局 seq）
-    Note over U,RB: 事后
-    U->>RB: iac rollback [执行点|时间]
+    Note over U,RB: 事后（history 式列表：行号 seq/时间/当时命令/可回滚标识 ✔◐✘）
+    U->>RB: iac rollback --list / --to <行> / --from <行> [--to <行>] [--on-conflict <ask|skip|abort>]
     RB->>SS: snapstore_fetch(各条目前像)
-    RB->>RB: 逆序回放：modified→前像替换 / deleted→恢复 / created→移入回收站 / renamed→反向改名
-    RB-->>U: 回滚报告（含回收站位置与 retention 说明）
+    RB->>RB: 按指定范围逐行倒序回放：modified→前像替换 / deleted→恢复 / created→移入回收站 / renamed→反向改名
+    Note over RB: 冲突条目按 on-conflict 策略处理：ask 逐条询问 / skip 默认跳过 / abort 中止；决策计入报告
+    RB-->>U: 回滚报告（applied/skipped+原因/回收站位置）
     U->>RB: iac file history <路径>
     RB-->>U: 该文件版本列表（每次执行一条：时间+命令+变化）
     U->>RB: iac file restore <路径> --to <版本>
