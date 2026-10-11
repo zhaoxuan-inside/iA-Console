@@ -157,7 +157,7 @@
 | IAC-2102 | 500 | 命令非零退出（附 exit_code） | 查看 diagnosis |
 | IAC-2103 | 504 | 执行超时被终止 | 调整 timeout_ms |
 | IAC-2104 | 499 | 用户取消/确认超时 | 重新发起 |
-| IAC-2105 | 403 | 高危命令未确认 | 携带 confirm_dangerous 重试（先阅读影响面） |
+| IAC-2105 | 403 | 翻译/Agent 路径高危未确认 | 翻译命令携带确认重试；Agent 携带 confirm_dangerous 重试（先阅读弱提醒影响面） |
 | IAC-2106 | 501 | 平台不支持该命令形态 | 使用平台等价命令 |
 | IAC-3101 | 404 | 会话/记录不存在 | 核对 ID |
 | IAC-3102 | 500 | 存储不可用 | 检查磁盘与文件权限 |
@@ -209,6 +209,7 @@
 | providers.<name>.path | string | local-path 型的模型文件路径（GGUF） |
 | ai.default_provider / ai.fallback_local | string/bool | 默认后端与云→本地降级开关 |
 | modelhub.source | hf/modelscope/hf-mirror | 插件下载源 |
+| risk.confirm_mode | weak/ask | 高危弱提醒（weak：红字+⚠+边缘描边，不拦截，默认）或强确认（ask）；**翻译高危与 Agent 路径恒走确认，不受此开关影响** |
 | rollback.enabled | bool | 效果日志与回滚开关（v2 默认开） |
 | rollback.capture_scope | cwd_tree/explicit/all_home | 捕获范围策略（统一策略，无逐命令判断） |
 | rollback.max_entries | int | 回滚日志执行点数上限：默认 1024，可配置，硬上限 65536；超限清退最旧执行点 |
