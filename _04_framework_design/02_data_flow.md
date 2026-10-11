@@ -105,7 +105,7 @@ sequenceDiagram
         T->>RC: save_recipe(平台化脚本, tags=translation/auto)
         T->>K: cache_translation(kind=composition, recipe_id)
     end
-    T-->>U: 翻译提案（等价命令/脚本+差异说明+风险）→ 确认后走流 1 执行（verified 转正）
+    T-->>U: 译文行（等价命令/脚本 + 风险；差异说明与参数映射收起，e/--explain 按需展开）→ 确认后走流 1 执行（verified 转正）
     Note over T: AI 不可用时返回原命令+说明，不阻塞直接执行
 ```
 
