@@ -1,4 +1,36 @@
 {
   "schema_version": "1.0",
-  "changes": []
+  "changes": [
+    {
+      "id": "chg-001",
+      "date": "2026-10-11",
+      "requirement": "REQ-INIT：iA-console 项目立项——P0 需求澄清与 P1~P6 设计文档全流程落盘（形态=伴生内核+TUI、AI 后端=OpenAI 兼容可插拔、MVP=核心智能闭环、语言=Rust，为 P0 未决项默认决策，待设计评审确认）",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_03_tech_stack/01_selection.md",
+        "_03_tech_stack/ADR-001-language-rust.md",
+        "_03_tech_stack/ADR-002-runtime-tokio.md",
+        "_03_tech_stack/ADR-003-tui-ratatui.md",
+        "_03_tech_stack/ADR-004-storage-sqlite.md",
+        "_03_tech_stack/ADR-005-access-mcp-ipc.md",
+        "_03_tech_stack/ADR-006-llm-openai-compatible.md",
+        "_04_framework_design/01_architecture.md",
+        "_04_framework_design/02_data_flow.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_07_method_idx.json",
+        "_09_project_dict.json",
+        "_10_change_log.json",
+        "README.md",
+        ".gitignore"
+      ],
+      "commits": ["4dd37ec", "b281cda", "d9b703a", "f81fd04", "af27109", "58c05c3", "4af4743"],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
+    }
+  ]
 }
