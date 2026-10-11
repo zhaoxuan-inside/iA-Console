@@ -68,7 +68,7 @@
       "files": [
         {
           "file": "01_requirements.md",
-          "summary": "需求背景/十大痛点映射/20 条用户故事/37 条 EARS 验收标准（含方言翻译、内置模型、输入标记、主题、效果日志回滚、弱提醒、按需解释、复制三档）",
+          "summary": "需求背景/十大痛点映射/21 条用户故事/40 条 EARS 验收标准（含方言翻译、内置模型、输入标记、主题、效果日志回滚、弱提醒、按需解释、复制三档、脚本工坊）",
           "status": "draft"
         }
       ]
@@ -78,7 +78,7 @@
       "files": [
         {
           "file": "01_candidates.md",
-          "summary": "意图生成/错误诊断/存储/Agent接入/跨平台执行/本地推理/跨方言翻译/回滚八问的候选方案原理对比（Q6 已定稿效果日志方案）",
+          "summary": "意图生成/错误诊断/存储/Agent接入/跨平台执行/本地推理/跨方言翻译/回滚/脚本装配九问的候选方案原理对比",
           "status": "draft"
         }
       ]
@@ -138,7 +138,7 @@
         },
         {
           "file": "02_data_flow.md",
-          "summary": "意图执行/错误诊断/MCP/跨方言翻译/效果日志回滚五条核心数据流与容量假设",
+          "summary": "意图执行/错误诊断/MCP/跨方言翻译/效果日志回滚/脚本工坊六条核心数据流与容量假设",
           "status": "draft"
         },
         {
@@ -153,7 +153,7 @@
       "files": [
         {
           "file": "01_function_matrix.md",
-          "summary": "模块×层功能矩阵、39 张任务卡（含 v2 回滚 M7 预排）、7 个里程碑",
+          "summary": "模块×层功能矩阵、43 张任务卡（含 v2 回滚 M7 与脚本工坊 M8 预排）、8 个里程碑",
           "status": "draft"
         }
       ]
@@ -168,7 +168,7 @@
         },
         {
           "file": "02_internal_interfaces.md",
-          "summary": "40 个五段方法 + 13 个 Adapter 方法契约、支撑类型、SQLite 数据模型",
+          "summary": "44 个五段方法 + 13 个 Adapter 方法契约、支撑类型、SQLite 数据模型",
           "status": "draft"
         }
       ]
@@ -348,6 +348,12 @@
         "path": "iA-console/iac/src/cli/",
         "summary": "CLI 子命令入口（框架签名豁免，适配到 dispatch）",
         "owner": null
+      },
+      {
+        "name": "script",
+        "path": "iA-console/core/src/script/",
+        "summary": "脚本工坊（v2）：范围收集、脚本装配运行、AI 精修编排",
+        "owner": null
       }
     ]
   },
@@ -364,7 +370,7 @@
   },
   "dictionary": {
     "path": "_09_project_dict.json",
-    "terms": 37
+    "terms": 39
   },
   "change_log": {
     "path": "_10_change_log.json",

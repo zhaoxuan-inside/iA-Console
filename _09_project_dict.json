@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-10-11T12:00:00+08:00",
+  "updated_at": "2026-10-11T13:00:00+08:00",
   "terms": [
     {
       "term": "iA-console",
@@ -504,6 +504,35 @@
         "提案"
       ],
       "source": "_04_framework_design/03_ui_principles.md"
+    },
+    {
+      "term": "脚本工坊",
+      "code_name": "ScriptMaker",
+      "definition": "把用户指定的命令范围（--- 任务段或行号区间）制作为 shell / PowerShell·bat 脚本的功能：默认确定性拼接零 AI，AI 精修显式触发 diff 确认；命名注册为方案库脚本资产后变成一个命令（iac run @名）",
+      "aliases": [
+        "脚本制作",
+        "编排工坊"
+      ],
+      "domain": "编排",
+      "related_terms": [
+        "方案",
+        "组合翻译",
+        "风险闸门"
+      ],
+      "source": "_02_principle/01_candidates.md"
+    },
+    {
+      "term": "命名脚本",
+      "code_name": "NamedScript",
+      "definition": "脚本工坊产出的方案库资产（recipes.kind=script，name 全局唯一），经 iac run @name 或脚本列表运行，执行过同一闸门与回滚",
+      "aliases": [
+        "@脚本"
+      ],
+      "domain": "编排",
+      "related_terms": [
+        "脚本工坊"
+      ],
+      "source": "_02_principle/01_candidates.md"
     }
   ]
 }

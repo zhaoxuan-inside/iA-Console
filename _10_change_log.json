@@ -280,6 +280,27 @@
       "changed_methods": [],
       "author": "Agent",
       "verified": false
+    },
+    {
+      "id": "chg-012",
+      "date": "2026-10-11",
+      "requirement": "REQ-SCRIPT-MAKER：评审意见——痛点 3 需求化为脚本工坊（G16，v2 M8）：用户指定命令范围（--- 任务段或行号区间，与回滚同一套行语义）→ 制作为 shell/PowerShell·bat 脚本；机制取 _02 Q9 结论『拼接+可选精修』——默认确定性拼接零 AI（set -euo pipefail / ErrorActionPreference 头），AI 精修（参数化/预检/跨方言适配）显式触发 diff 确认；命名注册 recipes.kind=script + name 全局唯一，变成一个命令（iac run @名 / script run），执行过同一闸门（风险=内部最高）并纳入回滚日志。新增 I-041~044、API-013/014、CMD-017/018、M8 任务卡 T-040~043",
+      "changed_files": [
+        "_00_project_idx.json",
+        "_01_business/01_requirements.md",
+        "_02_principle/01_candidates.md",
+        "_04_framework_design/01_architecture.md",
+        "_04_framework_design/02_data_flow.md",
+        "_05_function_design/01_function_matrix.md",
+        "_06_interface_design/01_external_api.md",
+        "_06_interface_design/02_internal_interfaces.md",
+        "_09_project_dict.json",
+        "_10_change_log.json"
+      ],
+      "commits": [],
+      "changed_methods": [],
+      "author": "Agent",
+      "verified": false
     }
   ]
 }
