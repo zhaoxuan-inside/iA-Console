@@ -91,3 +91,10 @@ pub struct RecipeDeleteInput {
 pub struct RecipeExportInput {
     pub path: String,
 }
+
+/// 导出报告。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RecipeExportReport {
+    pub exported: u64,
+    pub path: String,
+}

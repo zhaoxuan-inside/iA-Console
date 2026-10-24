@@ -12,22 +12,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ParamSpecDoc {
     #[serde(default)]
-    pub params: Vec<ParamSpec>,
+    pub params: Vec<crate::knowledge::ParamSpec>,
     #[serde(default)]
     pub impact: String,
     #[serde(default)]
     pub summary: String,
-}
-
-/// 单个参数的解释。
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct ParamSpec {
-    pub flag: String,
-    pub meaning: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub required: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default: Option<String>,
 }
 
 /// 提案候选（Q17 多候选 2~3 个；Q23 排序=平台惯例>低风险>历史使用频率）。

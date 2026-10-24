@@ -85,12 +85,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_script_name ON recipes(name) WHERE
 
 -- 命令知识缓存（域 1 grounding）
 CREATE TABLE IF NOT EXISTS knowledge_cache (
-  id TEXT PRIMARY KEY,
+  id TEXT PRIMARY KEY,                       -- hash(command+platform)
   command TEXT NOT NULL,
   platform TEXT NOT NULL,
-  params TEXT NOT NULL,
-  fetched_at INTEGER NOT NULL,
-  verified INTEGER NOT NULL DEFAULT 0
+  schema_json TEXT NOT NULL,                 -- CommandKnowledge
+  source_hash TEXT NOT NULL,                 -- help 文本指纹
+  verified INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(command, platform)
 );
 
 -- 审计（域 7）：非执行类操作 + 确认/拒绝（Q45）
