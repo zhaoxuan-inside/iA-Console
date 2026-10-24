@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=iA Console
+GenericName=Intelligent Console
+Comment=天下没有难用的 Console
+Exec=ia-console
+TryExec=ia-console
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;
+Keywords=console;terminal;shell;ai;iA;
+StartupWMClass=ia-console

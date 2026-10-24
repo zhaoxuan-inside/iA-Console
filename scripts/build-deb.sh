@@ -4,7 +4,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-VERSION=0.1.0
+VERSION=0.2.0
 ARCH=amd64
 STAGE=dist/deb-stage
 OUT=dist/ia-console_${VERSION}_${ARCH}.deb
@@ -20,7 +20,7 @@ mkdir -p "$STAGE/DEBIAN" \
 install -m 755 target/release/ia-console "$STAGE/usr/bin/ia-console"
 install -m 755 target/release/iac        "$STAGE/usr/bin/iac"
 install -m 755 target/release/iacd       "$STAGE/usr/bin/iacd"
-install -m 644 dist/ia-console-0.1.0-linux-x64/ia-console.desktop "$STAGE/usr/share/applications/ia-console.desktop"
+install -m 644 packaging/ia-console.desktop "$STAGE/usr/share/applications/ia-console.desktop"
 python3 scripts/gen-icon.py "$STAGE/usr/share/icons/hicolor/256x256/apps/ia-console.png"
 install -m 644 README.md "$STAGE/usr/share/doc/ia-console/README.md"
 install -m 644 LICENSE "$STAGE/usr/share/doc/ia-console/copyright"

@@ -9,12 +9,12 @@ cd "$(dirname "$0")/.."
 APPDIR=dist/AppDir
 RUNTIME="${RUNTIME_FILE:-dist/runtime-x86_64}"
 HELPER="${SQFS_HELPER:-/tmp/sqfs-helper/target/release/sqfs-helper}"
-OUT=dist/ia-console-0.1.0-x86_64.AppImage
+OUT=dist/ia-console-0.2.0-x86_64.AppImage
 
 rm -rf "$APPDIR" "$OUT"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 install -m 755 target/release/ia-console target/release/iac target/release/iacd "$APPDIR/usr/bin/"
-cp dist/ia-console-0.1.0-linux-x64/ia-console.desktop "$APPDIR/usr/share/applications/ia-console.desktop"
+cp packaging/ia-console.desktop "$APPDIR/usr/share/applications/ia-console.desktop"
 sed -i 's|^Icon=.*|Icon=ia-console|' "$APPDIR/usr/share/applications/ia-console.desktop"
 cp scripts/ia-console.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/ia-console.png" 2>/dev/null || \
   python3 scripts/gen-icon.py "$APPDIR/usr/share/icons/hicolor/256x256/apps/ia-console.png"

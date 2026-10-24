@@ -1,9 +1,9 @@
 # Maintainer: zhaoxuan <zhaoxuan@users.noreply.github.com>
-# iA Console v0.1.0 — 独立 GUI 客户端 + daemon + CLI/TUI/MCP
+# iA Console v0.2.0 — 重建基线：多窗口 GUI + daemon 内置 MCP + 混合识别 + 闸门矩阵
 # 本地构建：在 packaging/arch/ 下执行 makepkg -f（需 rust/cargo，或 rustup 工具链在 PATH）
 
 pkgname=ia-console
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=2
 pkgdesc="天下没有难用的 Console（智能控制台：真终端 + AI 侧栏 + 闸门执行 + 会话持久化）"
 arch=('x86_64')
@@ -29,7 +29,7 @@ build() {
   (cd "$repo" && cargo build --release --workspace)
   # 供 package() 取产物（CARGO_TARGET_DIR=$srcdir/target）
   ls -la "$srcdir/target/release/ia-console" > /dev/null
-  cp "$startdir/../../dist/ia-console-0.1.0-linux-x64/ia-console.desktop" "$srcdir/"
+  cp "$startdir/../ia-console.desktop" "$srcdir/"
   python3 "$startdir/../../scripts/gen-icon.py" "$srcdir/ia-console.png"
 }
 
