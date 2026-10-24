@@ -3,8 +3,8 @@
 # 本地构建：在 packaging/arch/ 下执行 makepkg -f（需 rust/cargo，或 rustup 工具链在 PATH）
 
 pkgname=ia-console
-pkgver=0.2.1
-pkgrel=5
+pkgver=0.2.2
+pkgrel=1
 pkgdesc="天下没有难用的 Console（智能控制台：真终端 + AI 侧栏 + 闸门执行 + 会话持久化）"
 arch=('x86_64')
 url="https://github.com/zhaoxuan/iA-console"

@@ -1,52 +1,61 @@
-# 品味宪章（DESIGN.md）——iA-console 重建基线 v0.2.1
+# 品味宪章（DESIGN.md）——iA-console 重建基线 v0.2.2
 
-- **状态**：`CONFIRMED`（2026-10-24 UI 重设计落地；令牌与实现同源，`iac-gui/src/theme.rs` 为唯一事实源）
-- **设计系统**：**Linear 式表面层次**为主系统（surface 四级阶梯承载层级、不用阴影、点缀色克制使用），
-  终端调色板参照 **Warp** 的现代克制 ANSI。规范快照：`design/refs/linear.app.design.md`、`design/refs/warp.design.md`
-  （来源 [awesome-design-md](https://github.com/VoltAgent/awesome-design-md)，2026 精选）
-- **设计语言**：内容即界面、留白、发丝线分隔、8px 圆角、紧凑间距（xs~sm 节奏）
+- **状态**：`CONFIRMED`（2026-10-25 调性定稿；令牌与实现同源，`iac-gui/src/theme.rs` 为唯一事实源）
+- **调性出处**：**iA Writer**（Information Architects）——「as little design as possible」。
+  取其**调性**而非布局：本项目延续旧需求 G14「iA-Writer 式排版美学」的原定方向。
+- **明确边界**：调性 ≠ 布局。多窗口 × 标签 × 真终端 × 主输入行的结构（域 18）不随调性变化；
+  此前 Linear 式 SaaS 观感（纯黑 canvas/强 surface 分层/卡片框/pill chip）已废弃。
 
-## 1. 原则
+## 1. 调性支柱（五条，判例时以此为准）
 
-1. **表面阶梯承载层级**：canvas → surface-1（条区/终端容器）→ surface-2（卡片/输入框）→ surface-3（悬停），
-   层级靠明度阶梯而非阴影（Linear 核心手法）。
-2. **点缀色克制**：薰衣草蓝仅用于焦点/活动位/主操作（活动候选左竖条、选区、accent 条），大面积界面保持中性。
-3. **终端优先**：管理功能全部在终端面内以等宽文本渲染（域 18，Q38）；GUI 只做窗口外壳、卡片容器与鼠标支持。
-4. **风险即色相**：caution=琥珀、dangerous=橙红、destructive=红（等级差用色相而非仅明度）；弱提醒不拦截（Q34）。
-5. **圆角与发丝线**：控件 6px、卡片 8px、窗口 10px；1px 发丝线描边，无重边框。
+1. **纸感中性色**：昼=暖纸白（#F7F5F0），夜=软石墨（#242322，微暖 R≥B，非纯黑）；
+   墨色文字同暖调（#292926 / #D9D7D0）。界面是「一张纸」，不是「一叠面板」。
+2. **单一静蓝点缀**：iA 静蓝（昼 #3B6FD4 墨水蓝 / 夜 #6E9CE8 粉末蓝）只出现在
+   光标/焦点/活动位刻度/链接——除此之外界面全中性。
+3. **排版即层级**：结构靠字重与灰阶（Fg → Fg60 → Fg40 → Fg25）与留白表达；
+   禁止用填充盒、卡片框、pill 标签做层级。
+4. **去铬**：无阴影；常态控件透明（文本即控件）；发丝线（hairline）是最重的装饰；
+   圆角收敛 4~6px；间距安静（8/6）。
+5. **打字机式平静**：语义色降饱和（鼠尾草绿/沙金/陶土/柔红），反馈轻（悬停仅微面），
+   无霓虹、无强对比分层（相邻 surface 亮度差 < 32）。
 
-## 2. 令牌表（与 `theme.rs` 同源；色值出处见 rgb() 注释）
+## 2. 令牌表（与 `theme.rs` 同源）
 
 | 令牌 | 夜 | 昼 | 语义 |
 |---|---|---|---|
-| Bg（canvas） | #010102 | #fbfbfc | 最深底 |
-| Surface | #0f1011 | #f2f3f5 | 条区容器/终端底 |
-| SurfaceRaised | #141516 | #ffffff | 卡片/输入框 |
-| SurfaceHover | #18191a | #e9eaee | 悬停面 |
-| Hairline | #23252a | #e3e4e8 | 发丝线描边 |
-| Fg（ink） | #f7f8f8 | #1c1c1f | 正文 |
-| Fg60（subtle） | #8a8f98 | #6c707a | 次级文本 |
-| Fg40（tertiary） | #62666d | #9b9ea6 | 三级文本 |
-| Fg25 | #4b4f56 | #b7bac1 | 弱化文本 |
-| Accent | #828fff（暗底亮调） | #5e6ad2（品牌） | 点缀：焦点/活动位 |
-| Safe / Caution | #3dd68c / #ffb224 | #217a53 / #ad5f00 | 风险语义 |
-| Dangerous / Destructive | #f76b15 / #ff6369 | #bd4b00 / #d13438 | 橙红→红等级差 |
-| SynKeyword / SynString | #b18aff / #45d4b8 | #8250df / #0a7c6e | 语法令牌 |
+| Bg（纸） | #242322 | #F7F5F0 | 唯一画布：软石墨/暖纸白 |
+| Surface | #292826 | #F1EEE8 | 极轻抬升（对比刻意低） |
+| SurfaceRaised | #2C2B29 | #FBFAF6 | 保留槽位（最少使用） |
+| SurfaceHover | #312F2D | #EBE8E1 | 悬停/反馈面 |
+| Hairline | #383633 | #E2DED5 | 发丝线（最重装饰） |
+| Fg（墨） | #D9D7D0 | #292926 | 正文（暖调） |
+| Fg60 / Fg40 / Fg25 | #9D9B93 / #716F67 / #4D4C46 | #6D6B63 / #9B988F / #C5C1B7 | 灰阶层级主力 |
+| Accent（静蓝） | #6E9CE8 | #3B6FD4 | 唯一点缀：光标/焦点/活动刻度 |
+| Safe / Caution | #7FB98A / #C9A26B | #4E7A56 / #8F6B2B | 鼠尾草/沙金（降饱和） |
+| Dangerous / Destructive | #CE8370 / #C97070 | #B25A3A / #AF4B44 | 陶土/柔红 |
+| SynKeyword / SynString | #A78BB5 / #74A8A4 | #7E5CC0 / #3E7D74 | 柔和语法令牌 |
 
-## 3. 终端 ANSI（夜）
+## 3. 终端 ANSI
 
-surface-1 暖炭底 + 现代克制 ANSI：blue 槽=品牌 #5e6ad2（bright #828fff）、red #e5484d、green #30a46c、
-yellow #ffb224、magenta #bf7af0、cyan #4cc2d1；昼为白底深色变体。完整表见 `terminal_palette()`。
+与面板**同一张纸**（夜底 #242322 / 昼底 #F7F5F0，无色缝）；ANSI 为降饱和暖调集；
+blue 槽 = 品牌静蓝（终端与面板同一支点缀）。完整表见 `terminal_palette()`。
 
-## 4. 布局（域 18 重建落定）
+## 4. 组件判例（iA 式 vs 已废弃的 SaaS 式）
 
-- **每窗口**：标签栏（顶部，圆角选中态）→ 任务条区（surface-1 容器 + 发丝线描边，可折叠）→ 真终端（主体）→ 主输入行（钉底，surface 输入框）。
-- **提案卡**：surface-2 卡片 + 发丝线描边 + 8px 圆角；头部「提案 + id + 风险 chip（等级色 18% 底 pill）」；
-  活动候选 accent 左竖条 + 风险着色；`e` 展开逐参数解释与注入上下文（Q16/Q17/Q20）。
-- **每标签**：独立 PTY 会话 + 独立任务流 + 独立会话绑定（Q39/Q46）。
-- **侧栏（辅助）**：对话轨视图（Ctrl+B），不作为 AI 唯一入口（Q7）。
+| 场景 | 本宪章（iA 式） | 废弃（Linear/SaaS 式） |
+|---|---|---|
+| 提案卡 | 无框：accent 3px 刻度 + 排版层级（标题灰/命令墨/风险彩色文本） | surface 填充卡 + 描边 + 圆角 |
+| 风险标识 | 彩色文本 `· dangerous` | 18% 底 pill chip |
+| 任务条区 | 无容器，留白 + Fg40 折叠标题 + hairline | surface 容器框 |
+| 标签/按钮 | 常态纯文本，悬停微面，激活 accent 描边 | 常态即有底色圆角块 |
+| 分隔 | 留白优先，必要时 hairline | 分割线/阴影/色块 |
 
-## 5. 字体与字号
+## 5. 布局（不变，域 18）
 
-- 系统 sans + CJK 运行时注入（Noto/WQY）；终端与任务条等宽。
-- 字号阶梯（Linear body-sm/caption 节奏）：Body 13.5 / Button 13 / Small 11.5 / Monospace 13。
+每窗口：标签栏 → 任务条区（可折叠）→ 真终端（主体）→ 主输入行（钉底）；
+侧栏对话轨（Ctrl+B）辅助。多窗口/多标签/独立 PTY 会话结构一律不动。
+
+## 6. 字体
+
+等宽为工作字体（终端产品本性；iA Writer 的 Nitti 气质不可得分发，用系统人文等宽近似）；
+CJK 运行时注入；不分发字体（G13 非目标）。字号阶梯平缓：Body 13.5 / Button 13 / Small 11.5 / Mono 13。

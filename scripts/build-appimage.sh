@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 APPDIR=dist/AppDir
 RUNTIME="${RUNTIME_FILE:-dist/runtime-x86_64}"
 HELPER="${SQFS_HELPER:-/tmp/sqfs-helper/target/release/sqfs-helper}"
-OUT=dist/ia-console-0.2.1-x86_64.AppImage
+OUT=dist/ia-console-0.2.2-x86_64.AppImage
 
 rm -rf "$APPDIR" "$OUT"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
