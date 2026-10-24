@@ -4,6 +4,9 @@ pub mod store;
 pub mod translation_store;
 pub mod translation_table;
 
+pub use store::{cache_knowledge, lookup_knowledge};
+pub use translation_store::{cache_translation, lookup_translation, CacheTranslationInput};
+
 use crate::types::RiskLevel;
 use serde::{Deserialize, Serialize};
 

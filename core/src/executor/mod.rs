@@ -2,6 +2,8 @@
 
 pub mod handler;
 
+pub use handler::handle_execute;
+
 use crate::doctor::Diagnosis;
 use crate::history::ExecStatus;
 use crate::types::{EffectEntry, GateAction, RiskLevel};

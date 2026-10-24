@@ -192,6 +192,17 @@ pub fn export_recipes(
     true
 }
 
+/// 按 ID 取方案（script 工坊 load 用）。
+pub fn get_recipe_by_id(
+    id: &str,
+    output: &mut Option<Recipe>,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> bool {
+    read_recipe(id, output, context, metrics, evolution)
+}
+
 /// 使用计数自增（script run / 方案命中时调用）。
 pub fn bump_usage(
     recipe_id: &str,
