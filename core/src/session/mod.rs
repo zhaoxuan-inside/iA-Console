@@ -4,6 +4,14 @@ pub mod store;
 
 use serde::{Deserialize, Serialize};
 
+/// 全仓统一的毫秒时间戳（events/executions/审计共用）。
+pub fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 /// 会话事件类型。Q46 持久化面 = 命令/提案/AI 回答/备注/诊断/环境声明/任务段分隔。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
