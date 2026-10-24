@@ -1,9 +1,9 @@
 //! 服务簇集成测试（域 7/5/11）：执行记录全量输出与双限清退、审计、方案库全环、翻译缓存。
 
 use iac_core::framework::{Actor, Evolution, Metrics, StorePort, TestEnv};
-use iac_core::history::store::{clean_history, export_history, insert_execution, query_history, record_audit};
+use iac_core::history::store::{clean_history, insert_execution, query_history, record_audit};
 use iac_core::history::{
-    ExecStatus, ExecutionRecord, HistoryCleanInput, HistoryExportInput, HistoryFilter, HistoryPage,
+    ExecStatus, ExecutionRecord, HistoryCleanInput, HistoryFilter, HistoryPage,
 };
 use iac_core::ports::{MigrationAck, MigrationDir};
 use iac_core::recipe::handler::{delete_recipe, export_recipes, save_recipe, search_recipes};

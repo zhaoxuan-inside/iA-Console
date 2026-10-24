@@ -33,7 +33,7 @@ impl EventKind {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse_str(s: &str) -> Self {
         match s {
             "proposal" => EventKind::Proposal,
             "ai_message" => EventKind::AiMessage,
@@ -386,7 +386,7 @@ fn load_events(
         let payload: serde_json::Value = serde_json::from_str(payload_raw).unwrap_or(serde_json::json!({}));
         output.push(SessionEvent {
             seq: rows.int(i, "seq").unwrap_or(0),
-            kind: EventKind::from_str(rows.text(i, "kind").unwrap_or("command")),
+            kind: EventKind::parse_str(rows.text(i, "kind").unwrap_or("command")),
             payload,
             at: rows.int(i, "at").unwrap_or(0),
             pinned: rows.int(i, "pinned").unwrap_or(0) == 1,

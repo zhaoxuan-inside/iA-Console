@@ -19,7 +19,7 @@ impl ExecStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse_str(s: &str) -> Self {
         match s {
             "failed" => ExecStatus::Failed,
             "timeout" => ExecStatus::Timeout,
@@ -163,14 +163,12 @@ pub fn clean_history(
     let cutoff = now - i64::from(cfg.retention_days) * 86_400_000;
     let mut report = HistoryCleanReport::default();
     // 1) 天数清退
-    let aged_sql = if input.dry_run {
-        "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(stdout_full)+LENGTH(stderr_full)),0) AS bytes FROM executions WHERE started_at < ?1"
-    } else {
-        "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(stdout_full)+LENGTH(stderr_full)),0) AS bytes FROM executions WHERE started_at < ?1"
-    };
     if input.dry_run {
         let mut rows = QueryRows::default();
-        let q = SqlQuery { sql: aged_sql.into(), params: vec![cutoff.into()] };
+        let q = SqlQuery {
+            sql: "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(stdout_full)+LENGTH(stderr_full)),0) AS bytes FROM executions WHERE started_at < ?1".into(),
+            params: vec![cutoff.into()],
+        };
         if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
             evolution.propagate("clean_history", "统计超期记录失败");
             return false;
@@ -342,7 +340,7 @@ fn record_from_row(rows: &QueryRows, i: usize) -> ExecutionRecord {
         host: rows.text(i, "host").unwrap_or_default().into(),
         actor: rows.text(i, "actor").unwrap_or_default().into(),
         exit_code: rows.int(i, "exit_code").map(i32::try_from).transpose().unwrap_or(None),
-        status: ExecStatus::from_str(rows.text(i, "status").unwrap_or("ok")),
+        status: ExecStatus::parse_str(rows.text(i, "status").unwrap_or("ok")),
         risk_level: rows.text(i, "risk_level").unwrap_or("safe").into(),
         stdout_summary: non_empty(rows.text(i, "stdout_summary")),
         stderr_summary: non_empty(rows.text(i, "stderr_summary")),
