@@ -5,8 +5,12 @@ use std::path::PathBuf;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("iacd {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("iacd 0.2.0 — iA-console 守护进程（重建基线）");
+        println!("iacd {} — iA-console 守护进程（重建基线）", env!("CARGO_PKG_VERSION"));
         println!("用法：iacd [--foreground] [--socket <路径>] [--data <目录>] [--mcp]");
         println!("  --foreground  前台运行（默认亦为前台；后台化由 iac daemon start 负责）");
         println!("  --mcp         daemon 内置 MCP 服务（stdio JSON-RPC，Q43；不监听 socket）");

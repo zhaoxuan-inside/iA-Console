@@ -4,7 +4,7 @@
 
 pkgname=ia-console
 pkgver=0.2.0
-pkgrel=2
+pkgrel=3
 pkgdesc="天下没有难用的 Console（智能控制台：真终端 + AI 侧栏 + 闸门执行 + 会话持久化）"
 arch=('x86_64')
 url="https://github.com/zhaoxuan/iA-console"
