@@ -88,14 +88,7 @@ pub fn load_config(
 }
 
 /// IF-007：保存配置到平台缺省路径（密钥永不入盘，仅存 api_key_env 变量名）。
-pub fn save_config(
-    input: &Config,
-    output: &mut ConfigWriteAck,
-    _context: &Context,
-    _metrics: &mut Metrics,
-    evolution: &mut Evolution,
-) -> bool {
-    evolution.succeed();
+pub fn save_config(input: &Config, output: &mut ConfigWriteAck, evolution: &mut Evolution) -> bool {
     let Some(path) = default_config_path() else {
         evolution.fail(codes::CONFIG_IO, "无法定位配置目录");
         return false;

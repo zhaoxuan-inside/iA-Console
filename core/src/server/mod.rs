@@ -2,3 +2,6 @@
 
 pub mod dispatch;
 pub mod envelope;
+
+pub use dispatch::dispatch_request;
+pub use envelope::{IpcRequest, IpcResponse};

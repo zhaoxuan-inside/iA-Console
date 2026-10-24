@@ -11,9 +11,12 @@ pub struct IpcRequest {
     pub method: String,
     #[serde(default)]
     pub params: serde_json::Value,
-    /// 发起方标识（agent:<client>）；缺省 human。字段只增演进（_06 同步随 P8）。
+    /// 发起方标识（agent:<client>）；缺省 human。字段只增演进。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor: Option<String>,
+    /// 会话归属（域 18：多窗口×多标签各自独立会话；缺省用连接级会话）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 /// 响应信封。
@@ -53,6 +56,7 @@ mod tests {
         let req_json = r#"{"v":1,"id":"r1","method":"iac_ask","params":{"intent":"ls"}}"#;
         let req: IpcRequest = serde_json::from_str(req_json).unwrap();
         assert_eq!(req.method, "iac_ask");
+        assert!(req.session_id.is_none(), "session_id 可选（旧客户端兼容）");
         let resp = IpcResponse::success(&req, serde_json::json!({"ok": true}));
         let s = serde_json::to_string(&resp).unwrap();
         assert!(s.contains("\"ok\":true"));
