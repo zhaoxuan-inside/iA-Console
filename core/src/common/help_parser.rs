@@ -47,9 +47,16 @@ fn extract_params(text: &str) -> Vec<ParamSpec> {
         if !trimmed.starts_with('-') || trimmed.len() < 2 {
             continue;
         }
-        let Some((flag_part, meaning)) = split_flag_line(trimmed) else { continue };
+        let Some((flag_part, meaning)) = split_flag_line(trimmed) else {
+            continue;
+        };
         for flag in extract_flags(&flag_part) {
-            out.push(ParamSpec { flag, meaning: meaning.trim().to_string(), required: false, default: None });
+            out.push(ParamSpec {
+                flag,
+                meaning: meaning.trim().to_string(),
+                required: false,
+                default: None,
+            });
         }
     }
     out
@@ -78,7 +85,16 @@ fn extract_flags(flag_part: &str) -> Vec<String> {
     flag_part
         .split_whitespace()
         .filter(|t| t.starts_with('-'))
-        .map(|t| t.split('<').next().unwrap_or(t).split('=').next().unwrap_or(t).trim_end_matches(',').to_string())
+        .map(|t| {
+            t.split('<')
+                .next()
+                .unwrap_or(t)
+                .split('=')
+                .next()
+                .unwrap_or(t)
+                .trim_end_matches(',')
+                .to_string()
+        })
         .collect()
 }
 
@@ -113,7 +129,11 @@ mod tests {
 
     fn parse(text: &str) -> Option<CommandKnowledge> {
         let env = crate::framework::TestEnv::new();
-        let input = HelpText { command: "ls".into(), platform: Platform::Linux, text: text.into() };
+        let input = HelpText {
+            command: "ls".into(),
+            platform: Platform::Linux,
+            text: text.into(),
+        };
         let mut out = CommandKnowledge {
             command: String::new(),
             platform: Platform::Linux,
@@ -141,7 +161,10 @@ List information about the FILEs.\n\
     fn parses_gnu_style_options() {
         let k = parse(GNU_HELP).expect("GNU help 应可解析");
         assert!(k.verified);
-        assert!(k.params.iter().any(|p| p.flag == "--all" && p.meaning.contains("ignore")));
+        assert!(k
+            .params
+            .iter()
+            .any(|p| p.flag == "--all" && p.meaning.contains("ignore")));
         assert!(k.params.iter().any(|p| p.flag == "-l"));
         assert!(k.params.iter().any(|p| p.flag == "--block-size"));
         assert!(k.subcommands.is_empty());

@@ -25,7 +25,11 @@ pub fn list_rollback_points(
             .into(),
         params: vec![SqlValue::Int(i64::from(input.limit.max(1)))],
     };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("list_rollback_points", "回滚点读取失败");
         return false;
     }

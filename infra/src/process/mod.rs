@@ -30,7 +30,8 @@ pub fn spawn_process(
     let t_out = std::thread::spawn(move || read_all(&mut out_pipe));
     let t_err = std::thread::spawn(move || read_all(&mut err_pipe));
     let deadline = start + Duration::from_millis(input.timeout_ms);
-    let Some(status) = wait_status(&mut child, deadline, input.timeout_ms, metrics, evolution) else {
+    let Some(status) = wait_status(&mut child, deadline, input.timeout_ms, metrics, evolution)
+    else {
         return false; // evolution 已写明超时/平台原因
     };
     output.exit_code = status.and_then(|s| s.code());
@@ -56,7 +57,10 @@ fn wait_status(
             Ok(None) if Instant::now() >= deadline => {
                 kill_tree(child);
                 let _ = child.wait();
-                evolution.fail(codes::EXEC_TIMEOUT, format!("执行超时（>{timeout_ms}ms）已终止"));
+                evolution.fail(
+                    codes::EXEC_TIMEOUT,
+                    format!("执行超时（>{timeout_ms}ms）已终止"),
+                );
                 metrics.counter("process.timeout", 1);
                 return None;
             }
@@ -97,7 +101,9 @@ fn apply_common(c: &mut Command, spec: &ProcessSpec) {
     for (k, v) in &spec.env {
         c.env(k, v);
     }
-    c.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
+    c.stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
 }
 
 /// 读完整个流为 UTF-8（lossy）。

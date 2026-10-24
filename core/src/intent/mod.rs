@@ -6,7 +6,9 @@ pub mod prompt;
 pub mod store;
 pub mod translate;
 
-pub use handler::{default_provider, handle_ask, handle_explain, load_proposal, mark_proposal_status};
+pub use handler::{
+    default_provider, handle_ask, handle_explain, load_proposal, mark_proposal_status,
+};
 pub use parse::parse_explain_response;
 
 use crate::types::{Platform, RiskLevel};

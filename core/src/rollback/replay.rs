@@ -1,6 +1,6 @@
 //! I-037 rollback_to（orchestration）：范围回放（to/from）逐行倒序 + 冲突决策 + 回收站（AC-30/31/33/34）。
 
-use super::{EffectEntryRef};
+use super::EffectEntryRef;
 use crate::framework::{Context, Evolution, Metrics};
 use crate::ports::{ContentRef, SnapshotData, SqlQuery, SqlValue, TrashRequest};
 use crate::types::{ConflictPolicy, EffectOp, RollbackReport, RollbackRequest, Rollbackable};
@@ -28,22 +28,35 @@ pub fn rollback_to(
     }
     let entries = entries.unwrap();
     if entries.is_empty() {
-        evolution.fail("IAC-1604", "回滚范围内没有任何效果条目（用 iac rollback --list 查看有效行号）");
+        evolution.fail(
+            "IAC-1604",
+            "回滚范围内没有任何效果条目（用 iac rollback --list 查看有效行号）",
+        );
         return false;
     }
     let mut report = RollbackReport {
         applied: Vec::new(),
         skipped: Vec::new(),
-        trash_dir: context.deps.snap.data_root().join("trash").to_string_lossy().to_string(),
+        trash_dir: context
+            .deps
+            .snap
+            .data_root()
+            .join("trash")
+            .to_string_lossy()
+            .to_string(),
     };
     let mut swept = 0u32;
     for row in entries.iter().rev() {
-        let Some(entry) = row.to_entry() else { continue };
+        let Some(entry) = row.to_entry() else {
+            continue;
+        };
         let needed = needed_ref(&entry);
         let mut content = SnapshotData::default();
         let fetched = match &needed {
             Some(r) => context.deps.snap.snapstore_fetch(
-                &ContentRef { reference: r.clone() },
+                &ContentRef {
+                    reference: r.clone(),
+                },
                 &mut content,
                 context,
                 metrics,
@@ -66,7 +79,15 @@ pub fn rollback_to(
             });
             continue;
         }
-        match apply_entry(&entry, &content.bytes, input.on_conflict, &report.trash_dir, context, metrics, evolution) {
+        match apply_entry(
+            &entry,
+            &content.bytes,
+            input.on_conflict,
+            &report.trash_dir,
+            context,
+            metrics,
+            evolution,
+        ) {
             Ok(()) => report.applied.push(entry),
             Err(reason) => {
                 let conflict = reason.contains("IAC-1603");
@@ -77,7 +98,10 @@ pub fn rollback_to(
                     *output = report;
                     return true;
                 }
-                report.skipped.push(crate::types::SkippedEntry { entry: entry.clone(), reason });
+                report.skipped.push(crate::types::SkippedEntry {
+                    entry: entry.clone(),
+                    reason,
+                });
                 if conflict {
                     metrics.counter("rollback.conflict_skipped", 1);
                 }
@@ -117,12 +141,21 @@ fn apply_entry(
             if current.is_none() {
                 return Err("目标文件已不存在，视为已满足".into());
             }
-            if !content_matches(context, metrics, evolution, current.as_deref(), &entry.after_ref)? {
+            if !content_matches(
+                context,
+                metrics,
+                evolution,
+                current.as_deref(),
+                &entry.after_ref,
+            )? {
                 return Err("IAC-1603: 目标路径已被后续操作改变".into());
             }
             let mut ack = crate::ports::TrashAck::default();
             if !context.deps.snap.trash_file(
-                &TrashRequest { abs_path: path, tag: format!("{}_{}", entry.execution_id, entry.seq) },
+                &TrashRequest {
+                    abs_path: path,
+                    tag: format!("{}_{}", entry.execution_id, entry.seq),
+                },
                 &mut ack,
                 context,
                 metrics,
@@ -136,7 +169,13 @@ fn apply_entry(
             if current.is_none() {
                 return Err("IAC-1603: 目标文件已被删除".into());
             }
-            if !content_matches(context, metrics, evolution, current.as_deref(), &entry.after_ref)? {
+            if !content_matches(
+                context,
+                metrics,
+                evolution,
+                current.as_deref(),
+                &entry.after_ref,
+            )? {
                 if policy == ConflictPolicy::Abort {
                     return Err("IAC-1603: 目标路径已被后续操作改变".into());
                 }
@@ -165,10 +204,22 @@ fn content_matches(
     current: Option<&[u8]>,
     after_ref: &Option<String>,
 ) -> Result<bool, String> {
-    let Some(bytes) = current else { return Ok(false) };
-    let Some(expected) = after_ref else { return Ok(false) };
+    let Some(bytes) = current else {
+        return Ok(false);
+    };
+    let Some(expected) = after_ref else {
+        return Ok(false);
+    };
     let mut cref = ContentRef::default();
-    if !context.deps.snap.snapstore_put(&SnapshotData { bytes: bytes.to_vec() }, &mut cref, context, metrics, evolution) {
+    if !context.deps.snap.snapstore_put(
+        &SnapshotData {
+            bytes: bytes.to_vec(),
+        },
+        &mut cref,
+        context,
+        metrics,
+        evolution,
+    ) {
         return Err("现内容指纹计算失败（IAC-1601）".into());
     }
     Ok(cref.reference == *expected)
@@ -184,7 +235,10 @@ fn trash_and_write(
 ) -> Result<(), String> {
     let mut ack = crate::ports::TrashAck::default();
     if !context.deps.snap.trash_file(
-        &TrashRequest { abs_path: path.to_path_buf(), tag: format!("revert-{}", now_tag()) },
+        &TrashRequest {
+            abs_path: path.to_path_buf(),
+            tag: format!("revert-{}", now_tag()),
+        },
         &mut ack,
         context,
         metrics,
@@ -204,7 +258,10 @@ fn write_through(
     bytes: &[u8],
 ) -> Result<(), String> {
     if !context.deps.snap.write_file(
-        &crate::ports::WriteFileInput { path: path.to_path_buf(), bytes: bytes.to_vec() },
+        &crate::ports::WriteFileInput {
+            path: path.to_path_buf(),
+            bytes: bytes.to_vec(),
+        },
         context,
         metrics,
         evolution,
@@ -259,7 +316,11 @@ fn load_range(
             .into(),
         params: vec![SqlValue::Int(to), SqlValue::Int(from)],
     };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         return None;
     }
     let mut out = Vec::new();
@@ -281,16 +342,16 @@ fn load_range(
 }
 
 /// 供 list 判定用（公共：引用完整性与范围标记聚合）。
-pub fn point_rollbackable(
-    out_count: u32,
-    total: u32,
-    refs_missing: bool,
-) -> Rollbackable {
+pub fn point_rollbackable(out_count: u32, total: u32, refs_missing: bool) -> Rollbackable {
     if total == 0 || (refs_missing && out_count == total) {
-        Rollbackable::None { reason: "效果条目缺失或引用不可用".into() }
+        Rollbackable::None {
+            reason: "效果条目缺失或引用不可用".into(),
+        }
     } else if out_count == 0 && !refs_missing {
         Rollbackable::Full
     } else {
-        Rollbackable::Partial { reason: format!("{out_count}/{total} 项超出捕获范围或引用不可用") }
+        Rollbackable::Partial {
+            reason: format!("{out_count}/{total} 项超出捕获范围或引用不可用"),
+        }
     }
 }

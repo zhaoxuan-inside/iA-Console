@@ -1,10 +1,10 @@
 //! I-038 file_history / I-039 restore_file：路径版本链与单文件恢复（AC-30）。
 
+use crate::executor::GateInfo;
 use crate::framework::{Context, Evolution, Metrics};
 use crate::ports::{ContentRef, SnapshotData, SqlQuery, SqlValue, TrashRequest, WriteFileInput};
 use crate::risk::{assess_risk, RiskAssessment, RiskInput};
 use crate::types::{EffectOp, FileVersion};
-use crate::executor::GateInfo;
 
 /// 文件路径输入（_06 I-038 契约类型 FilePath）。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,7 +31,11 @@ pub fn file_history(
             .into(),
         params: vec![SqlValue::Text(input.path.clone())],
     };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("file_history", "版本链读取失败");
         return false;
     }
@@ -52,7 +56,14 @@ pub fn file_history(
         // 版本 = 该次执行后的状态；删除条目无后像 → 取前像（删除前的最后版本）
         let cref = after.or(before);
         if let Some(content_ref) = cref {
-            versions.push(FileVersion { seq, execution_id: exec, op, content_ref, at, command });
+            versions.push(FileVersion {
+                seq,
+                execution_id: exec,
+                op,
+                content_ref,
+                at,
+                command,
+            });
         }
     }
     // 连续相同内容去重（多次执行内容未变时只留最早版本）
@@ -72,18 +83,25 @@ pub fn restore_file(
 ) -> bool {
     evolution.succeed();
     let mut versions = Vec::new();
-    let fp = FilePath { path: input.path.clone() };
+    let fp = FilePath {
+        path: input.path.clone(),
+    };
     if !file_history(&fp, &mut versions, context, metrics, evolution) {
         evolution.propagate("restore_file", "版本链读取失败");
         return false;
     }
     let Some(version) = versions.iter().find(|v| v.seq == input.seq) else {
-        evolution.fail("IAC-1604", format!("行号 {} 不是该文件的可用版本", input.seq));
+        evolution.fail(
+            "IAC-1604",
+            format!("行号 {} 不是该文件的可用版本", input.seq),
+        );
         return false;
     };
     let mut content = SnapshotData::default();
     if !context.deps.snap.snapstore_fetch(
-        &ContentRef { reference: version.content_ref.clone() },
+        &ContentRef {
+            reference: version.content_ref.clone(),
+        },
         &mut content,
         context,
         metrics,
@@ -94,7 +112,10 @@ pub fn restore_file(
     }
     // 闸门：恢复=显式覆盖写，风险评估留痕；用户显式发起视同直输（弱提醒不拦截）
     let mut risk = RiskAssessment::default();
-    let rin = RiskInput { command: format!("iac file restore {}", input.path), cwd: None };
+    let rin = RiskInput {
+        command: format!("iac file restore {}", input.path),
+        cwd: None,
+    };
     if !assess_risk(&rin, &mut risk, context, metrics, evolution) {
         evolution.propagate("restore_file", "恢复闸门评估失败");
         return false;
@@ -109,7 +130,10 @@ pub fn restore_file(
     if path.exists() {
         let mut ack = crate::ports::TrashAck::default();
         if !context.deps.snap.trash_file(
-            &TrashRequest { abs_path: path.clone(), tag: format!("restore-{}", input.seq) },
+            &TrashRequest {
+                abs_path: path.clone(),
+                tag: format!("restore-{}", input.seq),
+            },
             &mut ack,
             context,
             metrics,
@@ -120,7 +144,10 @@ pub fn restore_file(
         }
     }
     if !context.deps.snap.write_file(
-        &WriteFileInput { path, bytes: content.bytes },
+        &WriteFileInput {
+            path,
+            bytes: content.bytes,
+        },
         context,
         metrics,
         evolution,

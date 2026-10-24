@@ -5,12 +5,28 @@ use iac_core::ports::{ProcessResult, ProcessSpec, StorePort};
 use infra::process::spawn_process;
 use std::path::PathBuf;
 
-fn run(command: &str, timeout_ms: u64, cwd: Option<PathBuf>, env: Vec<(String, String)>) -> (bool, ProcessResult, Evolution) {
+fn run(
+    command: &str,
+    timeout_ms: u64,
+    cwd: Option<PathBuf>,
+    env: Vec<(String, String)>,
+) -> (bool, ProcessResult, Evolution) {
     let envf = TestEnv::new();
-    let spec = ProcessSpec { command: command.into(), cwd, env, timeout_ms };
+    let spec = ProcessSpec {
+        command: command.into(),
+        cwd,
+        env,
+        timeout_ms,
+    };
     let mut out = ProcessResult::default();
     let mut evo = Evolution::default();
-    let ok = spawn_process(&spec, &mut out, &envf.context(), &mut Metrics::default(), &mut evo);
+    let ok = spawn_process(
+        &spec,
+        &mut out,
+        &envf.context(),
+        &mut Metrics::default(),
+        &mut evo,
+    );
     (ok, out, evo)
 }
 
@@ -47,7 +63,12 @@ fn timeout_kills_process_group_and_fails() {
 #[test]
 fn cwd_and_env_are_applied() {
     let dir = std::env::temp_dir();
-    let (ok, out, _) = run("pwd; printf \"$IAC_TEST_VAR\"", 10_000, Some(dir.clone()), vec![("IAC_TEST_VAR".into(), "v1".into())]);
+    let (ok, out, _) = run(
+        "pwd; printf \"$IAC_TEST_VAR\"",
+        10_000,
+        Some(dir.clone()),
+        vec![("IAC_TEST_VAR".into(), "v1".into())],
+    );
     assert!(ok);
     assert_eq!(out.stdout.trim_end(), format!("{}\nv1", dir.display()));
 }

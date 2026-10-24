@@ -255,7 +255,10 @@ mod tests {
     #[test]
     fn platform_detect_follows_target_os() {
         let p = Platform::detect();
-        assert!(matches!(p, Platform::Linux | Platform::Macos | Platform::Windows));
+        assert!(matches!(
+            p,
+            Platform::Linux | Platform::Macos | Platform::Windows
+        ));
     }
 
     #[test]
@@ -267,7 +270,10 @@ mod tests {
 
     #[test]
     fn serde_names_match_config_format() {
-        assert_eq!(serde_json::to_string(&Platform::Macos).unwrap(), "\"macos\"");
+        assert_eq!(
+            serde_json::to_string(&Platform::Macos).unwrap(),
+            "\"macos\""
+        );
         assert_eq!(serde_json::to_string(&RiskLevel::Safe).unwrap(), "\"safe\"");
         assert_eq!(serde_json::to_string(&ThemeMode::Auto).unwrap(), "\"auto\"");
         assert_eq!(

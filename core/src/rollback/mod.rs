@@ -22,7 +22,14 @@ use serde::{Deserialize, Serialize};
 
 /// 捕获排除名：永不入前像（构建产物/VCS 内部/依赖目录）。
 pub const CAPTURE_EXCLUDES: &[&str] = &[
-    ".git", "target", "node_modules", "dist", "build", ".cache", "__pycache__", ".venv",
+    ".git",
+    "target",
+    "node_modules",
+    "dist",
+    "build",
+    ".cache",
+    "__pycache__",
+    ".venv",
 ];
 
 /// 单文件入库上限（字节）：超过仅记指纹（AC-29 out_of_scope 语义来源之一）。
@@ -73,8 +80,15 @@ pub fn next_seq(
     evolution: &mut crate::framework::Evolution,
 ) -> Option<i64> {
     let mut rows = crate::ports::QueryRows::default();
-    let q = SqlQuery { sql: "SELECT COALESCE(MAX(seq),0) AS m FROM rollback_journal".into(), params: vec![] };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    let q = SqlQuery {
+        sql: "SELECT COALESCE(MAX(seq),0) AS m FROM rollback_journal".into(),
+        params: vec![],
+    };
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         return None;
     }
     Some(rows.int(0, "m").unwrap_or(0) + 1)
@@ -102,7 +116,10 @@ pub fn journal_insert(
         ],
     };
     let mut ack = crate::ports::ExecuteAck::default();
-    context.deps.store.storage_execute(&q, &mut ack, context, metrics, evolution)
+    context
+        .deps
+        .store
+        .storage_execute(&q, &mut ack, context, metrics, evolution)
 }
 
 /// journal 行中间形态（字符串 op/scope，落库与领域类型互转用）。

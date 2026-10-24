@@ -43,7 +43,12 @@ pub struct AssembledScript {
 
 impl Default for AssembledScript {
     fn default() -> Self {
-        Self { name_hint: String::new(), sh_body: None, ps_body: None, max_risk: RiskLevel::Safe }
+        Self {
+            name_hint: String::new(),
+            sh_body: None,
+            ps_body: None,
+            max_risk: RiskLevel::Safe,
+        }
     }
 }
 
@@ -64,7 +69,13 @@ pub fn assemble_script(
     let hint = input
         .entries
         .first()
-        .map(|e| e.command.split_whitespace().next().unwrap_or("iac").to_string())
+        .map(|e| {
+            e.command
+                .split_whitespace()
+                .next()
+                .unwrap_or("iac")
+                .to_string()
+        })
         .unwrap_or_else(|| "iac".to_string());
     let (sh_body, ps_body) = match input.target {
         ScriptTarget::Sh => (Some(sh), None),
@@ -88,8 +99,14 @@ mod tests {
     fn sample() -> ScriptAssemblyInput {
         ScriptAssemblyInput {
             entries: vec![
-                ScriptCommand { seq: 1, command: "mkdir -p build".into() },
-                ScriptCommand { seq: 2, command: "cp a.txt build/".into() },
+                ScriptCommand {
+                    seq: 1,
+                    command: "mkdir -p build".into(),
+                },
+                ScriptCommand {
+                    seq: 2,
+                    command: "cp a.txt build/".into(),
+                },
             ],
             target: ScriptTarget::Both,
             max_risk: RiskLevel::Safe,
@@ -99,7 +116,11 @@ mod tests {
     #[test]
     fn both_versions_with_headers() {
         let mut out = AssembledScript::default();
-        assert!(assemble_script(&sample(), &mut out, &mut Metrics::default()));
+        assert!(assemble_script(
+            &sample(),
+            &mut out,
+            &mut Metrics::default()
+        ));
         let sh = out.sh_body.unwrap();
         let ps = out.ps_body.unwrap();
         assert!(sh.starts_with("#!/bin/sh\nset -euo pipefail\n"));
@@ -121,9 +142,15 @@ mod tests {
     #[test]
     fn dialect_mix_kept_verbatim() {
         let mut input = sample();
-        input.entries.push(ScriptCommand { seq: 3, command: "Get-ChildItem build".into() });
+        input.entries.push(ScriptCommand {
+            seq: 3,
+            command: "Get-ChildItem build".into(),
+        });
         let mut out = AssembledScript::default();
         assert!(assemble_script(&input, &mut out, &mut Metrics::default()));
-        assert!(out.sh_body.unwrap().contains("Get-ChildItem build"), "方言混合原样保留");
+        assert!(
+            out.sh_body.unwrap().contains("Get-ChildItem build"),
+            "方言混合原样保留"
+        );
     }
 }

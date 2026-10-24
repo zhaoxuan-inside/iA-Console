@@ -3,7 +3,10 @@
 
 use crate::theme::{CopyScope, Mode, Token};
 use crate::tui::{copy_to_clipboard, render_output};
-use iac_core::common::marker_parser::{classify, InputDecision};
+use iac_core::common::marker_parser::{classify, looks_like_command, InputDecision};
+
+#[allow(unused_imports)]
+use looks_like_command as _llc;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -76,7 +79,13 @@ pub fn run(mode_override: Option<Mode>) -> i32 {
                     }
                     use crossterm::event::KeyCode::*;
                     match key.code {
-                        Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => break,
+                        Char('c')
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                        {
+                            break
+                        }
                         Esc => break,
                         Enter => submit(&mut state),
                         Backspace => {
@@ -146,27 +155,40 @@ fn submit(state: &mut ConsoleState) {
             &snapshot(state),
         );
         println!("{}", copy_to_clipboard(scope, &content));
-        state.entries.push(Entry::Notice(format!("已复制（{} 字节）", content.len())));
+        state
+            .entries
+            .push(Entry::Notice(format!("已复制（{} 字节）", content.len())));
         return;
     }
     let decision = classify(&line, looks_like_command);
     match decision {
         InputDecision::LiteralCommand(command) => {
             state.last_command = command.clone();
-            let rendered = ipc_call("iac_execute", serde_json::json!({"command": command, "origin": "direct"}));
+            let rendered = ipc_call(
+                "iac_execute",
+                serde_json::json!({"command": command, "origin": "direct"}),
+            );
             state.entries.push(Entry::Output(rendered));
         }
         InputDecision::AiAsk { intent } => {
-            let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".into());
+            let cwd = std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".into());
             let rendered = ipc_call("iac_ask", serde_json::json!({"intent": intent, "cwd": cwd}));
             if let Some(id) = extract_field(&rendered, "id") {
                 state.last_proposal = Some(id.clone());
-                state.entries.push(Entry::Notice(format!("提案 {} → 输入 yes 执行，no 拒绝", id)));
+                state.entries.push(Entry::Notice(format!(
+                    "提案 {} → 输入 yes 执行，no 拒绝",
+                    id
+                )));
             }
             state.entries.push(Entry::Output(rendered));
         }
         InputDecision::AiExplain { command } => {
-            state.entries.push(Entry::Output(ipc_call("iac_explain", serde_json::json!({"command": command}))));
+            state.entries.push(Entry::Output(ipc_call(
+                "iac_explain",
+                serde_json::json!({"command": command}),
+            )));
         }
         InputDecision::Builtin(call) => {
             // 本地处理子集；其余走共享 IPC 映射（Q28/Q30）
@@ -176,9 +198,13 @@ fn submit(state: &mut ConsoleState) {
                         Mode::Day => Mode::Night,
                         Mode::Night => Mode::Day,
                     };
-                    state.entries.push(Entry::Notice(format!("主题已切换：{:?}", state.mode)));
+                    state
+                        .entries
+                        .push(Entry::Notice(format!("主题已切换：{:?}", state.mode)));
                 }
-                "ia-exit" => state.entries.push(Entry::Notice("用 Ctrl+C 或 Esc 退出".into())),
+                "ia-exit" => state
+                    .entries
+                    .push(Entry::Notice("用 Ctrl+C 或 Esc 退出".into())),
                 _ => {
                     if let Some(out) = builtin_output(&call) {
                         state.entries.push(Entry::Output(out));
@@ -188,7 +214,11 @@ fn submit(state: &mut ConsoleState) {
         }
         InputDecision::TaskSeparator => {
             state.entries.push(Entry::Separator);
-            let _ = crate::ipc::request("iac_session_event", serde_json::json!({"kind": "separator"}), None);
+            let _ = crate::ipc::request(
+                "iac_session_event",
+                serde_json::json!({"kind": "separator"}),
+                None,
+            );
             state.entries.push(Entry::Notice("—— 新任务段 ——".into()));
         }
         InputDecision::Note(text) => {
@@ -203,27 +233,6 @@ fn submit(state: &mut ConsoleState) {
     state.scroll = 0;
 }
 
-/// 命令形态判定（PATH 扫描 + 内建名单；GUI/CLI 共用口径）。
-pub fn looks_like_command(word: &str) -> bool {
-    use std::sync::OnceLock;
-    static PATH_DIRS: OnceLock<Vec<std::path::PathBuf>> = OnceLock::new();
-    let dirs = PATH_DIRS.get_or_init(|| {
-        std::env::var("PATH")
-            .unwrap_or_default()
-            .split(':')
-            .filter(|s| !s.is_empty())
-            .map(std::path::PathBuf::from)
-            .collect()
-    });
-    if matches!(word, "cd" | "pushd" | "popd" | "export" | "unset" | "alias" | "source" | "exit" | "history" | "set" | "bg" | "fg" | "jobs" | "wait" | "read" | "ulimit" | "umask" | "type") {
-        return true;
-    }
-    if word.contains('/') {
-        return std::path::Path::new(word).exists();
-    }
-    dirs.iter().any(|d| d.join(word).exists())
-}
-
 /// 内置命令共享处理（GUI/CLI 共用；Q28/Q30 名单与 IPC 映射）。
 /// 返回要展示的文本；本地处理的（ia-theme/ia-exit）由前端自理。
 pub fn builtin_output(call: &iac_core::builtin::BuiltinCall) -> Option<String> {
@@ -231,15 +240,17 @@ pub fn builtin_output(call: &iac_core::builtin::BuiltinCall) -> Option<String> {
     match call.name.as_str() {
         "ia-help" => Some(iac_core::builtin::help_text()),
         "ia-config" => match args.first().map(String::as_str) {
-            Some("set") if args.len() >= 3 => {
-                Some(ipc_call("iac_config_set", serde_json::json!({"key": args[1], "value": args[2]})))
-            }
+            Some("set") if args.len() >= 3 => Some(ipc_call(
+                "iac_config_set",
+                serde_json::json!({"key": args[1], "value": args[2]}),
+            )),
             _ => Some(ipc_call("iac_config_get", serde_json::json!({}))),
         },
         "ia-model" => match args.first().map(String::as_str) {
-            Some("use") if args.len() >= 2 => {
-                Some(ipc_call("iac_config_set", serde_json::json!({"key": "ai.default_provider", "value": args[1]})))
-            }
+            Some("use") if args.len() >= 2 => Some(ipc_call(
+                "iac_config_set",
+                serde_json::json!({"key": "ai.default_provider", "value": args[1]}),
+            )),
             _ => Some(ipc_call("iac_config_get", serde_json::json!({"key": "ai"}))),
         },
         "ia-daemon" => match args.first().map(String::as_str) {
@@ -248,44 +259,100 @@ pub fn builtin_output(call: &iac_core::builtin::BuiltinCall) -> Option<String> {
                 let alive = crate::ipc::request("iac_ping", serde_json::json!({}), None)
                     .map(|r| r.ok)
                     .unwrap_or(false);
-                Some(if alive { "daemon 运行中".into() } else { "daemon 未运行（iac daemon start）".into() })
+                Some(if alive {
+                    "daemon 运行中".into()
+                } else {
+                    "daemon 未运行（iac daemon start）".into()
+                })
             }
         },
         "ia-history" => match args.first().map(String::as_str) {
-            Some("clean") => Some(ipc_call("iac_history_clean", serde_json::json!({"dry_run": args.iter().any(|a| a == "--dry-run" || a == "-n")}))),
-            Some("export") if args.len() >= 2 => Some(ipc_call("iac_history_export", serde_json::json!({"path": args[1]}))),
-            _ => Some(ipc_call("iac_history_query", serde_json::json!({"limit": 20}))),
+            Some("clean") => Some(ipc_call(
+                "iac_history_clean",
+                serde_json::json!({"dry_run": args.iter().any(|a| a == "--dry-run" || a == "-n")}),
+            )),
+            Some("export") if args.len() >= 2 => Some(ipc_call(
+                "iac_history_export",
+                serde_json::json!({"path": args[1]}),
+            )),
+            _ => Some(ipc_call(
+                "iac_history_query",
+                serde_json::json!({"limit": 20}),
+            )),
         },
         "ia-recipe" => match args.first().map(String::as_str) {
-            Some("search") if args.len() >= 2 => Some(ipc_call("iac_recipes_search", serde_json::json!({"q": args[1], "limit": 20}))),
-            Some("rm") if args.len() >= 2 => Some(ipc_call("iac_recipe_delete", serde_json::json!({"name": args[1]}))),
-            Some("export") if args.len() >= 2 => Some(ipc_call("iac_recipe_export", serde_json::json!({"path": args[1]}))),
-            _ => Some(ipc_call("iac_recipes_search", serde_json::json!({"limit": 20}))),
+            Some("search") if args.len() >= 2 => Some(ipc_call(
+                "iac_recipes_search",
+                serde_json::json!({"q": args[1], "limit": 20}),
+            )),
+            Some("rm") if args.len() >= 2 => Some(ipc_call(
+                "iac_recipe_delete",
+                serde_json::json!({"name": args[1]}),
+            )),
+            Some("export") if args.len() >= 2 => Some(ipc_call(
+                "iac_recipe_export",
+                serde_json::json!({"path": args[1]}),
+            )),
+            _ => Some(ipc_call(
+                "iac_recipes_search",
+                serde_json::json!({"limit": 20}),
+            )),
         },
         "ia-sessions" => match args.first().map(String::as_str) {
-            Some("resume") if args.len() >= 2 => Some(ipc_call("iac_session_resume", serde_json::json!({"session_id": args[1]}))),
-            _ => Some(ipc_call("iac_session_list", serde_json::json!({"limit": 20}))),
+            Some("resume") if args.len() >= 2 => Some(ipc_call(
+                "iac_session_resume",
+                serde_json::json!({"session_id": args[1]}),
+            )),
+            _ => Some(ipc_call(
+                "iac_session_list",
+                serde_json::json!({"limit": 20}),
+            )),
         },
         "ia-rollback" => match args.first().map(String::as_str) {
-            Some("replay") => Some(ipc_call("iac_rollback", serde_json::json!({
-                "action": "replay",
-                "range": {"to": args.get(1).and_then(|s| s.parse::<i64>().ok())},
-                "on_conflict": "ask"
-            }))),
-            _ => Some(ipc_call("iac_rollback", serde_json::json!({"action": "list", "filter": {"limit": 50}}))),
+            Some("replay") => Some(ipc_call(
+                "iac_rollback",
+                serde_json::json!({
+                    "action": "replay",
+                    "range": {"to": args.get(1).and_then(|s| s.parse::<i64>().ok())},
+                    "on_conflict": "ask"
+                }),
+            )),
+            _ => Some(ipc_call(
+                "iac_rollback",
+                serde_json::json!({"action": "list", "filter": {"limit": 50}}),
+            )),
         },
-        "ia-file-history" => match (args.first().map(String::as_str), args.get(1).map(String::as_str)) {
+        "ia-file-history" => match (
+            args.first().map(String::as_str),
+            args.get(1).map(String::as_str),
+        ) {
             (Some(path), Some("restore")) => Some(ipc_call(
                 "iac_rollback",
                 serde_json::json!({"action": "restore", "path": path, "seq": args.get(2).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0)}),
             )),
-            (Some(path), _) => Some(ipc_call("iac_rollback", serde_json::json!({"action": "file_history", "path": path}))),
-            _ => Some(iac_core::builtin::lookup("ia-file-history").map(|b| b.usage.to_string()).unwrap_or_default()),
+            (Some(path), _) => Some(ipc_call(
+                "iac_rollback",
+                serde_json::json!({"action": "file_history", "path": path}),
+            )),
+            _ => Some(
+                iac_core::builtin::lookup("ia-file-history")
+                    .map(|b| b.usage.to_string())
+                    .unwrap_or_default(),
+            ),
         },
         "ia-script" => match args.first().map(String::as_str) {
-            Some("run") if args.len() >= 2 => Some(ipc_call("iac_script", serde_json::json!({"action": "run", "name": args[1].trim_start_matches('@'), "confirm_dangerous": true}))),
-            Some("refine") if args.len() >= 2 => Some(ipc_call("iac_script", serde_json::json!({"action": "refine", "name": args[1]}))),
-            _ => Some(ipc_call("iac_script", serde_json::json!({"action": "make", "name": format!("script-{}", iac_core::session::now_ms()), "confirm": false}))),
+            Some("run") if args.len() >= 2 => Some(ipc_call(
+                "iac_script",
+                serde_json::json!({"action": "run", "name": args[1].trim_start_matches('@'), "confirm_dangerous": true}),
+            )),
+            Some("refine") if args.len() >= 2 => Some(ipc_call(
+                "iac_script",
+                serde_json::json!({"action": "refine", "name": args[1]}),
+            )),
+            _ => Some(ipc_call(
+                "iac_script",
+                serde_json::json!({"action": "make", "name": format!("script-{}", iac_core::session::now_ms()), "confirm": false}),
+            )),
         },
         unknown => {
             // 未登记名单 → IAC-1501 列全部（Q30）
@@ -300,7 +367,9 @@ pub fn builtin_output(call: &iac_core::builtin::BuiltinCall) -> Option<String> {
 /// yes/no：对最近提案的确认执行/拒绝（提案卡确认流，AC-09）。
 fn confirm_last(state: &mut ConsoleState, yes: bool) {
     let Some(pid) = state.last_proposal.clone() else {
-        state.entries.push(Entry::Notice("当前没有待确认提案".into()));
+        state
+            .entries
+            .push(Entry::Notice("当前没有待确认提案".into()));
         return;
     };
     if yes {
@@ -309,7 +378,9 @@ fn confirm_last(state: &mut ConsoleState, yes: bool) {
             serde_json::json!({"proposal_id": pid, "confirm_dangerous": true, "origin": "proposal"}),
         )));
     } else {
-        state.entries.push(Entry::Notice(format!("提案 {pid} 已拒绝")));
+        state
+            .entries
+            .push(Entry::Notice(format!("提案 {pid} 已拒绝")));
     }
 }
 
@@ -368,8 +439,16 @@ fn draw(f: &mut Frame, state: &ConsoleState) {
     f.render_widget(Paragraph::new(lines).scroll((scroll, 0)), chunks[0]);
     // 输入行（焦点 accent + ⚠ 弱提醒占位由 submit 前的 gate 呈现）
     let prompt = Span::styled("▍ ", Style::default().fg(hex(state.mode, Token::Accent)));
-    let input_span = Span::styled(state.input.clone(), Style::default().fg(hex(state.mode, Token::Fg)).add_modifier(Modifier::BOLD));
-    f.render_widget(Paragraph::new(Line::from(vec![prompt, input_span])), chunks[1]);
+    let input_span = Span::styled(
+        state.input.clone(),
+        Style::default()
+            .fg(hex(state.mode, Token::Fg))
+            .add_modifier(Modifier::BOLD),
+    );
+    f.render_widget(
+        Paragraph::new(Line::from(vec![prompt, input_span])),
+        chunks[1],
+    );
     let cursor_x = 2 + state.input.chars().count() as u16;
     f.set_cursor_position((cursor_x.min(area.width.saturating_sub(1)), chunks[1].y));
 }
@@ -379,9 +458,18 @@ fn render_entries(state: &ConsoleState) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     for entry in &state.entries {
         match entry {
-            Entry::Separator => lines.push(Line::from(Span::styled("· · ·".to_string(), style_of(state, Token::Fg25)))),
-            Entry::Note(text) => lines.push(Line::from(Span::styled(format!("# {text}"), style_of(state, Token::Fg40)))),
-            Entry::Notice(text) => lines.push(Line::from(Span::styled(text.clone(), style_of(state, Token::Caution)))),
+            Entry::Separator => lines.push(Line::from(Span::styled(
+                "· · ·".to_string(),
+                style_of(state, Token::Fg25),
+            ))),
+            Entry::Note(text) => lines.push(Line::from(Span::styled(
+                format!("# {text}"),
+                style_of(state, Token::Fg40),
+            ))),
+            Entry::Notice(text) => lines.push(Line::from(Span::styled(
+                text.clone(),
+                style_of(state, Token::Caution),
+            ))),
             Entry::Output(text) => lines.extend(render_output(&tui_view(state), text)),
         }
         lines.push(Line::from(Span::styled(String::new(), Style::default())));
@@ -391,7 +479,10 @@ fn render_entries(state: &ConsoleState) -> Vec<Line<'static>> {
 
 /// 复用 TuiState 的主题视图（渲染引擎按 mode 着色）。
 fn tui_view(state: &ConsoleState) -> crate::tui::TuiState {
-    crate::tui::TuiState { mode: state.mode, ..crate::tui::TuiState::default() }
+    crate::tui::TuiState {
+        mode: state.mode,
+        ..crate::tui::TuiState::default()
+    }
 }
 
 fn style_of(state: &ConsoleState, token: Token) -> Style {

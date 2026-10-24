@@ -10,17 +10,20 @@ use crate::history::{
     HistoryCleanInput, HistoryCleanReport, HistoryExportInput, HistoryExportReport, HistoryFilter,
     HistoryPage,
 };
-use crate::intent::{handle_ask, handle_explain};
 use crate::intent::translate::translate_command;
+use crate::intent::{handle_ask, handle_explain};
 use crate::knowledge::{TranslationInput, TranslationResult};
 use crate::recipe::handler::{delete_recipe, export_recipes, save_recipe, search_recipes};
-use crate::recipe::{Recipe, RecipeDeleteInput, RecipeExportInput, RecipeExportReport, RecipeFilter, RecipeInput};
+use crate::recipe::{
+    Recipe, RecipeDeleteInput, RecipeExportInput, RecipeExportReport, RecipeFilter, RecipeInput,
+};
 use crate::server::envelope::{IpcRequest, IpcResponse};
 use crate::session::store::{
     append_event, get_or_create_current, list_sessions, resume_session, AppendEventInput,
 };
 use crate::session::{
-    CurrentSessionInput, EventKind, SessionInfo, SessionListInput, SessionResumeInput, SessionSummary,
+    CurrentSessionInput, EventKind, SessionInfo, SessionListInput, SessionResumeInput,
+    SessionSummary,
 };
 use crate::{doctor, executor, intent, rollback, script};
 use serde_json::{json, Value};
@@ -46,14 +49,16 @@ pub fn dispatch_request(
     let result = route(input.method.as_str(), &params, context, metrics, evolution);
     *output = match result {
         Ok(v) => IpcResponse::success(input, v),
-        Err((code, msg)) if code == codes::DAEMON_STOP => {
-            IpcResponse::failure(input, &code, msg)
-        }
+        Err((code, msg)) if code == codes::DAEMON_STOP => IpcResponse::failure(input, &code, msg),
         Err((code, msg)) => {
             if evolution.reason_code.is_none() {
                 evolution.fail(&code, msg.clone());
             }
-            IpcResponse::failure(input, evolution.reason_code.as_deref().unwrap_or(&code), msg)
+            IpcResponse::failure(
+                input,
+                evolution.reason_code.as_deref().unwrap_or(&code),
+                msg,
+            )
         }
     };
     metrics.counter("dispatch.routed", 1);
@@ -70,6 +75,7 @@ fn route(
 ) -> Result<Value, (String, String)> {
     match method {
         "iac_ping" => Ok(json!({"pong": true, "version": env!("CARGO_PKG_VERSION")})),
+        "iac_builtin" => route_builtin(params, context, metrics, evolution),
         "iac_ask" => route_ask(params, context, metrics, evolution),
         "iac_execute" => route_execute(params, context, metrics, evolution),
         "iac_explain" => route_explain(params, context, metrics, evolution),
@@ -139,7 +145,8 @@ fn route_execute(
 ) -> Result<Value, (String, String)> {
     let mut input: executor::ExecuteInput = serde_json::from_value(params.clone())
         .map_err(|e| (codes::UNKNOWN_METHOD.into(), format!("参数解析失败: {e}")))?;
-    if matches!(context.session.actor, crate::framework::Actor::Agent(_)) && input.origin.is_none() {
+    if matches!(context.session.actor, crate::framework::Actor::Agent(_)) && input.origin.is_none()
+    {
         input.origin = Some(executor::CommandOrigin::Translated); // Agent 发起视同翻译路径（恒确认）
     }
     let mut out = executor::ExecutionOutcome::default();
@@ -332,7 +339,8 @@ fn route_translate(
     if !translate_command(&input, &mut out, context, metrics, evolution) {
         return fail(evolution);
     }
-    serde_json::to_value(&out).map_err(|e| (codes::TRANSLATE_MISS.into(), format!("序列化失败: {e}")))
+    serde_json::to_value(&out)
+        .map_err(|e| (codes::TRANSLATE_MISS.into(), format!("序列化失败: {e}")))
 }
 
 // ---------- 域 6：会话 ----------
@@ -398,19 +406,31 @@ fn route_session_event(
         .unwrap_or(&context.session.session_id)
         .to_string();
     let kind = params.get("kind").and_then(Value::as_str).unwrap_or("note");
-    let pinned = params.get("pinned").and_then(Value::as_bool).unwrap_or(false);
+    let pinned = params
+        .get("pinned")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let ev = match kind {
         "separator" => {
             let _ = pinned;
             crate::session::store::record_separator(&sid, context, metrics, evolution)
         }
         "note" => {
-            let text = params.pointer("/payload/text").and_then(Value::as_str).unwrap_or_default();
+            let text = params
+                .pointer("/payload/text")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             crate::session::store::record_note(&sid, text, pinned, context, metrics, evolution)
         }
         "env" => {
-            let k = params.pointer("/payload/key").and_then(Value::as_str).unwrap_or_default();
-            let v = params.pointer("/payload/value").and_then(Value::as_str).unwrap_or_default();
+            let k = params
+                .pointer("/payload/key")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let v = params
+                .pointer("/payload/value")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             crate::session::store::record_env(&sid, k, v, context, metrics, evolution)
         }
         "ai_message" => append_event(
@@ -447,7 +467,10 @@ fn route_rollback(
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> Result<Value, (String, String)> {
-    let action = params.get("action").and_then(Value::as_str).unwrap_or("list");
+    let action = params
+        .get("action")
+        .and_then(Value::as_str)
+        .unwrap_or("list");
     match action {
         "list" => {
             let filter = params.get("filter").unwrap_or(params);
@@ -457,7 +480,8 @@ fn route_rollback(
             if !rollback::list_rollback_points(&input, &mut out, context, metrics, evolution) {
                 return fail(evolution);
             }
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
         "replay" => {
             let input: crate::types::RollbackRequest = serde_json::from_value(params.clone())
@@ -475,7 +499,8 @@ fn route_rollback(
                 metrics,
                 evolution,
             );
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
         "file_history" => {
             let input: rollback::FilePath = serde_json::from_value(params.clone())
@@ -484,7 +509,8 @@ fn route_rollback(
             if !rollback::file_history(&input, &mut out, context, metrics, evolution) {
                 return fail(evolution);
             }
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
         "restore" => {
             let input: crate::types::FileVersionRef = serde_json::from_value(params.clone())
@@ -506,7 +532,8 @@ fn route_rollback(
                 metrics,
                 evolution,
             );
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
         other => Err((
             codes::UNKNOWN_METHOD.into(),
@@ -522,7 +549,10 @@ fn route_script(
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> Result<Value, (String, String)> {
-    let action = params.get("action").and_then(Value::as_str).unwrap_or("make");
+    let action = params
+        .get("action")
+        .and_then(Value::as_str)
+        .unwrap_or("make");
     match action {
         "make" => {
             let input: script::ScriptMakeInput = serde_json::from_value(params.clone())
@@ -531,7 +561,8 @@ fn route_script(
             if !script::make_script(&input, &mut out, context, metrics, evolution) {
                 return fail(evolution);
             }
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
         "refine" => {
             let input: script::ScriptRefineInput = serde_json::from_value(params.clone())
@@ -540,7 +571,8 @@ fn route_script(
             if !script::refine_script(&input, &mut out, context, metrics, evolution) {
                 return fail(evolution);
             }
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
         "run" => {
             let input: script::ScriptRunInput = serde_json::from_value(params.clone())
@@ -549,9 +581,13 @@ fn route_script(
             if !script::run_script(&input, &mut out, context, metrics, evolution) {
                 return fail(evolution);
             }
-            serde_json::to_value(&out).map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
+            serde_json::to_value(&out)
+                .map_err(|e| (codes::STORAGE.into(), format!("序列化失败: {e}")))
         }
-        other => Err((codes::UNKNOWN_METHOD.into(), format!("iac_script 未知 action: {other}"))),
+        other => Err((
+            codes::UNKNOWN_METHOD.into(),
+            format!("iac_script 未知 action: {other}"),
+        )),
     }
 }
 
@@ -565,8 +601,16 @@ fn route_config_set(
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> Result<Value, (String, String)> {
-    let key = params.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
-    let value = params.get("value").and_then(Value::as_str).unwrap_or_default().to_string();
+    let key = params
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let value = params
+        .get("value")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
     let mut cfg = context.config.clone();
     let changed = match key.as_str() {
         "ui.theme" => serde_json::from_value::<crate::types::ThemeMode>(json!(value))
@@ -583,12 +627,17 @@ fn route_config_set(
         other => {
             return Err((
                 codes::CONFIG_INVALID.into(),
-                format!("不支持的配置键 {other}（支持 ui.theme / ui.habit_dialect / ai.default_provider）"),
+                format!(
+                "不支持的配置键 {other}（支持 ui.theme / ui.habit_dialect / ai.default_provider）"
+            ),
             ))
         }
     };
     if !changed {
-        return Err((codes::CONFIG_INVALID.into(), format!("配置值非法: {key}={value}")));
+        return Err((
+            codes::CONFIG_INVALID.into(),
+            format!("配置值非法: {key}={value}"),
+        ));
     }
     if let Err(msg) = cfg.validate() {
         return Err((codes::CONFIG_INVALID.into(), msg));
@@ -605,10 +654,140 @@ fn route_config_set(
     Ok(json!({ "config": serde_json::to_value(&cfg).unwrap_or_default(), "applied": false }))
 }
 
+/// iac_builtin：`ia-` 内置命令统一路由（Q28/Q30；GUI 与 CLI 共用映射，单一来源）。
+/// ia-help/ia-theme/ia-exit 的本地交互语义由前端自理，此处处理 IPC 型名单。
+fn route_builtin(
+    params: &Value,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Result<Value, (String, String)> {
+    use crate::builtin;
+    let name = params
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let args: Vec<String> = params
+        .get("args")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    if builtin::lookup(&name).is_none() {
+        return Err((
+            codes::BUILTIN_UNKNOWN.into(),
+            format!("未知内置命令 {name}。可用名单：\n{}", builtin::help_text()),
+        ));
+    }
+    let mut call = |method: &str, p: Value| route(method, &p, context, metrics, evolution);
+    let text_arg = |i: usize| args.get(i).cloned().unwrap_or_default();
+    let out = match name.as_str() {
+        "ia-help" => Ok(json!({"help_text": builtin::help_text()})),
+        "ia-config" => match args.first().map(String::as_str) {
+            Some("set") if args.len() >= 3 => {
+                call("iac_config_set", json!({"key": args[1], "value": args[2]}))
+            }
+            _ => call("iac_config_get", json!({})),
+        },
+        "ia-model" => match args.first().map(String::as_str) {
+            Some("use") if args.len() >= 2 => call(
+                "iac_config_set",
+                json!({"key": "ai.default_provider", "value": args[1]}),
+            ),
+            _ => call("iac_config_get", json!({})),
+        },
+        "ia-daemon" => match args.first().map(String::as_str) {
+            Some("stop") => call("iac_daemon_stop", json!({})),
+            _ => Ok(json!({"status": "ping-able"})),
+        },
+        "ia-history" => match args.first().map(String::as_str) {
+            Some("clean") => call(
+                "iac_history_clean",
+                json!({"dry_run": args.iter().any(|a| a == "--dry-run" || a == "-n")}),
+            ),
+            Some("export") if args.len() >= 2 => {
+                call("iac_history_export", json!({"path": text_arg(1)}))
+            }
+            _ => call("iac_history_query", json!({"limit": 20})),
+        },
+        "ia-recipe" => match args.first().map(String::as_str) {
+            Some("search") if args.len() >= 2 => {
+                call("iac_recipes_search", json!({"q": text_arg(1), "limit": 20}))
+            }
+            Some("rm") if args.len() >= 2 => {
+                call("iac_recipe_delete", json!({"name": text_arg(1)}))
+            }
+            Some("export") if args.len() >= 2 => {
+                call("iac_recipe_export", json!({"path": text_arg(1)}))
+            }
+            _ => call("iac_recipes_search", json!({"limit": 20})),
+        },
+        "ia-sessions" => match args.first().map(String::as_str) {
+            Some("resume") if args.len() >= 2 => {
+                call("iac_session_resume", json!({"session_id": text_arg(1)}))
+            }
+            _ => call("iac_session_list", json!({"limit": 20})),
+        },
+        "ia-rollback" => match args.first().map(String::as_str) {
+            Some("replay") => call(
+                "iac_rollback",
+                json!({"action": "replay", "range": {"to": args.get(1).and_then(|s| s.parse::<i64>().ok())}, "on_conflict": "ask"}),
+            ),
+            _ => call(
+                "iac_rollback",
+                json!({"action": "list", "filter": {"limit": 50}}),
+            ),
+        },
+        "ia-file-history" => match (
+            args.first().map(String::as_str),
+            args.get(1).map(String::as_str),
+        ) {
+            (Some(path), Some("restore")) => call(
+                "iac_rollback",
+                json!({"action": "restore", "path": path, "seq": args.get(2).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0)}),
+            ),
+            (Some(path), _) => call(
+                "iac_rollback",
+                json!({"action": "file_history", "path": path}),
+            ),
+            _ => Ok(
+                json!({"usage": builtin::lookup("ia-file-history").map(|b| b.usage).unwrap_or_default()}),
+            ),
+        },
+        "ia-script" => match args.first().map(String::as_str) {
+            Some("run") if args.len() >= 2 => call(
+                "iac_script",
+                json!({"action": "run", "name": text_arg(1).trim_start_matches('@'), "confirm_dangerous": true}),
+            ),
+            Some("refine") if args.len() >= 2 => call(
+                "iac_script",
+                json!({"action": "refine", "name": text_arg(1)}),
+            ),
+            _ => Err((
+                codes::UNKNOWN_METHOD.into(),
+                "ia-script make 需要行号/任务段语义，经 CLI：iac script make <名> --segment last"
+                    .into(),
+            )),
+        },
+        other => Err((
+            codes::BUILTIN_UNKNOWN.into(),
+            format!("内置命令 {other} 无 IPC 形态（前端本地处理）"),
+        )),
+    }?;
+    Ok(json!({ "builtin": name, "result": out }))
+}
+
 /// 编排失败 → (code, message)。
 fn fail(evolution: &Evolution) -> Result<Value, (String, String)> {
     Err((
-        evolution.reason_code.clone().unwrap_or_else(|| codes::STORAGE.into()),
+        evolution
+            .reason_code
+            .clone()
+            .unwrap_or_else(|| codes::STORAGE.into()),
         evolution.reason.clone().unwrap_or_default(),
     ))
 }

@@ -40,7 +40,10 @@ pub fn local_engine_ensure(
 ) -> bool {
     evolution.succeed();
     let Some(dir) = &input.plugin_dir else {
-        evolution.fail("IAC-1401", "插件未安装：请先 iac model install（可 iac model list 查看）");
+        evolution.fail(
+            "IAC-1401",
+            "插件未安装：请先 iac model install（可 iac model list 查看）",
+        );
         return false;
     };
     let Some(engine) = &input.engine_binary else {
@@ -58,7 +61,9 @@ pub fn local_engine_ensure(
         return false;
     }
     let start_port = input.preferred_port.unwrap_or(18080);
-    if let Some((_port, url)) = try_ports(&engine_path, &model, input.context_len, start_port, metrics) {
+    if let Some((_port, url)) =
+        try_ports(&engine_path, &model, input.context_len, start_port, metrics)
+    {
         output.base_url = url;
         output.pid = 0; // 引擎由注册表持有；pid 随 T-027 收尾补齐
         output.model = model.display().to_string();
@@ -99,9 +104,12 @@ fn port_free(port: u16) -> bool {
 fn spawn_engine(engine_path: &PathBuf, model: &PathBuf, context_len: u32, port: u16) -> bool {
     let log = engine_path.parent().map(|d| d.join("engine.log"));
     let mut cmd = Command::new(engine_path);
-    cmd.arg("--model").arg(model)
-        .arg("--port").arg(port.to_string())
-        .arg("--ctx-size").arg(context_len.to_string())
+    cmd.arg("--model")
+        .arg(model)
+        .arg("--port")
+        .arg(port.to_string())
+        .arg("--ctx-size")
+        .arg(context_len.to_string())
         .stdin(std::process::Stdio::null());
     if let Some(log) = log {
         if let Ok(f) = std::fs::File::create(&log) {
@@ -137,8 +145,15 @@ fn wait_healthy(port: u16, budget: Duration) -> bool {
 
 /// 健康检查复用导出（daemon 降级判定用）。
 pub fn engine_healthy(base_url: &str) -> bool {
-    let client = reqwest::blocking::Client::builder().timeout(Duration::from_millis(400)).build().expect("http client");
-    client.get(format!("{base_url}/health")).send().map(|r| r.status().is_success()).unwrap_or(false)
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(400))
+        .build()
+        .expect("http client");
+    client
+        .get(format!("{base_url}/health"))
+        .send()
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
 }
 
 /// JSON 视图（daemon 降级日志用）。

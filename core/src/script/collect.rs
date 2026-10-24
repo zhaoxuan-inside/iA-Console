@@ -32,7 +32,10 @@ pub fn collect_commands(
     let from = input.from_seq.unwrap_or(i64::MAX);
     let to = input.to_seq.unwrap_or(0);
     if from <= to {
-        evolution.fail("IAC-1604", format!("行号区间无效（from={from} ≤ to={to}）"));
+        evolution.fail(
+            "IAC-1604",
+            format!("行号区间无效：需 from > to（回放式 (to, from] 语义：from=较新界，to=较旧界）；得到 from={from} to={to}"),
+        );
         return false;
     }
     let mut rows = QueryRows::default();
@@ -42,7 +45,11 @@ pub fn collect_commands(
             .into(),
         params: vec![SqlValue::Int(to), SqlValue::Int(from)],
     };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("collect_commands", "执行记录读取失败");
         return false;
     }
@@ -66,7 +73,11 @@ fn collect_last_segment(
         params: vec![],
     };
     // 无分隔事件 → 收集全部
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("collect_last_segment", "会话事件读取失败");
         return false;
     }
@@ -82,7 +93,11 @@ fn collect_last_segment(
             .into(),
         params: vec![SqlValue::Int(since)],
     };
-    if !context.deps.store.storage_query(&q2, &mut execs, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q2, &mut execs, context, metrics, evolution)
+    {
         evolution.propagate("collect_last_segment", "执行记录读取失败");
         return false;
     }

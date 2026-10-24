@@ -50,17 +50,25 @@ pub fn classify(line: &str, is_command: impl Fn(&str) -> bool) -> InputDecision 
         let rest = rest.trim();
         if let Some(first) = rest.split_whitespace().next() {
             if is_command(first) {
-                return InputDecision::AiExplain { command: rest.to_string() };
+                return InputDecision::AiExplain {
+                    command: rest.to_string(),
+                };
             }
         }
-        return InputDecision::AiAsk { intent: rest.to_string() };
+        return InputDecision::AiAsk {
+            intent: rest.to_string(),
+        };
     }
     // 4) `#` 备注（行首）
     if let Some(rest) = trimmed.strip_prefix('#') {
         return InputDecision::Note(rest.trim().to_string());
     }
     // 5) `ia-` 内置命令（行首；不在总表的也上交 dispatch 报 IAC-1501）
-    if trimmed.split_whitespace().next().is_some_and(|w| w.starts_with("ia-")) {
+    if trimmed
+        .split_whitespace()
+        .next()
+        .is_some_and(|w| w.starts_with("ia-"))
+    {
         if let Some(call) = crate::builtin::parse(trimmed) {
             return InputDecision::Builtin(call);
         }
@@ -68,9 +76,38 @@ pub fn classify(line: &str, is_command: impl Fn(&str) -> bool) -> InputDecision 
     // 6) 混合识别：命令形态直执，自然语言走 AI（Q15）
     match trimmed.split_whitespace().next() {
         Some(first) if is_command(first) => InputDecision::LiteralCommand(trimmed.to_string()),
-        Some(_) => InputDecision::AiAsk { intent: trimmed.to_string() },
-        None => InputDecision::AiAsk { intent: String::new() },
+        Some(_) => InputDecision::AiAsk {
+            intent: trimmed.to_string(),
+        },
+        None => InputDecision::AiAsk {
+            intent: String::new(),
+        },
     }
+}
+
+/// 命令形态判定（PATH 扫描 + shell 内建名单；GUI/CLI 共用口径，混合识别 Q15 的 is_command 注入实现）。
+pub fn looks_like_command(word: &str) -> bool {
+    use std::sync::OnceLock;
+    static PATH_DIRS: OnceLock<Vec<std::path::PathBuf>> = OnceLock::new();
+    const BUILTINS: &[&str] = &[
+        "cd", "pushd", "popd", "export", "unset", "alias", "source", "exit", "history", "set",
+        "bg", "fg", "jobs", "wait", "read", "ulimit", "umask", "type", "echo", "true", "false",
+    ];
+    if BUILTINS.contains(&word) {
+        return true;
+    }
+    if word.contains('/') {
+        return std::path::Path::new(word).exists();
+    }
+    let dirs = PATH_DIRS.get_or_init(|| {
+        std::env::var("PATH")
+            .unwrap_or_default()
+            .split(':')
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from)
+            .collect()
+    });
+    dirs.iter().any(|d| d.join(word).exists())
 }
 
 /// 环境变量声明解析（Q46：`export K=V` / `set K=V`；仅行首声明生效）。
@@ -84,7 +121,11 @@ pub fn parse_env_declaration(line: &str) -> Option<(String, String)> {
     if key.is_empty() || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return None;
     }
-    let value = value.trim().trim_matches('"').trim_matches('\'').to_string();
+    let value = value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string();
     Some((key.to_string(), value))
 }
 
@@ -94,8 +135,10 @@ mod tests {
 
     /// 测试用命令判定：白名单 + 路径形。
     fn known(cmd: &str) -> bool {
-        matches!(cmd, "ls" | "cd" | "git" | "rm" | "echo" | "docker" | "export" | "set")
-            || cmd.starts_with("./")
+        matches!(
+            cmd,
+            "ls" | "cd" | "git" | "rm" | "echo" | "docker" | "export" | "set"
+        ) || cmd.starts_with("./")
             || cmd.starts_with('/')
     }
 
@@ -103,54 +146,106 @@ mod tests {
     fn natural_language_goes_to_ai() {
         assert_eq!(
             classify("怎么找大文件", known),
-            InputDecision::AiAsk { intent: "怎么找大文件".into() }
+            InputDecision::AiAsk {
+                intent: "怎么找大文件".into()
+            }
         );
         assert_eq!(
             classify("帮我压缩这个目录", known),
-            InputDecision::AiAsk { intent: "帮我压缩这个目录".into() }
+            InputDecision::AiAsk {
+                intent: "帮我压缩这个目录".into()
+            }
         );
     }
 
     #[test]
     fn command_form_executes_directly() {
-        assert_eq!(classify("ls -la", known), InputDecision::LiteralCommand("ls -la".into()));
-        assert_eq!(classify("./deploy.sh prod", known), InputDecision::LiteralCommand("./deploy.sh prod".into()));
+        assert_eq!(
+            classify("ls -la", known),
+            InputDecision::LiteralCommand("ls -la".into())
+        );
+        assert_eq!(
+            classify("./deploy.sh prod", known),
+            InputDecision::LiteralCommand("./deploy.sh prod".into())
+        );
     }
 
     #[test]
     fn double_question_forces_ai_line_start_only() {
-        assert_eq!(classify("??怎么查端口占用", known), InputDecision::AiAsk { intent: "怎么查端口占用".into() });
-        assert_eq!(classify("??ls", known), InputDecision::AiExplain { command: "ls".into() });
+        assert_eq!(
+            classify("??怎么查端口占用", known),
+            InputDecision::AiAsk {
+                intent: "怎么查端口占用".into()
+            }
+        );
+        assert_eq!(
+            classify("??ls", known),
+            InputDecision::AiExplain {
+                command: "ls".into()
+            }
+        );
         // 行中 `??` 保持通配本义（Q24）
-        assert_eq!(classify("find . -name '??x'", known), InputDecision::AiAsk { intent: "find . -name '??x'".into() });
+        assert_eq!(
+            classify("find . -name '??x'", known),
+            InputDecision::AiAsk {
+                intent: "find . -name '??x'".into()
+            }
+        );
     }
 
     #[test]
     fn backslash_forces_literal() {
-        assert_eq!(classify("\\rm -rf x", known), InputDecision::LiteralCommand("rm -rf x".into()));
-        assert_eq!(classify("\\??foo", known), InputDecision::LiteralCommand("??foo".into()));
-        assert_eq!(classify("\\ia-help", known), InputDecision::LiteralCommand("ia-help".into()));
+        assert_eq!(
+            classify("\\rm -rf x", known),
+            InputDecision::LiteralCommand("rm -rf x".into())
+        );
+        assert_eq!(
+            classify("\\??foo", known),
+            InputDecision::LiteralCommand("??foo".into())
+        );
+        assert_eq!(
+            classify("\\ia-help", known),
+            InputDecision::LiteralCommand("ia-help".into())
+        );
     }
 
     #[test]
     fn separator_and_note_and_builtin() {
         assert_eq!(classify("---", known), InputDecision::TaskSeparator);
-        assert_eq!(classify("# 这段在调 nginx", known), InputDecision::Note("这段在调 nginx".into()));
+        assert_eq!(
+            classify("# 这段在调 nginx", known),
+            InputDecision::Note("这段在调 nginx".into())
+        );
         assert_eq!(
             classify("ia-help", known),
-            InputDecision::Builtin(BuiltinCall { name: "ia-help".into(), args: vec![] })
+            InputDecision::Builtin(BuiltinCall {
+                name: "ia-help".into(),
+                args: vec![]
+            })
         );
         assert_eq!(
             classify("ia-rollback list", known),
-            InputDecision::Builtin(BuiltinCall { name: "ia-rollback".into(), args: vec!["list".into()] })
+            InputDecision::Builtin(BuiltinCall {
+                name: "ia-rollback".into(),
+                args: vec!["list".into()]
+            })
         );
     }
 
     #[test]
     fn env_declarations_parse() {
-        assert_eq!(parse_env_declaration("export FOO=bar"), Some(("FOO".into(), "bar".into())));
-        assert_eq!(parse_env_declaration("set PATH=/usr/bin"), Some(("PATH".into(), "/usr/bin".into())));
-        assert_eq!(parse_env_declaration("export FOO=\"quoted value\""), Some(("FOO".into(), "quoted value".into())));
+        assert_eq!(
+            parse_env_declaration("export FOO=bar"),
+            Some(("FOO".into(), "bar".into()))
+        );
+        assert_eq!(
+            parse_env_declaration("set PATH=/usr/bin"),
+            Some(("PATH".into(), "/usr/bin".into()))
+        );
+        assert_eq!(
+            parse_env_declaration("export FOO=\"quoted value\""),
+            Some(("FOO".into(), "quoted value".into()))
+        );
         assert_eq!(parse_env_declaration("export BAD-KEY=1"), None);
         assert_eq!(parse_env_declaration("echo export FOO=1"), None);
     }

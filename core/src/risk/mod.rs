@@ -25,7 +25,10 @@ pub fn assess_static(command: &str) -> crate::types::RiskLevel {
 }
 
 /// 合成风险（Q34：静态为主、AI 自评为辅、冲突取更高）。
-pub fn combine_risk(static_level: crate::types::RiskLevel, ai_level: Option<crate::types::RiskLevel>) -> crate::types::RiskLevel {
+pub fn combine_risk(
+    static_level: crate::types::RiskLevel,
+    ai_level: Option<crate::types::RiskLevel>,
+) -> crate::types::RiskLevel {
     match ai_level {
         Some(ai) if ai > static_level => ai,
         _ => static_level,

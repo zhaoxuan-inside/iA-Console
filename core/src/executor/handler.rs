@@ -2,16 +2,18 @@
 //! → 失败兜底 offer_help（Q18）→ 回滚前像/效果日志（域 15）。
 //! 业务结果（含非零退出/超时/拒绝）均为 true；仅编排内部故障返回 false。
 
-use super::{confirm_word_for, gate_decision, CommandOrigin, ExecuteInput, ExecutionOutcome, GateInfo};
+use super::{
+    confirm_word_for, gate_decision, CommandOrigin, ExecuteInput, ExecutionOutcome, GateInfo,
+};
 use crate::framework::{Context, Evolution, Metrics};
 use crate::history::store::{insert_execution, record_audit};
 use crate::history::{ExecStatus, ExecutionRecord};
 use crate::intent::{load_proposal, mark_proposal_status, ProposalStatus};
 use crate::ports::{ProcessResult, ProcessSpec};
 use crate::risk::assess_static;
+use crate::session::now_ms;
 use crate::session::store::{append_event, record_env, AppendEventInput, RecordAck};
 use crate::session::EventKind;
-use crate::session::now_ms;
 use crate::types::{GateAction, RiskLevel};
 
 /// I-027：执行主流程。
@@ -38,13 +40,35 @@ pub fn handle_execute(
     let level = risk_level_for(input, &command, origin, context, metrics, evolution);
     let is_agent = matches!(context.session.actor, crate::framework::Actor::Agent(_));
     let action = gate_decision(level, origin, is_agent, input.confirmed);
-    let gate = GateInfo { level, action, origin, actor_tag: context.session.actor.as_tag() };
+    let gate = GateInfo {
+        level,
+        action,
+        origin,
+        actor_tag: context.session.actor.as_tag(),
+    };
     let mut record = build_record(input, &command, level, context);
     // 确认升级校验（Q21/Q37）
     if let Err(msg) = check_escalation(&gate, input, &command) {
-        return reject_and_record(&mut record, &gate, output, &msg, context, metrics, evolution);
+        return reject_and_record(
+            &mut record,
+            &gate,
+            output,
+            &msg,
+            context,
+            metrics,
+            evolution,
+        );
     }
-    run_and_record(command, input, &mut record, &gate, output, context, metrics, evolution)
+    run_and_record(
+        command,
+        input,
+        &mut record,
+        &gate,
+        output,
+        context,
+        metrics,
+        evolution,
+    )
 }
 
 /// 确认升级校验（Q34~Q37 矩阵的执行侧）：
@@ -55,9 +79,7 @@ fn check_escalation(gate: &GateInfo, input: &ExecuteInput, command: &str) -> Res
     match gate.action {
         GateAction::Pass | GateAction::WeakWarning => Ok(()),
         GateAction::RequireDoubleEnter if input.confirmed => Ok(()),
-        GateAction::RequireDoubleEnter => {
-            Err("dangerous 提案需要武装态确认（二次 Enter）".into())
-        }
+        GateAction::RequireDoubleEnter => Err("dangerous 提案需要武装态确认（二次 Enter）".into()),
         GateAction::RequireConfirmWord => {
             let expect = confirm_word_for(command);
             let got = input.confirm_word.as_deref().unwrap_or_default().trim();
@@ -68,9 +90,10 @@ fn check_escalation(gate: &GateInfo, input: &ExecuteInput, command: &str) -> Res
                 Err(format!("destructive 命令需要输入确认词「{expect}」"))
             }
         }
-        GateAction::RejectAgentUnconfirmed => {
-            Err(format!("Agent 未携带确认标志，已拒绝执行（影响面：{} 级命令）", risk_text(gate.level)))
-        }
+        GateAction::RejectAgentUnconfirmed => Err(format!(
+            "Agent 未携带确认标志，已拒绝执行（影响面：{} 级命令）",
+            risk_text(gate.level)
+        )),
     }
 }
 
@@ -117,14 +140,24 @@ fn run_and_record(
     let cwd = record.cwd.clone();
     let mut manifest = crate::rollback::pre_capture(&cwd, context, metrics, evolution);
     record.journal_ref = manifest.as_ref().map(|m| m.manifest_ref.clone());
-    let spec = ProcessSpec { command, cwd: None, env: vec![], timeout_ms: context.config.exec.timeout_ms };
+    let spec = ProcessSpec {
+        command,
+        cwd: None,
+        env: vec![],
+        timeout_ms: context.config.exec.timeout_ms,
+    };
     let mut result = ProcessResult::default();
-    if !context.deps.process.spawn_process(&spec, &mut result, context, metrics, evolution) {
-        record.status = if evolution.reason_code.as_deref() == Some(crate::error::codes::EXEC_TIMEOUT) {
-            ExecStatus::Timeout
-        } else {
-            ExecStatus::Failed
-        };
+    if !context
+        .deps
+        .process
+        .spawn_process(&spec, &mut result, context, metrics, evolution)
+    {
+        record.status =
+            if evolution.reason_code.as_deref() == Some(crate::error::codes::EXEC_TIMEOUT) {
+                ExecStatus::Timeout
+            } else {
+                ExecStatus::Failed
+            };
         persist(record, context, metrics, evolution);
         *output = outcome(record, gate);
         evolution.ok = true;
@@ -132,12 +165,22 @@ fn run_and_record(
     }
     record.exit_code = result.exit_code;
     record.duration_ms = result.duration_ms;
-    record.stdout_summary = Some(truncate(&result.stdout, context.config.exec.stdout_summary_max));
-    record.stderr_summary = Some(truncate(&result.stderr, context.config.exec.stderr_summary_max));
+    record.stdout_summary = Some(truncate(
+        &result.stdout,
+        context.config.exec.stdout_summary_max,
+    ));
+    record.stderr_summary = Some(truncate(
+        &result.stderr,
+        context.config.exec.stderr_summary_max,
+    ));
     // 全量输出入库（Q45）
     record.stdout_full = result.stdout.clone();
     record.stderr_full = result.stderr.clone();
-    record.status = if result.exit_code == Some(0) { ExecStatus::Ok } else { ExecStatus::Failed };
+    record.status = if result.exit_code == Some(0) {
+        ExecStatus::Ok
+    } else {
+        ExecStatus::Failed
+    };
     persist(record, context, metrics, evolution);
     if let Some(m) = manifest.as_mut() {
         crate::rollback::post_diff(m, &record.id, context, metrics, evolution);
@@ -196,7 +239,10 @@ fn resolve_command(
     }
     let pid = input.proposal_id.as_ref()?;
     let proposal = load_proposal(pid, context, metrics, evolution)?;
-    let idx = input.candidate_index.unwrap_or(proposal.active).min(proposal.candidates.len().saturating_sub(1));
+    let idx = input
+        .candidate_index
+        .unwrap_or(proposal.active)
+        .min(proposal.candidates.len().saturating_sub(1));
     let candidate = proposal.candidates.get(idx)?;
     Some((candidate.command.clone(), CommandOrigin::Proposal))
 }
@@ -216,7 +262,10 @@ fn risk_level_for(
             let mut m2 = Metrics::default();
             let mut e2 = Evolution::default();
             if let Some(p) = crate::intent::load_proposal(pid, context, &mut m2, &mut e2) {
-                let idx = input.candidate_index.unwrap_or(p.active).min(p.candidates.len().saturating_sub(1));
+                let idx = input
+                    .candidate_index
+                    .unwrap_or(p.active)
+                    .min(p.candidates.len().saturating_sub(1));
                 if let Some(c) = p.candidates.get(idx) {
                     return c.risk_level;
                 }
@@ -227,7 +276,12 @@ fn risk_level_for(
 }
 
 /// 组装执行记录（cwd/shell/host 尽力从会话取，Q45 字段真实性）。
-fn build_record(input: &ExecuteInput, command: &str, level: RiskLevel, context: &Context) -> ExecutionRecord {
+fn build_record(
+    input: &ExecuteInput,
+    command: &str,
+    level: RiskLevel,
+    context: &Context,
+) -> ExecutionRecord {
     ExecutionRecord {
         id: String::new(),
         session_id: context.session.session_id.clone(),
@@ -254,7 +308,12 @@ fn build_record(input: &ExecuteInput, command: &str, level: RiskLevel, context: 
 }
 
 /// 落三账（AC-05）：执行记录（全量输出）+ 审计 + 会话事件；审计/事件失败不阻断。
-fn persist(record: &ExecutionRecord, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) {
+fn persist(
+    record: &mut ExecutionRecord,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) {
     if !insert_execution(record, context, metrics, evolution) {
         evolution.propagate("persist", "执行记录入库失败");
         return;
@@ -280,7 +339,13 @@ fn persist(record: &ExecutionRecord, context: &Context, metrics: &mut Metrics, e
             }),
             pinned: false,
         };
-        let _ = append_event(&event, &mut RecordAck::default(), context, metrics, evolution);
+        let _ = append_event(
+            &event,
+            &mut RecordAck::default(),
+            context,
+            metrics,
+            evolution,
+        );
     }
     if record.proposal_id.is_some() && record.status == ExecStatus::Ok {
         // 提案确认执行成功 → executed（尽力而为）
@@ -339,18 +404,30 @@ mod tests {
 
     #[test]
     fn escalation_requires_confirmation_artifacts() {
-        let mut input = ExecuteInput { confirmed: false, ..Default::default() };
-        let gate = GateInfo { action: GateAction::RequireDoubleEnter, ..Default::default() };
+        let mut input = ExecuteInput {
+            confirmed: false,
+            ..Default::default()
+        };
+        let gate = GateInfo {
+            action: GateAction::RequireDoubleEnter,
+            ..Default::default()
+        };
         assert!(check_escalation(&gate, &input, "git push --force").is_err());
         input.confirmed = true;
         assert!(check_escalation(&gate, &input, "git push --force").is_ok());
         // destructive 确认词
-        let gate_d = GateInfo { action: GateAction::RequireConfirmWord, ..Default::default() };
+        let gate_d = GateInfo {
+            action: GateAction::RequireConfirmWord,
+            ..Default::default()
+        };
         assert!(check_escalation(&gate_d, &input, "mkfs.ext4 /dev/sdb1").is_err());
         input.confirm_word = Some(confirm_word_for("mkfs.ext4 /dev/sdb1"));
         assert!(check_escalation(&gate_d, &input, "mkfs.ext4 /dev/sdb1").is_ok());
         // agent 未确认拒绝
-        let gate_a = GateInfo { action: GateAction::RejectAgentUnconfirmed, ..Default::default() };
+        let gate_a = GateInfo {
+            action: GateAction::RejectAgentUnconfirmed,
+            ..Default::default()
+        };
         assert!(check_escalation(&gate_a, &input, "rm -rf /").is_err());
     }
 }

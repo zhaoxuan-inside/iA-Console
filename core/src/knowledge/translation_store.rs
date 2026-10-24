@@ -32,7 +32,11 @@ pub fn lookup_translation(
         ],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("lookup_translation", "查询翻译缓存失败");
         return false;
     }
@@ -50,7 +54,10 @@ pub fn lookup_translation(
         source: rows.text(0, "source").unwrap_or("cache").into(),
         note: rows.text(0, "note").unwrap_or_default().into(),
         risk_level: None,
-        recipe_id: rows.text(0, "recipe_id").filter(|s| !s.is_empty()).map(str::to_string),
+        recipe_id: rows
+            .text(0, "recipe_id")
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
     });
     metrics.counter("translate.cache_hit", 1);
     true
@@ -76,7 +83,8 @@ pub fn cache_translation(
     let Some(first_word) = input.input.command.split_whitespace().next() else {
         return true;
     };
-    let param_maps = serde_json::to_string(&input.result.param_maps).unwrap_or_else(|_| "[]".into());
+    let param_maps =
+        serde_json::to_string(&input.result.param_maps).unwrap_or_else(|_| "[]".into());
     let q = SqlQuery {
         sql: "INSERT INTO translations (id, original, translated, from_platform, to_platform, \
               param_maps, source, verified, recipe_id, created_at) \
@@ -93,11 +101,21 @@ pub fn cache_translation(
             param_maps.as_str().into(),
             input.result.source.as_str().into(),
             i64::from(input.verified).into(),
-            input.result.recipe_id.clone().unwrap_or_default().as_str().into(),
+            input
+                .result
+                .recipe_id
+                .clone()
+                .unwrap_or_default()
+                .as_str()
+                .into(),
             now_ms().into(),
         ],
     };
-    if !context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_execute(&q, &mut Default::default(), context, metrics, evolution)
+    {
         evolution.propagate("cache_translation", "写翻译缓存失败");
         return false;
     }

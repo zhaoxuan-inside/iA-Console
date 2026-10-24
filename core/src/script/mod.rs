@@ -8,7 +8,9 @@ pub mod collect;
 
 pub use collect::{collect_commands, CollectRange};
 
-use crate::common::script_assembler::{assemble_script, AssembledScript, ScriptAssemblyInput, ScriptTarget};
+use crate::common::script_assembler::{
+    assemble_script, AssembledScript, ScriptAssemblyInput, ScriptTarget,
+};
 use crate::executor::{gate_decision, CommandOrigin, ExecutionOutcome, GateInfo};
 use crate::framework::{Context, Evolution, Metrics};
 use crate::history::store::{insert_execution, record_audit};
@@ -125,7 +127,10 @@ pub fn make_script(
         return false;
     }
     if entries.is_empty() {
-        evolution.fail("IAC-1604", "指定范围内没有任何命令（用 iac history 查看行号）");
+        evolution.fail(
+            "IAC-1604",
+            "指定范围内没有任何命令（用 iac history 查看行号）",
+        );
         return false;
     }
     let mut max_risk = RiskLevel::Safe;
@@ -133,7 +138,11 @@ pub fn make_script(
         max_risk = max_risk.max(assess_static(&e.command));
     }
     let mut assembled = AssembledScript::default();
-    let asm_in = ScriptAssemblyInput { entries: entries.clone(), target: input.target, max_risk };
+    let asm_in = ScriptAssemblyInput {
+        entries: entries.clone(),
+        target: input.target,
+        max_risk,
+    };
     if !assemble_script(&asm_in, &mut assembled, metrics) {
         evolution.propagate("make_script", "脚本装配失败");
         return false;
@@ -228,7 +237,12 @@ pub fn refine_script(
         evolution.fail("IAC-1101", "AI 后端不可达，无法精修；拼接稿仍可用");
         return false;
     };
-    *output = ScriptRefineOutput { name: input.name.clone(), refined_body: refined, notes, applied: false };
+    *output = ScriptRefineOutput {
+        name: input.name.clone(),
+        refined_body: refined,
+        notes,
+        applied: false,
+    };
     true
 }
 
@@ -248,7 +262,12 @@ pub fn run_script(
     let body = pick_platform_body(&recipe.command_template);
     let risk = assess_static(&body);
     let is_agent = matches!(context.session.actor, crate::framework::Actor::Agent(_));
-    let action = gate_decision(risk, CommandOrigin::Direct, is_agent, input.confirm_dangerous);
+    let action = gate_decision(
+        risk,
+        CommandOrigin::Direct,
+        is_agent,
+        input.confirm_dangerous,
+    );
     // 脚本闸门（AC-39 同一闸门）：destructive 仍要求确认词，dangerous 要求武装态标志
     let word_ok = input
         .confirm_word
@@ -262,8 +281,15 @@ pub fn run_script(
         let expect = crate::executor::confirm_word_for(&body);
         evolution.fail(
             crate::error::codes::EXEC_REJECTED,
-            format!("脚本内部含高危命令（{} 级），需要确认升级{}", risk_text(risk),
-                if matches!(action, GateAction::RequireConfirmWord) { format!("：确认词「{expect}」") } else { String::new() }),
+            format!(
+                "脚本内部含高危命令（{} 级），需要确认升级{}",
+                risk_text(risk),
+                if matches!(action, GateAction::RequireConfirmWord) {
+                    format!("：确认词「{expect}」")
+                } else {
+                    String::new()
+                }
+            ),
         );
         return false;
     }
@@ -273,22 +299,43 @@ pub fn run_script(
         origin: CommandOrigin::Direct,
         actor_tag: context.session.actor.as_tag(),
     };
-    let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".into());
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".into());
     let mut manifest = pre_capture(&cwd, context, metrics, evolution);
     let timeout = context.config.exec.timeout_ms;
-    let spec = ProcessSpec { command: body.clone(), cwd: None, env: vec![], timeout_ms: timeout };
+    let spec = ProcessSpec {
+        command: body.clone(),
+        cwd: None,
+        env: vec![],
+        timeout_ms: timeout,
+    };
     let mut result = ProcessResult::default();
-    let spawn_ok = context.deps.process.spawn_process(&spec, &mut result, context, metrics, evolution);
+    let spawn_ok =
+        context
+            .deps
+            .process
+            .spawn_process(&spec, &mut result, context, metrics, evolution);
     let mut record = build_script_record(input, risk, context);
     record.exit_code = result.exit_code;
     record.duration_ms = result.duration_ms;
-    record.stdout_summary = Some(truncate(&result.stdout, context.config.exec.stdout_summary_max));
-    record.stderr_summary = Some(truncate(&result.stderr, context.config.exec.stderr_summary_max));
+    record.stdout_summary = Some(truncate(
+        &result.stdout,
+        context.config.exec.stdout_summary_max,
+    ));
+    record.stderr_summary = Some(truncate(
+        &result.stderr,
+        context.config.exec.stderr_summary_max,
+    ));
     record.stdout_full = result.stdout.clone();
     record.stderr_full = result.stderr.clone();
-    record.status = if spawn_ok && result.exit_code == Some(0) { ExecStatus::Ok } else { ExecStatus::Failed };
+    record.status = if spawn_ok && result.exit_code == Some(0) {
+        ExecStatus::Ok
+    } else {
+        ExecStatus::Failed
+    };
     record.journal_ref = manifest.as_ref().map(|m| m.manifest_ref.clone());
-    persist_record(&record, context, metrics, evolution);
+    persist_record(&mut record, context, metrics, evolution);
     if spawn_ok {
         if let Some(m) = manifest.as_mut() {
             post_diff(m, &record.id, context, metrics, evolution);
@@ -333,12 +380,19 @@ fn load_script_recipe(
         sql: "SELECT id FROM recipes WHERE kind='script' AND name=?".into(),
         params: vec![SqlValue::Text(name.to_string())],
     };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("load_script_recipe", "方案查询失败");
         return false;
     }
     if rows.is_empty() {
-        evolution.fail(crate::error::codes::RECIPE_NAME_CONFLICT, format!("脚本 @{name} 不存在（先 ia-script make 制作）"));
+        evolution.fail(
+            crate::error::codes::RECIPE_NAME_CONFLICT,
+            format!("脚本 @{name} 不存在（先 ia-script make 制作）"),
+        );
         return false;
     }
     let id = rows.text(0, "id").unwrap_or("").to_string();
@@ -390,14 +444,20 @@ fn pick_platform_body(template: &str) -> String {
 }
 
 /// 脚本执行记录（@名 留痕，正文入 argv 首位供审计）。
-fn build_script_record(input: &ScriptRunInput, risk: RiskLevel, context: &Context) -> ExecutionRecord {
+fn build_script_record(
+    input: &ScriptRunInput,
+    risk: RiskLevel,
+    context: &Context,
+) -> ExecutionRecord {
     ExecutionRecord {
         id: String::new(),
         session_id: context.session.session_id.clone(),
         proposal_id: None,
         command: format!("@{}", input.name),
         argv: vec![format!("@{}", input.name)],
-        cwd: std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".into()),
+        cwd: std::env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| ".".into()),
         shell: "sh".into(),
         host: "local".into(),
         actor: context.session.actor.as_tag(),
@@ -415,7 +475,12 @@ fn build_script_record(input: &ScriptRunInput, risk: RiskLevel, context: &Contex
 }
 
 /// 持久化执行记录（审计由 record_execution 内部落账）。
-fn persist_record(record: &ExecutionRecord, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) {
+fn persist_record(
+    record: &mut ExecutionRecord,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) {
     if !insert_execution(record, context, metrics, evolution) {
         evolution.ok = true; // 记录失败不阻断执行结果返回
         return;
@@ -446,11 +511,19 @@ fn ai_refine_body(
         timeout_ms: 30_000,
     };
     let mut resp = LlmResponse::default();
-    if !context.deps.ai.ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution) {
+    if !context
+        .deps
+        .ai
+        .ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution)
+    {
         return None;
     }
     let text = resp.text.trim().trim_matches('`').to_string();
-    if text.is_empty() { None } else { Some(text) }
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 /// 摘要截断（与 executor 同规则）。

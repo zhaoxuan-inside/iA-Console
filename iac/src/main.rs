@@ -174,14 +174,18 @@ enum HistoryAction {
         #[arg(long, default_value_t = 20)]
         limit: u32,
     },
-    Search { q: String },
+    Search {
+        q: String,
+    },
     /// 双限清退预览/执行（Q47）
     Clean {
         #[arg(long)]
         dry_run: bool,
     },
     /// 导出归档 JSONL（Q47）
-    Export { path: String },
+    Export {
+        path: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -201,7 +205,9 @@ enum RecipeAction {
         #[arg(long, default_value_t = 20)]
         limit: u32,
     },
-    Search { q: String },
+    Search {
+        q: String,
+    },
     Rm {
         #[arg(long)]
         id: Option<String>,
@@ -209,7 +215,9 @@ enum RecipeAction {
         name: Option<String>,
     },
     /// 导出归档 JSONL
-    Export { path: String },
+    Export {
+        path: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -226,9 +234,14 @@ enum SessionAction {
 
 #[derive(Subcommand)]
 enum ConfigAction {
-    Get { key: String },
+    Get {
+        key: String,
+    },
     /// 修改配置（daemon 应用并落盘，记审计）
-    Set { key: String, value: String },
+    Set {
+        key: String,
+        value: String,
+    },
     Path,
 }
 
@@ -251,12 +264,24 @@ fn main() {
 fn run(cli: Cli, json_mode: bool) -> i32 {
     match cli.command {
         Commands::Ask { intent, cwd } => emit(
-            crate::ipc::request("iac_ask", serde_json::json!({ "intent": intent, "cwd": cwd }), None),
+            crate::ipc::request(
+                "iac_ask",
+                serde_json::json!({ "intent": intent, "cwd": cwd }),
+                None,
+            ),
             json_mode,
         ),
-        Commands::Run { target, yes, confirm_word, candidate_index } => {
+        Commands::Run {
+            target,
+            yes,
+            confirm_word,
+            candidate_index,
+        } => {
             // @脚本名：脚本工坊命名脚本（AC-39）
-            if target.proposal.is_none() && target.command.len() == 1 && target.command[0].starts_with('@') {
+            if target.proposal.is_none()
+                && target.command.len() == 1
+                && target.command[0].starts_with('@')
+            {
                 let name = target.command[0][1..].to_string();
                 return emit(
                     crate::ipc::request(
@@ -295,34 +320,64 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 return 2;
             }
             emit(
-                crate::ipc::request("iac_explain", serde_json::json!({"command": command.join(" ")}), None),
+                crate::ipc::request(
+                    "iac_explain",
+                    serde_json::json!({"command": command.join(" ")}),
+                    None,
+                ),
                 json_mode,
             )
         }
         Commands::Doctor { execution } => emit(
-            crate::ipc::request("iac_diagnose", serde_json::json!({"execution_id": execution}), None),
+            crate::ipc::request(
+                "iac_diagnose",
+                serde_json::json!({"execution_id": execution}),
+                None,
+            ),
             json_mode,
         ),
         Commands::History { action } => match action {
             HistoryAction::List { limit } => emit(
-                crate::ipc::request("iac_history_query", serde_json::json!({"limit": limit}), None),
+                crate::ipc::request(
+                    "iac_history_query",
+                    serde_json::json!({"limit": limit}),
+                    None,
+                ),
                 json_mode,
             ),
             HistoryAction::Search { q } => emit(
-                crate::ipc::request("iac_history_query", serde_json::json!({"q": q, "limit": 50}), None),
+                crate::ipc::request(
+                    "iac_history_query",
+                    serde_json::json!({"q": q, "limit": 50}),
+                    None,
+                ),
                 json_mode,
             ),
             HistoryAction::Clean { dry_run } => emit(
-                crate::ipc::request("iac_history_clean", serde_json::json!({"dry_run": dry_run}), None),
+                crate::ipc::request(
+                    "iac_history_clean",
+                    serde_json::json!({"dry_run": dry_run}),
+                    None,
+                ),
                 json_mode,
             ),
             HistoryAction::Export { path } => emit(
-                crate::ipc::request("iac_history_export", serde_json::json!({"path": path}), None),
+                crate::ipc::request(
+                    "iac_history_export",
+                    serde_json::json!({"path": path}),
+                    None,
+                ),
                 json_mode,
             ),
         },
         Commands::Recipe { action } => match action {
-            RecipeAction::Save { title, description, name, command, tags } => {
+            RecipeAction::Save {
+                title,
+                description,
+                name,
+                command,
+                tags,
+            } => {
                 if command.is_empty() {
                     eprintln!("用法：iac recipe save <标题> --with <命令...>");
                     return 2;
@@ -337,15 +392,27 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 )
             }
             RecipeAction::List { limit } => emit(
-                crate::ipc::request("iac_recipes_search", serde_json::json!({"limit": limit}), None),
+                crate::ipc::request(
+                    "iac_recipes_search",
+                    serde_json::json!({"limit": limit}),
+                    None,
+                ),
                 json_mode,
             ),
             RecipeAction::Search { q } => emit(
-                crate::ipc::request("iac_recipes_search", serde_json::json!({"q": q, "limit": 50}), None),
+                crate::ipc::request(
+                    "iac_recipes_search",
+                    serde_json::json!({"q": q, "limit": 50}),
+                    None,
+                ),
                 json_mode,
             ),
             RecipeAction::Rm { id, name } => emit(
-                crate::ipc::request("iac_recipe_delete", serde_json::json!({"id": id, "name": name}), None),
+                crate::ipc::request(
+                    "iac_recipe_delete",
+                    serde_json::json!({"id": id, "name": name}),
+                    None,
+                ),
                 json_mode,
             ),
             RecipeAction::Export { path } => emit(
@@ -355,15 +422,27 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
         },
         Commands::Session { action } => match action {
             SessionAction::New => emit(
-                crate::ipc::request("iac_sessions_current", serde_json::json!({"cwd": ".", "shell": "sh", "host": "local"}), None),
+                crate::ipc::request(
+                    "iac_sessions_current",
+                    serde_json::json!({"cwd": ".", "shell": "sh", "host": "local"}),
+                    None,
+                ),
                 json_mode,
             ),
             SessionAction::List { limit } => emit(
-                crate::ipc::request("iac_session_list", serde_json::json!({"limit": limit}), None),
+                crate::ipc::request(
+                    "iac_session_list",
+                    serde_json::json!({"limit": limit}),
+                    None,
+                ),
                 json_mode,
             ),
             SessionAction::Resume { id } => emit(
-                crate::ipc::request("iac_session_resume", serde_json::json!({"session_id": id}), None),
+                crate::ipc::request(
+                    "iac_session_resume",
+                    serde_json::json!({"session_id": id}),
+                    None,
+                ),
                 json_mode,
             ),
         },
@@ -374,14 +453,21 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                     Ok(r) if r.ok => {
                         let v = r.result.unwrap_or_default();
                         let picked = key.split('.').fold(&v, |acc, k| &acc[k]);
-                        println!("{}", serde_json::to_string_pretty(picked).unwrap_or_default());
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(picked).unwrap_or_default()
+                        );
                         0
                     }
                     _ => render_err(&resp, json_mode),
                 }
             }
             ConfigAction::Set { key, value } => emit(
-                crate::ipc::request("iac_config_set", serde_json::json!({"key": key, "value": value}), None),
+                crate::ipc::request(
+                    "iac_config_set",
+                    serde_json::json!({"key": key, "value": value}),
+                    None,
+                ),
                 json_mode,
             ),
             ConfigAction::Path => {
@@ -432,7 +518,12 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             crate::console::run(mode)
         }
         Commands::Chat => crate::tui::run_chat(json_mode),
-        Commands::Rollback { list, to, from, on_conflict } => {
+        Commands::Rollback {
+            list,
+            to,
+            from,
+            on_conflict,
+        } => {
             let params = if list || (to.is_none() && from.is_none()) {
                 serde_json::json!({"action": "list", "filter": {"limit": 50}})
             } else {
@@ -446,16 +537,31 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
         }
         Commands::File { action } => match action {
             FileAction::History { path } => emit(
-                crate::ipc::request("iac_rollback", serde_json::json!({"action": "file_history", "path": path}), None),
+                crate::ipc::request(
+                    "iac_rollback",
+                    serde_json::json!({"action": "file_history", "path": path}),
+                    None,
+                ),
                 json_mode,
             ),
             FileAction::Restore { path, seq } => emit(
-                crate::ipc::request("iac_rollback", serde_json::json!({"action": "restore", "path": path, "seq": seq}), None),
+                crate::ipc::request(
+                    "iac_rollback",
+                    serde_json::json!({"action": "restore", "path": path, "seq": seq}),
+                    None,
+                ),
                 json_mode,
             ),
         },
         Commands::Script { action } => match action {
-            ScriptAction::Make { name, from, to, segment, target, refine } => emit(
+            ScriptAction::Make {
+                name,
+                from,
+                to,
+                segment,
+                target,
+                refine,
+            } => emit(
                 crate::ipc::request(
                     "iac_script",
                     serde_json::json!({"action": "make", "name": name, "from_seq": from, "to_seq": to, "segment": segment, "target": target, "refine": refine}),
@@ -463,7 +569,11 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 ),
                 json_mode,
             ),
-            ScriptAction::Refine { name, confirm, refined_body } => emit(
+            ScriptAction::Refine {
+                name,
+                confirm,
+                refined_body,
+            } => emit(
                 crate::ipc::request(
                     "iac_script",
                     serde_json::json!({"action": "refine", "name": name, "confirm": confirm, "refined_body": refined_body}),
@@ -486,7 +596,10 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             if let Some(f) = from {
                 params["from"] = serde_json::json!(f);
             }
-            emit(crate::ipc::request("iac_translate", params, None), json_mode)
+            emit(
+                crate::ipc::request("iac_translate", params, None),
+                json_mode,
+            )
         }
     }
 }
@@ -524,7 +637,10 @@ fn daemon_start() -> i32 {
         return 0;
     }
     let exe = std::env::current_exe().expect("当前可执行");
-    let iacd_exe = exe.parent().map(|d| d.join("iacd")).unwrap_or_else(|| "iacd".into());
+    let iacd_exe = exe
+        .parent()
+        .map(|d| d.join("iacd"))
+        .unwrap_or_else(|| "iacd".into());
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;

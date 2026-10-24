@@ -34,7 +34,11 @@ pub fn save_proposal(
         ],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("save_proposal", "写入提案失败");
         return false;
     }
@@ -52,13 +56,24 @@ pub fn get_proposal(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let q = SqlQuery { sql: format!("SELECT {COLS} FROM proposals WHERE id = ?1"), params: vec![proposal_id.into()] };
+    let q = SqlQuery {
+        sql: format!("SELECT {COLS} FROM proposals WHERE id = ?1"),
+        params: vec![proposal_id.into()],
+    };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("get_proposal", "查询提案失败");
         return false;
     }
-    *output = if rows.is_empty() { None } else { Some(proposal_from_row(&rows, 0)) };
+    *output = if rows.is_empty() {
+        None
+    } else {
+        Some(proposal_from_row(&rows, 0))
+    };
     true
 }
 
@@ -75,7 +90,10 @@ pub fn set_proposal_status(
         sql: "UPDATE proposals SET status = ?1 WHERE id = ?2".into(),
         params: vec![status_text(status).into(), proposal_id.into()],
     };
-    context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution)
+    context
+        .deps
+        .store
+        .storage_execute(&q, &mut Default::default(), context, metrics, evolution)
 }
 
 /// 行 → Proposal（损坏 candidates 按空处理）。
@@ -84,7 +102,8 @@ fn proposal_from_row(rows: &QueryRows, i: usize) -> Proposal {
         id: rows.text(i, "id").unwrap_or_default().into(),
         session_id: rows.text(i, "session_id").unwrap_or_default().into(),
         intent_text: rows.text(i, "intent_text").unwrap_or_default().into(),
-        candidates: serde_json::from_str(rows.text(i, "candidates").unwrap_or("[]")).unwrap_or_default(),
+        candidates: serde_json::from_str(rows.text(i, "candidates").unwrap_or("[]"))
+            .unwrap_or_default(),
         active: rows.int(i, "active").unwrap_or(0) as usize,
         platform: match rows.text(i, "platform").unwrap_or("linux") {
             "macos" => crate::types::Platform::Macos,
@@ -100,7 +119,10 @@ fn proposal_from_row(rows: &QueryRows, i: usize) -> Proposal {
             _ => ProposalStatus::Proposed,
         },
         created_at: rows.int(i, "created_at").unwrap_or(0),
-        context_json: rows.text(i, "context_json").filter(|s| !s.is_empty()).map(str::to_string),
+        context_json: rows
+            .text(i, "context_json")
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
     }
 }
 

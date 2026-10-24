@@ -54,7 +54,9 @@ pub fn detect_format(
 ) -> bool {
     let t = input.content.trim_start();
     *output = if starts_json_object(t) {
-        serde_json::from_str::<serde_json::Value>(t).map(|_| TextFormat::Json).unwrap_or(TextFormat::Plain)
+        serde_json::from_str::<serde_json::Value>(t)
+            .map(|_| TextFormat::Json)
+            .unwrap_or(TextFormat::Plain)
     } else if t.starts_with("<?xml") || (t.starts_with('<') && t.contains("</")) {
         detect_xml(t)
     } else if t.starts_with("---") || looks_yaml(t) {
@@ -150,7 +152,9 @@ fn code_fence_lang(t: &str) -> Option<String> {
 }
 
 fn looks_markdown(t: &str) -> bool {
-    t.lines().any(|l| l.starts_with("# ") || l.starts_with("## ") || l.starts_with("- ") || l.starts_with("```"))
+    t.lines().any(|l| {
+        l.starts_with("# ") || l.starts_with("## ") || l.starts_with("- ") || l.starts_with("```")
+    })
 }
 
 // ---- JSON 高亮：键 syn-keyword、字符串 syn-string、数字/布尔 fg-60（Number token）、标点 fg-25 ----
@@ -171,12 +175,19 @@ fn highlight_json(text: &str, out: &mut StyledSpans) {
                 i = (i + 1).min(bytes.len());
                 // 字符串后跟冒号 → 键
                 let after = text[i..].trim_start();
-                let kind = if after.starts_with(':') { TokenKind::Keyword } else { TokenKind::Str };
+                let kind = if after.starts_with(':') {
+                    TokenKind::Keyword
+                } else {
+                    TokenKind::Str
+                };
                 out.spans.push((start, i, kind));
             }
             b'0'..=b'9' | b'-' => {
                 let start = i;
-                while i < bytes.len() && (bytes[i].is_ascii_digit() || matches!(bytes[i], b'.' | b'e' | b'E' | b'+' | b'-')) {
+                while i < bytes.len()
+                    && (bytes[i].is_ascii_digit()
+                        || matches!(bytes[i], b'.' | b'e' | b'E' | b'+' | b'-'))
+                {
                     i += 1;
                 }
                 out.spans.push((start, i, TokenKind::Number));
@@ -196,13 +207,19 @@ fn highlight_markup(text: &str, out: &mut StyledSpans) {
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start();
         if trimmed.starts_with('#') || trimmed.starts_with("<!--") {
-            out.spans.push((offset, offset + line.len(), TokenKind::Comment));
+            out.spans
+                .push((offset, offset + line.len(), TokenKind::Comment));
         } else if let Some(colon) = trimmed.find(": ") {
             let key_start = offset + (line.len() - line.trim_start().len());
-            out.spans.push((key_start, key_start + colon, TokenKind::Keyword));
+            out.spans
+                .push((key_start, key_start + colon, TokenKind::Keyword));
         } else if trimmed.starts_with('<') {
             if let Some(end) = trimmed.find('>') {
-                out.spans.push((offset + (line.len() - trimmed.len()), offset + (line.len() - trimmed.len()) + end + 1, TokenKind::Keyword));
+                out.spans.push((
+                    offset + (line.len() - trimmed.len()),
+                    offset + (line.len() - trimmed.len()) + end + 1,
+                    TokenKind::Keyword,
+                ));
             }
         }
         offset += line.len();
@@ -212,10 +229,52 @@ fn highlight_markup(text: &str, out: &mut StyledSpans) {
 // ---- 代码词法：四类 token（关键字表驱动；语言集外调用方不进本函数） ----
 fn highlight_code(text: &str, lang: &str, out: &mut StyledSpans) {
     let keywords: &[&str] = match lang {
-        "python" => &["def", "class", "import", "from", "return", "if", "else", "elif", "for", "while", "try", "except", "with", "as", "pass", "raise", "lambda", "not", "and", "or", "in", "is", "None", "True", "False"],
-        "shell" | "bat" => &["if", "then", "else", "fi", "for", "while", "do", "done", "case", "esac", "function", "export", "local", "return", "echo"],
-        "java" => &["public", "private", "protected", "class", "interface", "extends", "implements", "static", "final", "void", "return", "new", "import", "package", "try", "catch", "finally"],
-        "go" => &["func", "package", "import", "var", "const", "type", "struct", "interface", "return", "if", "else", "for", "range", "go", "defer", "chan"],
+        "python" => &[
+            "def", "class", "import", "from", "return", "if", "else", "elif", "for", "while",
+            "try", "except", "with", "as", "pass", "raise", "lambda", "not", "and", "or", "in",
+            "is", "None", "True", "False",
+        ],
+        "shell" | "bat" => &[
+            "if", "then", "else", "fi", "for", "while", "do", "done", "case", "esac", "function",
+            "export", "local", "return", "echo",
+        ],
+        "java" => &[
+            "public",
+            "private",
+            "protected",
+            "class",
+            "interface",
+            "extends",
+            "implements",
+            "static",
+            "final",
+            "void",
+            "return",
+            "new",
+            "import",
+            "package",
+            "try",
+            "catch",
+            "finally",
+        ],
+        "go" => &[
+            "func",
+            "package",
+            "import",
+            "var",
+            "const",
+            "type",
+            "struct",
+            "interface",
+            "return",
+            "if",
+            "else",
+            "for",
+            "range",
+            "go",
+            "defer",
+            "chan",
+        ],
         _ => &[],
     };
     let comment_prefix: &str = match lang {
@@ -227,14 +286,17 @@ fn highlight_code(text: &str, lang: &str, out: &mut StyledSpans) {
         let base = offset_of(text, line);
         let trimmed = line.trim_start();
         if trimmed.starts_with(comment_prefix) {
-            out.spans.push((base, base + line.len(), TokenKind::Comment));
+            out.spans
+                .push((base, base + line.len(), TokenKind::Comment));
             continue;
         }
         for (word_start, word) in words(line) {
             let abs = base + word_start;
             if keywords.contains(&word) {
                 out.spans.push((abs, abs + word.len(), TokenKind::Keyword));
-            } else if word.chars().all(|c| c.is_ascii_digit() || c == '.') && word.contains(|c: char| c.is_ascii_digit()) {
+            } else if word.chars().all(|c| c.is_ascii_digit() || c == '.')
+                && word.contains(|c: char| c.is_ascii_digit())
+            {
                 out.spans.push((abs, abs + word.len(), TokenKind::Number));
             } else if word.starts_with('"') || word.starts_with('\'') {
                 out.spans.push((abs, abs + word.len(), TokenKind::Str));
@@ -295,17 +357,29 @@ mod tests {
 
     fn detect(text: &str) -> TextFormat {
         let env = crate::framework::TestEnv::new();
-        let input = crate::ports::RawText { content: text.into(), hint: None };
+        let input = crate::ports::RawText {
+            content: text.into(),
+            hint: None,
+        };
         let mut out = TextFormat::Plain;
         let mut m = Metrics::default();
         let mut e = Evolution::default();
-        assert!(detect_format(&input, &mut out, &env.context(), &mut m, &mut e));
+        assert!(detect_format(
+            &input,
+            &mut out,
+            &env.context(),
+            &mut m,
+            &mut e
+        ));
         out
     }
 
     fn spans_of(text: &str, format: TextFormat) -> StyledSpans {
         let env = crate::framework::TestEnv::new();
-        let input = HighlightInput { text: text.into(), format };
+        let input = HighlightInput {
+            text: text.into(),
+            format,
+        };
         let mut out = StyledSpans::default();
         let mut m = Metrics::default();
         let mut e = Evolution::default();
@@ -316,7 +390,11 @@ mod tests {
     #[test]
     fn detect_json_yaml_xml_and_degrade() {
         assert_eq!(detect(r#"{"a": 1}"#), TextFormat::Json);
-        assert_eq!(detect("{broken json"), TextFormat::Plain, "解析失败降级纯文本");
+        assert_eq!(
+            detect("{broken json"),
+            TextFormat::Plain,
+            "解析失败降级纯文本"
+        );
         assert_eq!(detect("key: value\nother: 2"), TextFormat::Yaml);
         assert_eq!(detect("<root><a>1</a></root>"), TextFormat::Xml);
         assert_eq!(detect("# 标题\n- 列表"), TextFormat::Markdown);

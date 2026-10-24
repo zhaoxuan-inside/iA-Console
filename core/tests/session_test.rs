@@ -1,13 +1,15 @@
 //! 会话域集成测试（域 6）：真实 in-memory SQLite 上的复用/恢复/分段/钉住/env。
 
+use iac_core::framework::StorePort;
 use iac_core::framework::{Evolution, Metrics, TestEnv};
+use iac_core::ports::{MigrationAck, MigrationDir};
 use iac_core::session::store::{
     append_event, events_since_separator, get_or_create_current, list_sessions, pinned_notes,
     record_env, record_note, record_separator, resume_session, AppendEventInput, RecordAck,
 };
-use iac_core::session::{CurrentSessionInput, EventKind, SessionInfo, SessionListInput, SessionResumeInput};
-use iac_core::framework::StorePort;
-use iac_core::ports::{MigrationAck, MigrationDir};
+use iac_core::session::{
+    CurrentSessionInput, EventKind, SessionInfo, SessionListInput, SessionResumeInput,
+};
 use infra::storage::Storage;
 
 /// in-memory 库 + 迁移到最新 schema。
@@ -18,7 +20,13 @@ fn env_with_db() -> TestEnv {
     let mut m = Metrics::default();
     let mut e = Evolution::default();
     assert!(
-        store.storage_migrate(&MigrationDir::default(), &mut ack, &env.context(), &mut m, &mut e),
+        store.storage_migrate(
+            &MigrationDir::default(),
+            &mut ack,
+            &env.context(),
+            &mut m,
+            &mut e
+        ),
         "迁移失败: {e:?}"
     );
     env.with_store(Box::new(store))
@@ -26,8 +34,16 @@ fn env_with_db() -> TestEnv {
 
 fn new_session(env: &TestEnv, cwd: &str, m: &mut Metrics, e: &mut Evolution) -> SessionInfo {
     let mut out = SessionInfo::default();
-    let input = CurrentSessionInput { cwd: cwd.into(), shell: "bash".into(), host: "local".into(), title: None };
-    assert!(get_or_create_current(&input, &mut out, &env.context(), m, e), "evo={e:?}");
+    let input = CurrentSessionInput {
+        cwd: cwd.into(),
+        shell: "bash".into(),
+        host: "local".into(),
+        title: None,
+    };
+    assert!(
+        get_or_create_current(&input, &mut out, &env.context(), m, e),
+        "evo={e:?}"
+    );
     out
 }
 
@@ -42,11 +58,25 @@ fn create_reuse_and_resume_session() {
     let s3 = new_session(&env, "/opt", &mut m, &mut e);
     assert_ne!(s1.id, s3.id);
     let mut back = SessionInfo::default();
-    assert!(resume_session(&SessionResumeInput { session_id: s1.id.clone() }, &mut back, &env.context(), &mut m, &mut e));
+    assert!(resume_session(
+        &SessionResumeInput {
+            session_id: s1.id.clone()
+        },
+        &mut back,
+        &env.context(),
+        &mut m,
+        &mut e
+    ));
     assert_eq!(back.id, s1.id);
     assert_eq!(back.cwd, "/tmp");
     let mut list = Vec::new();
-    assert!(list_sessions(&SessionListInput { limit: 10 }, &mut list, &env.context(), &mut m, &mut e));
+    assert!(list_sessions(
+        &SessionListInput { limit: 10 },
+        &mut list,
+        &env.context(),
+        &mut m,
+        &mut e
+    ));
     assert_eq!(list.len(), 2);
 }
 
@@ -62,8 +92,16 @@ fn all_event_kinds_append_and_separator_truncates() {
     }
     let mut ack = RecordAck::default();
     assert!(append_event(
-        &AppendEventInput { session_id: sid.clone(), kind: EventKind::Command, payload: serde_json::json!({"command":"ls"}), pinned: false },
-        &mut ack, &ctx, &mut m, &mut e
+        &AppendEventInput {
+            session_id: sid.clone(),
+            kind: EventKind::Command,
+            payload: serde_json::json!({"command":"ls"}),
+            pinned: false
+        },
+        &mut ack,
+        &ctx,
+        &mut m,
+        &mut e
     ));
     assert!(record_separator(&sid, &ctx, &mut m, &mut e));
     assert!(record_note(&sid, "after", false, &ctx, &mut m, &mut e));
@@ -88,6 +126,12 @@ fn env_declaration_updates_session() {
     assert!(record_env(&sid, "FOO", "bar", &ctx, &mut m, &mut e));
     assert!(record_env(&sid, "FOO", "baz", &ctx, &mut m, &mut e));
     let mut back = SessionInfo::default();
-    assert!(resume_session(&SessionResumeInput { session_id: sid }, &mut back, &ctx, &mut m, &mut e));
+    assert!(resume_session(
+        &SessionResumeInput { session_id: sid },
+        &mut back,
+        &ctx,
+        &mut m,
+        &mut e
+    ));
     assert_eq!(back.env, vec![("FOO".into(), "baz".into())]);
 }

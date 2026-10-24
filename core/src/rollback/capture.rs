@@ -1,9 +1,9 @@
 //! I-035 capture_pre_image（orchestration）：执行前统一捕获前像 → manifest 入快照仓库。
 
 use super::{resolve_roots, CaptureScope, ManifestDoc};
-use crate::types::ManifestRef;
 use crate::framework::{Context, Evolution, Metrics};
 use crate::ports::{CaptureTreeInput, SnapshotData};
+use crate::types::ManifestRef;
 
 /// 执行前捕获前像：按配置圈定范围 → 指纹+内容入快照仓库 → manifest 落库取引用。
 /// 回滚关闭/范围为空时输出空 manifest_ref（调用方据此跳过 diff）。
@@ -31,11 +31,18 @@ pub fn capture_pre_image(
     let mut files = Vec::new();
     let tree_in = CaptureTreeInput {
         roots: roots.iter().map(std::path::PathBuf::from).collect(),
-        excludes: super::CAPTURE_EXCLUDES.iter().map(|s| s.to_string()).collect(),
+        excludes: super::CAPTURE_EXCLUDES
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
         max_file_bytes: super::CAPTURE_MAX_FILE_BYTES,
         max_total_bytes: super::CAPTURE_MAX_TOTAL_BYTES,
     };
-    if !context.deps.snap.capture_tree(&tree_in, &mut files, context, metrics, evolution) {
+    if !context
+        .deps
+        .snap
+        .capture_tree(&tree_in, &mut files, context, metrics, evolution)
+    {
         evolution.propagate("capture_pre_image", "目录捕获失败");
         return false;
     }
@@ -52,11 +59,13 @@ pub fn capture_pre_image(
         }
     };
     let mut cref = crate::ports::ContentRef::default();
-    if !context
-        .deps
-        .snap
-        .snapstore_put(&SnapshotData { bytes: body }, &mut cref, context, metrics, evolution)
-    {
+    if !context.deps.snap.snapstore_put(
+        &SnapshotData { bytes: body },
+        &mut cref,
+        context,
+        metrics,
+        evolution,
+    ) {
         evolution.propagate("capture_pre_image", "manifest 入库失败");
         return false;
     }
@@ -92,7 +101,11 @@ mod tests {
         let mut evo = Evolution::default();
         let mut m = Metrics::default();
         assert!(capture_pre_image(
-            &CaptureScope { execution_hint: "e1".into(), cwd: "/tmp".into(), ..Default::default() },
+            &CaptureScope {
+                execution_hint: "e1".into(),
+                cwd: "/tmp".into(),
+                ..Default::default()
+            },
             &mut out,
             &env.context(),
             &mut m,
@@ -108,7 +121,11 @@ mod tests {
         let mut evo = Evolution::default();
         let mut m = Metrics::default();
         assert!(capture_pre_image(
-            &CaptureScope { execution_hint: "e2".into(), cwd: "/nonexistent-iac-dir".into(), ..Default::default() },
+            &CaptureScope {
+                execution_hint: "e2".into(),
+                cwd: "/nonexistent-iac-dir".into(),
+                ..Default::default()
+            },
             &mut out,
             &env.context(),
             &mut m,

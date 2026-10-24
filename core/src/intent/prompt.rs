@@ -66,7 +66,10 @@ fn system_prompt(platform: &str) -> String {
 /// 用户提示：意图 + 上下文注入（Q20）+ 知识 grounding。
 fn user_prompt(input: &IntentPromptInput) -> String {
     let ctx = &input.context;
-    let mut parts = vec![format!("意图：{}", input.intent), format!("工作目录：{}", ctx.cwd)];
+    let mut parts = vec![
+        format!("意图：{}", input.intent),
+        format!("工作目录：{}", ctx.cwd),
+    ];
     if !ctx.shell.is_empty() {
         parts.push(format!("Shell：{}", ctx.shell));
     }
@@ -113,8 +116,17 @@ mod tests {
             },
             knowledge: None,
         };
-        assert!(build_intent_prompt(&input, &mut out, &env.context(), &mut m, &mut e));
-        assert!(out.system.contains("candidates"), "system 必须要求多候选（Q17）");
+        assert!(build_intent_prompt(
+            &input,
+            &mut out,
+            &env.context(),
+            &mut m,
+            &mut e
+        ));
+        assert!(
+            out.system.contains("candidates"),
+            "system 必须要求多候选（Q17）"
+        );
         assert!(out.system.contains("conventional"), "排序标记（Q23）");
         assert!(out.user.contains("钉住备注"), "注入透明面（Q20/Q33）");
         assert!(out.user.contains("近期执行"));

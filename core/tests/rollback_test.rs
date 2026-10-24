@@ -33,17 +33,36 @@ impl Fixture {
         let mut ack = MigrationAck::default();
         let mut evo = Evolution::default();
         let mut m = Metrics::default();
-        assert!(env.deps.store.storage_migrate(&MigrationDir {}, &mut ack, &env.context(), &mut m, &mut evo));
+        assert!(env.deps.store.storage_migrate(
+            &MigrationDir {},
+            &mut ack,
+            &env.context(),
+            &mut m,
+            &mut evo
+        ));
         // 供引用的会话
         let mut info = iac_core::session::SessionInfo::default();
         assert!(iac_core::session::store::get_or_create_current(
-            &iac_core::session::CurrentSessionInput { cwd: "/tmp".into(), shell: "sh".into(), host: "t".into(), title: None },
-            &mut info, &env.context(), &mut m, &mut evo,
+            &iac_core::session::CurrentSessionInput {
+                cwd: "/tmp".into(),
+                shell: "sh".into(),
+                host: "t".into(),
+                title: None
+            },
+            &mut info,
+            &env.context(),
+            &mut m,
+            &mut evo,
         ));
         env.session.session_id = info.id.clone();
         let work = data.join("work");
         std::fs::create_dir_all(&work).unwrap();
-        Self { env, work, sess_id: info.id, _guard: guard }
+        Self {
+            env,
+            work,
+            sess_id: info.id,
+            _guard: guard,
+        }
     }
 
     fn cwd(&self) -> String {
@@ -61,16 +80,41 @@ impl Fixture {
         let mut ack = ExecuteAck::default();
         let mut evo = Evolution::default();
         let mut m = Metrics::default();
-        assert!(self.env.deps.store.storage_execute(&q, &mut ack, &self.env.context(), &mut m, &mut evo));
+        assert!(self.env.deps.store.storage_execute(
+            &q,
+            &mut ack,
+            &self.env.context(),
+            &mut m,
+            &mut evo
+        ));
         let mut rows = QueryRows::default();
-        let sel = SqlQuery { sql: "SELECT id FROM executions WHERE rowid=?".into(), params: vec![SqlValue::Int(ack.last_rowid)] };
-        assert!(self.env.deps.store.storage_query(&sel, &mut rows, &self.env.context(), &mut m, &mut evo));
+        let sel = SqlQuery {
+            sql: "SELECT id FROM executions WHERE rowid=?".into(),
+            params: vec![SqlValue::Int(ack.last_rowid)],
+        };
+        assert!(self.env.deps.store.storage_query(
+            &sel,
+            &mut rows,
+            &self.env.context(),
+            &mut m,
+            &mut evo
+        ));
         rows.text(0, "id").unwrap().to_string()
     }
 
     /// 模拟"命令已执行"：捕获前像 → 改文件 → diff 入账（等价 executor 的 post_diff 流程）。
-    fn run_tracked(&self, exec_id: &str, mutate: impl FnOnce()) -> Vec<iac_core::types::EffectEntry> {
-        let manifest = iac_core::rollback::pre_capture(&self.cwd(), &self.env.context(), &mut Metrics::default(), &mut Evolution::default()).expect("捕获");
+    fn run_tracked(
+        &self,
+        exec_id: &str,
+        mutate: impl FnOnce(),
+    ) -> Vec<iac_core::types::EffectEntry> {
+        let manifest = iac_core::rollback::pre_capture(
+            &self.cwd(),
+            &self.env.context(),
+            &mut Metrics::default(),
+            &mut Evolution::default(),
+        )
+        .expect("捕获");
         mutate();
         if manifest.manifest_ref.is_empty() {
             return Vec::new();
@@ -78,13 +122,22 @@ impl Fixture {
         let mut m = manifest;
         m.execution_id = exec_id.to_string();
         let mut effects = Vec::new();
-        assert!(iac_core::rollback::diff_effects(&m, &mut effects, &self.env.context(), &mut Metrics::default(), &mut Evolution::default()));
+        assert!(iac_core::rollback::diff_effects(
+            &m,
+            &mut effects,
+            &self.env.context(),
+            &mut Metrics::default(),
+            &mut Evolution::default()
+        ));
         effects
     }
 }
 
 fn uuid_hex() -> String {
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     format!("e-{n:032x}")
 }
 
@@ -95,17 +148,31 @@ fn capture_diff_journal_full_cycle() {
     std::fs::write(fx.work.join("a.txt"), b"v1").unwrap();
     std::fs::write(fx.work.join("keep.txt"), b"same").unwrap();
     // 第一次：捕获基线（无变化无条目）
-    let mut m0 = iac_core::rollback::pre_capture(&fx.cwd(), &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()).unwrap();
+    let mut m0 = iac_core::rollback::pre_capture(
+        &fx.cwd(),
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
+    )
+    .unwrap();
     m0.execution_id = "e-base".into();
     let mut none = Vec::new();
-    assert!(iac_core::rollback::diff_effects(&m0, &mut none, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()));
+    assert!(iac_core::rollback::diff_effects(
+        &m0,
+        &mut none,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default()
+    ));
     // 第二次：created + modified
     let effects = fx.run_tracked(&exec, || {
         std::fs::write(fx.work.join("a.txt"), b"v2").unwrap();
         std::fs::write(fx.work.join("b.txt"), b"new").unwrap();
     });
     assert_eq!(effects.len(), 2, "created b.txt + modified a.txt");
-    assert!(effects.iter().all(|e| e.scope == iac_core::types::CaptureScopeFlag::In));
+    assert!(effects
+        .iter()
+        .all(|e| e.scope == iac_core::types::CaptureScopeFlag::In));
     let exec2 = fx.seed_exec("touch keep.txt");
     let effects2 = fx.run_tracked(&exec2, || {});
     assert!(effects2.is_empty(), "无变化无条目");
@@ -122,12 +189,24 @@ fn replay_rollback_created_moves_to_trash() {
     let seq = effects[0].seq;
     let mut report = iac_core::types::RollbackReport::default();
     let req = iac_core::types::RollbackRequest {
-        range: iac_core::types::RollbackRange { from: None, to: Some(seq - 1) },
+        range: iac_core::types::RollbackRange {
+            from: None,
+            to: Some(seq - 1),
+        },
         on_conflict: iac_core::types::ConflictPolicy::Skip,
     };
-    assert!(iac_core::rollback::rollback_to(&req, &mut report, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()));
+    assert!(iac_core::rollback::rollback_to(
+        &req,
+        &mut report,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default()
+    ));
     assert_eq!(report.applied.len(), 1);
-    assert!(!fx.work.join("b.txt").exists(), "created 撤销后文件入回收站");
+    assert!(
+        !fx.work.join("b.txt").exists(),
+        "created 撤销后文件入回收站"
+    );
     assert!(report.trash_dir.contains("trash"));
 }
 
@@ -141,11 +220,24 @@ fn replay_modified_restores_previous_content() {
     });
     let mut report = iac_core::types::RollbackReport::default();
     let req = iac_core::types::RollbackRequest {
-        range: iac_core::types::RollbackRange { from: None, to: None },
+        range: iac_core::types::RollbackRange {
+            from: None,
+            to: None,
+        },
         on_conflict: iac_core::types::ConflictPolicy::Skip,
     };
-    assert!(iac_core::rollback::rollback_to(&req, &mut report, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()));
-    assert_eq!(std::fs::read(fx.work.join("a.txt")).unwrap(), b"v1", "modified 撤销恢复前像");
+    assert!(iac_core::rollback::rollback_to(
+        &req,
+        &mut report,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default()
+    ));
+    assert_eq!(
+        std::fs::read(fx.work.join("a.txt")).unwrap(),
+        b"v1",
+        "modified 撤销恢复前像"
+    );
 }
 
 #[test]
@@ -160,17 +252,35 @@ fn replay_conflict_policy() {
     std::fs::write(fx.work.join("c.txt"), b"manual").unwrap();
     let mut report = iac_core::types::RollbackReport::default();
     let req = iac_core::types::RollbackRequest {
-        range: iac_core::types::RollbackRange { from: None, to: None },
+        range: iac_core::types::RollbackRange {
+            from: None,
+            to: None,
+        },
         on_conflict: iac_core::types::ConflictPolicy::Abort,
     };
-    assert!(iac_core::rollback::rollback_to(&req, &mut report, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()));
+    assert!(iac_core::rollback::rollback_to(
+        &req,
+        &mut report,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default()
+    ));
     assert!(report.applied.is_empty());
     let mut report2 = iac_core::types::RollbackReport::default();
     let req2 = iac_core::types::RollbackRequest {
-        range: iac_core::types::RollbackRange { from: None, to: None },
+        range: iac_core::types::RollbackRange {
+            from: None,
+            to: None,
+        },
         on_conflict: iac_core::types::ConflictPolicy::Skip,
     };
-    assert!(iac_core::rollback::rollback_to(&req2, &mut report2, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()));
+    assert!(iac_core::rollback::rollback_to(
+        &req2,
+        &mut report2,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default()
+    ));
     assert!(report2.applied.is_empty() && report2.skipped.len() == 1);
     assert!(report2.skipped[0].reason.contains("IAC-1603"));
 }
@@ -187,11 +297,24 @@ fn replay_deleted_recreates_file() {
     assert!(matches!(effects[0].op, iac_core::types::EffectOp::Deleted));
     let mut report = iac_core::types::RollbackReport::default();
     let req = iac_core::types::RollbackRequest {
-        range: iac_core::types::RollbackRange { from: None, to: None },
+        range: iac_core::types::RollbackRange {
+            from: None,
+            to: None,
+        },
         on_conflict: iac_core::types::ConflictPolicy::Skip,
     };
-    assert!(iac_core::rollback::rollback_to(&req, &mut report, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default()));
-    assert_eq!(std::fs::read(fx.work.join("d.txt")).unwrap(), b"before-delete", "deleted 撤销重建前像");
+    assert!(iac_core::rollback::rollback_to(
+        &req,
+        &mut report,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default()
+    ));
+    assert_eq!(
+        std::fs::read(fx.work.join("d.txt")).unwrap(),
+        b"before-delete",
+        "deleted 撤销重建前像"
+    );
 }
 
 #[test]
@@ -210,33 +333,68 @@ fn list_and_file_history_and_restore() {
     });
     let mut points = Vec::new();
     assert!(iac_core::rollback::list_rollback_points(
-        &iac_core::types::RollbackListFilter { q: None, since: None, limit: 50 },
-        &mut points, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &iac_core::types::RollbackListFilter {
+            q: None,
+            since: None,
+            limit: 50
+        },
+        &mut points,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(points.len(), 2, "两个执行点");
-    assert!(points.iter().all(|p| matches!(p.rollbackable, iac_core::types::Rollbackable::Full)));
+    assert!(points
+        .iter()
+        .all(|p| matches!(p.rollbackable, iac_core::types::Rollbackable::Full)));
     let mut filtered = Vec::new();
     assert!(iac_core::rollback::list_rollback_points(
-        &iac_core::types::RollbackListFilter { q: Some("step1".into()), since: None, limit: 50 },
-        &mut filtered, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &iac_core::types::RollbackListFilter {
+            q: Some("step1".into()),
+            since: None,
+            limit: 50
+        },
+        &mut filtered,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(filtered.len(), 1, "q 过滤命中 step1");
     // 文件版本链：v1（step1 后）+ v2（step2 后）
     let mut versions = Vec::new();
     assert!(iac_core::rollback::file_history(
-        &iac_core::rollback::FilePath { path: fx.work.join("a.txt").to_string_lossy().to_string() },
-        &mut versions, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &iac_core::rollback::FilePath {
+            path: fx.work.join("a.txt").to_string_lossy().to_string()
+        },
+        &mut versions,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(versions.len(), 2);
     // 恢复到 step1 后的版本（v1）
     let target = versions[0].seq;
-    let mut report = iac_core::types::RestoreReport { path: String::new(), restored_from: 0, gate: Default::default() };
+    let mut report = iac_core::types::RestoreReport {
+        path: String::new(),
+        restored_from: 0,
+        gate: Default::default(),
+    };
     assert!(iac_core::rollback::restore_file(
-        &iac_core::types::FileVersionRef { path: fx.work.join("a.txt").to_string_lossy().to_string(), seq: target },
-        &mut report, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &iac_core::types::FileVersionRef {
+            path: fx.work.join("a.txt").to_string_lossy().to_string(),
+            seq: target
+        },
+        &mut report,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(report.restored_from, target);
-    assert_eq!(std::fs::read(fx.work.join("a.txt")).unwrap(), b"v1", "恢复到 v1 版本内容");
+    assert_eq!(
+        std::fs::read(fx.work.join("a.txt")).unwrap(),
+        b"v1",
+        "恢复到 v1 版本内容"
+    );
 }
 
 #[test]
@@ -252,8 +410,15 @@ fn max_entries_retires_oldest_points() {
     }
     let mut points = Vec::new();
     assert!(iac_core::rollback::list_rollback_points(
-        &iac_core::types::RollbackListFilter { q: None, since: None, limit: 100 },
-        &mut points, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &iac_core::types::RollbackListFilter {
+            q: None,
+            since: None,
+            limit: 100
+        },
+        &mut points,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(points.len(), 2, "超限清退最旧执行点（保留最新 2 个）");
 }
@@ -266,44 +431,77 @@ fn collect_range_and_make_and_run_script() {
     fx.seed_exec("pwd");
     let mut cmds = Vec::new();
     assert!(iac_core::script::collect_commands(
-        &iac_core::script::CollectRange { segment_id: None, from_seq: None, to_seq: None },
-        &mut cmds, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &iac_core::script::CollectRange {
+            segment_id: None,
+            from_seq: None,
+            to_seq: None
+        },
+        &mut cmds,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(cmds.len(), 3);
     let mut out = iac_core::script::ScriptMakeOutput::default();
     assert!(iac_core::script::make_script(
         &iac_core::script::ScriptMakeInput {
             name: "build-all".into(),
-            from_seq: None, to_seq: None,
+            from_seq: None,
+            to_seq: None,
             segment: None,
             target: iac_core::common::script_assembler::ScriptTarget::Sh,
             refine: false,
             description: None,
         },
-        &mut out, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &mut out,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     assert_eq!(out.command_count, 3);
     assert_eq!(out.max_risk, iac_core::types::RiskLevel::Safe);
     let body = out.sh_body.expect("sh 正文");
-    assert!(body.contains("set -euo pipefail") && body.contains("echo one") && body.contains("pwd"));
+    assert!(
+        body.contains("set -euo pipefail") && body.contains("echo one") && body.contains("pwd")
+    );
     // 重复注册同名 → 失败（name 全局唯一）
     let mut dup = iac_core::script::ScriptMakeOutput::default();
     assert!(!iac_core::script::make_script(
         &iac_core::script::ScriptMakeInput {
             name: "build-all".into(),
-            from_seq: None, to_seq: None, segment: None,
+            from_seq: None,
+            to_seq: None,
+            segment: None,
             target: iac_core::common::script_assembler::ScriptTarget::Sh,
-            refine: false, description: None,
+            refine: false,
+            description: None,
         },
-        &mut dup, &fx.env.context(), &mut Metrics::default(), &mut Evolution::default(),
+        &mut dup,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
     ));
     // run @build-all：走闸门与记录（真实进程）
     let mut outcome = iac_core::executor::ExecutionOutcome::default();
     let mut run_evo = Evolution::default();
     assert!(iac_core::script::run_script(
-        &iac_core::script::ScriptRunInput { name: "build-all".into(), args: vec![], confirm_dangerous: false, confirm_word: None },
-        &mut outcome, &fx.env.context(), &mut Metrics::default(), &mut run_evo,
+        &iac_core::script::ScriptRunInput {
+            name: "build-all".into(),
+            args: vec![],
+            confirm_dangerous: false,
+            confirm_word: None
+        },
+        &mut outcome,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut run_evo,
     ));
-    eprintln!("DEBUG run: exit={:?} status={:?} reason={:?} {}", outcome.exit_code, outcome.status, run_evo.reason_code, run_evo.reason.as_deref().unwrap_or(""));
+    eprintln!(
+        "DEBUG run: exit={:?} status={:?} reason={:?} {}",
+        outcome.exit_code,
+        outcome.status,
+        run_evo.reason_code,
+        run_evo.reason.as_deref().unwrap_or("")
+    );
     assert_eq!(outcome.exit_code, Some(0));
 }

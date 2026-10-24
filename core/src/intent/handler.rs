@@ -40,12 +40,25 @@ pub fn handle_ask(
     // 上下文注入（Q20）：段内最近命令 + 对话轨 + 钉住备注
     let inject = build_inject_context(&session.id, input, platform, context, metrics, evolution);
     let knowledge = lookup_for_ask(input, platform, context, metrics, evolution);
-    let Some(parsed) = generate_checked_candidates(input, &inject, knowledge.as_ref(), context, metrics, evolution)
-    else {
+    let Some(parsed) = generate_checked_candidates(
+        input,
+        &inject,
+        knowledge.as_ref(),
+        context,
+        metrics,
+        evolution,
+    ) else {
         evolution.propagate("handle_ask", "生成提案失败");
         return false;
     };
-    let mut proposal = assemble_proposal(input, &session.id, parsed, knowledge.is_some(), platform, &inject);
+    let mut proposal = assemble_proposal(
+        input,
+        &session.id,
+        parsed,
+        knowledge.is_some(),
+        platform,
+        &inject,
+    );
     persist_proposal(&mut proposal, &session.id, context, metrics, evolution);
     *output = proposal;
     true
@@ -68,7 +81,12 @@ fn build_inject_context(
         recent = seg_events
             .iter()
             .filter(|e| e.kind == EventKind::Command)
-            .filter_map(|e| e.payload.get("command").and_then(|c| c.as_str()).map(str::to_string))
+            .filter_map(|e| {
+                e.payload
+                    .get("command")
+                    .and_then(|c| c.as_str())
+                    .map(str::to_string)
+            })
             .rev()
             .take(10)
             .collect::<Vec<_>>();
@@ -123,7 +141,13 @@ fn persist_proposal(
             }),
             pinned: false,
         };
-        let _ = append_event(&event, &mut RecordAck::default(), context, metrics, evolution);
+        let _ = append_event(
+            &event,
+            &mut RecordAck::default(),
+            context,
+            metrics,
+            evolution,
+        );
     }
     metrics.counter("ask.completed", 1);
 }
@@ -139,7 +163,11 @@ fn assemble_proposal(
 ) -> Proposal {
     // 排序：惯例优先，其次低风险；频率（方案库使用计数）作为第三键
     for c in &mut parsed.candidates {
-        c.explanation.summary = if c.summary.is_empty() { c.explanation.summary.clone() } else { c.summary.clone() };
+        c.explanation.summary = if c.summary.is_empty() {
+            c.explanation.summary.clone()
+        } else {
+            c.summary.clone()
+        };
     }
     parsed.candidates.sort_by(|a, b| {
         b.conventional
@@ -171,10 +199,15 @@ fn generate_checked_candidates(
     evolution: &mut Evolution,
 ) -> Option<ParsedCandidates> {
     let provider = default_provider(context.config);
-    let parsed = generate_candidates(input, inject, knowledge, &provider, context, metrics, evolution)?;
+    let parsed = generate_candidates(
+        input, inject, knowledge, &provider, context, metrics, evolution,
+    )?;
     if let Some(k) = knowledge {
         if violates_known_params(&parsed.candidates, k) {
-            evolution.fail(crate::error::codes::AI_PARSE, "提案包含知识库未注册的参数（grounding 拒绝）");
+            evolution.fail(
+                crate::error::codes::AI_PARSE,
+                "提案包含知识库未注册的参数（grounding 拒绝）",
+            );
             return None;
         }
     }
@@ -209,11 +242,18 @@ fn generate_candidates(
             timeout_ms: 30_000,
         };
         let mut resp = LlmResponse::default();
-        if !context.deps.ai.ai_complete(provider, &ai_in, &mut resp, context, metrics, evolution) {
+        if !context
+            .deps
+            .ai
+            .ai_complete(provider, &ai_in, &mut resp, context, metrics, evolution)
+        {
             evolution.propagate("generate_candidates", "AI 调用失败");
             return None;
         }
-        let mut out = ParsedCandidates { candidates: vec![], raw: resp.text.clone() };
+        let mut out = ParsedCandidates {
+            candidates: vec![],
+            raw: resp.text.clone(),
+        };
         if parse_proposal_response(&resp, &mut out, context, metrics, evolution) {
             return Some(out);
         }
@@ -237,7 +277,11 @@ pub fn handle_explain(
 ) -> bool {
     evolution.succeed();
     let platform = Platform::detect();
-    let cref = CommandRef { command: input.command.clone(), platform, source_hash: None };
+    let cref = CommandRef {
+        command: input.command.clone(),
+        platform,
+        source_hash: None,
+    };
     let mut cached = None;
     if !lookup_knowledge(&cref, &mut cached, context, metrics, evolution) {
         evolution.propagate("handle_explain", "查询知识失败");
@@ -272,10 +316,16 @@ fn knowledge_from_help(
         timeout_ms: 5_000,
     };
     let mut result = crate::ports::ProcessResult::default();
-    if !context.deps.process.spawn_process(&spec, &mut result, context, metrics, evolution)
+    if !context
+        .deps
+        .process
+        .spawn_process(&spec, &mut result, context, metrics, evolution)
         || result.exit_code != Some(0)
     {
-        evolution.fail(crate::error::codes::DIAGNOSE, format!("命令 {} 无法解释（--help 不可得）", input.command));
+        evolution.fail(
+            crate::error::codes::DIAGNOSE,
+            format!("命令 {} 无法解释（--help 不可得）", input.command),
+        );
         return None;
     }
     let help = crate::common::help_parser::HelpText {
@@ -334,7 +384,11 @@ fn ai_explain_fallback(
         timeout_ms: 30_000,
     };
     let mut resp = LlmResponse::default();
-    if !context.deps.ai.ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution) {
+    if !context
+        .deps
+        .ai
+        .ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution)
+    {
         evolution.propagate("ai_explain_fallback", "AI 补全失败");
         return false;
     }
@@ -347,7 +401,11 @@ fn ai_explain_fallback(
         platform,
         subcommands: vec![],
         params: params.clone(),
-        source_hash: crate::common::hash::fnv1a64_hex(&format!("ai:{},{}", input.command, resp.text.len())),
+        source_hash: crate::common::hash::fnv1a64_hex(&format!(
+            "ai:{},{}",
+            input.command,
+            resp.text.len()
+        )),
         verified: false,
     };
     let mut ack = KnowledgeAck::default();
@@ -355,7 +413,11 @@ fn ai_explain_fallback(
         evolution.propagate("ai_explain_fallback", "写缓存失败");
         return false;
     }
-    *output = ParamSpecDoc { params, impact: String::new(), summary };
+    *output = ParamSpecDoc {
+        params,
+        impact: String::new(),
+        summary,
+    };
     true
 }
 
@@ -363,7 +425,10 @@ fn ai_explain_fallback(
 fn validate_intent(input: &AskInput, evolution: &mut Evolution) -> bool {
     let ok = !input.intent.trim().is_empty() && input.intent.chars().count() <= 2000;
     if !ok {
-        evolution.fail(crate::error::codes::INTENT_INVALID, "意图为空或超过 2000 字符");
+        evolution.fail(
+            crate::error::codes::INTENT_INVALID,
+            "意图为空或超过 2000 字符",
+        );
     }
     ok
 }
@@ -401,14 +466,21 @@ fn lookup_for_ask(
     if first.is_empty() {
         return None;
     }
-    let cref = CommandRef { command: first.to_string(), platform, source_hash: None };
+    let cref = CommandRef {
+        command: first.to_string(),
+        platform,
+        source_hash: None,
+    };
     let mut found = None;
     let _ = lookup_knowledge(&cref, &mut found, context, metrics, evolution);
     found
 }
 
 /// grounding 校验：知识命中时，提案参数必须为已注册参数子集（AC-01 可信来源）。
-fn violates_known_params(candidates: &[Candidate], knowledge: &crate::knowledge::CommandKnowledge) -> bool {
+fn violates_known_params(
+    candidates: &[Candidate],
+    knowledge: &crate::knowledge::CommandKnowledge,
+) -> bool {
     if knowledge.params.is_empty() {
         return false;
     }

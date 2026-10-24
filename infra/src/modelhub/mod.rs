@@ -76,7 +76,10 @@ pub fn modelhub_install(
 ) -> bool {
     evolution.succeed();
     let start = Instant::now();
-    let base = input.base_url.clone().unwrap_or_else(|| input.source.default_base().to_string());
+    let base = input
+        .base_url
+        .clone()
+        .unwrap_or_else(|| input.source.default_base().to_string());
     let Some(client) = build_client(evolution) else {
         return false; // evolution 已写明 IAC-1402
     };
@@ -89,15 +92,34 @@ pub fn modelhub_install(
         }
     };
     // 2) 安装目录
-    let dir = input.install_dir.clone().unwrap_or_else(default_plugins_dir).join(&input.plugin_id);
+    let dir = input
+        .install_dir
+        .clone()
+        .unwrap_or_else(default_plugins_dir)
+        .join(&input.plugin_id);
     // 3) 逐文件下载校验
-    let Some((files, total)) = install_files(&client, &base, &input.plugin_id, &dir, &manifest, evolution) else {
+    let Some((files, total)) =
+        install_files(&client, &base, &input.plugin_id, &dir, &manifest, evolution)
+    else {
         return false; // evolution 已写明 IAC-1402
     };
     // 4) 注册
     let mut reg_evo = Evolution::default();
-    if !register_plugin(input, &manifest.name, &manifest.engine, &manifest.model, &files_json(&manifest), total, context, metrics, &mut reg_evo) {
-        evolution.fail("IAC-3102", format!("插件注册失败: {}", reg_evo.reason.unwrap_or_default()));
+    if !register_plugin(
+        input,
+        &manifest.name,
+        &manifest.engine,
+        &manifest.model,
+        &files_json(&manifest),
+        total,
+        context,
+        metrics,
+        &mut reg_evo,
+    ) {
+        evolution.fail(
+            "IAC-3102",
+            format!("插件注册失败: {}", reg_evo.reason.unwrap_or_default()),
+        );
         return false;
     }
     output.plugin_id = input.plugin_id.clone();
@@ -121,7 +143,11 @@ pub fn modelhub_list(
         sql: "SELECT id, name, engine, model, total_size, status, installed_at FROM model_plugins ORDER BY installed_at DESC".into(),
         params: vec![],
     };
-    if !context.deps.store.storage_query(&q, output, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, output, context, metrics, evolution)
+    {
         evolution.propagate("modelhub_list", "查询插件列表失败");
         return false;
     }
@@ -140,7 +166,14 @@ fn build_client(evolution: &mut Evolution) -> Option<reqwest::blocking::Client> 
 
 /// 清单 files → JSON 字符串（注册行用）。
 fn files_json(manifest: &Manifest) -> String {
-    serde_json::to_string(&manifest.files.iter().map(|(p, s, sz)| serde_json::json!({"path": p, "sha256": s, "size": sz})).collect::<Vec<_>>()).unwrap_or_default()
+    serde_json::to_string(
+        &manifest
+            .files
+            .iter()
+            .map(|(p, s, sz)| serde_json::json!({"path": p, "sha256": s, "size": sz}))
+            .collect::<Vec<_>>(),
+    )
+    .unwrap_or_default()
 }
 
 /// 逐文件下载校验（modelhub_install 子步骤）；失败返回 None。
@@ -156,7 +189,8 @@ fn install_files(
     let mut total: u64 = 0;
     for (path, sha, _size) in &manifest.files {
         let dest = dir.join(path);
-        let Ok(bytes) = download_verify(client, &file_url(base, plugin_id, path), &dest, sha) else {
+        let Ok(bytes) = download_verify(client, &file_url(base, plugin_id, path), &dest, sha)
+        else {
             evolution.fail("IAC-1402", format!("文件 {path} 下载校验失败"));
             return None;
         };
@@ -167,7 +201,10 @@ fn install_files(
 }
 
 fn fetch_manifest(client: &reqwest::blocking::Client, url: &str) -> Result<Manifest, String> {
-    let resp = client.get(url).send().map_err(|e| format!("清单下载失败: {e}"))?;
+    let resp = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("清单下载失败: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("清单下载失败: HTTP {}", resp.status()));
     }
@@ -194,13 +231,21 @@ fn fetch_manifest(client: &reqwest::blocking::Client, url: &str) -> Result<Manif
 }
 
 /// 下载单文件（断点续传：存在部分文件则带 Range 续传），sha256 强校验。
-fn download_verify(client: &reqwest::blocking::Client, url: &str, dest: &std::path::Path, sha256: &str) -> Result<u64, String> {
+fn download_verify(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    dest: &std::path::Path,
+    sha256: &str,
+) -> Result<u64, String> {
     if let Ok(existing) = std::fs::read(dest) {
         if sha256_hex(&existing) == sha256 {
             return Ok(existing.len() as u64); // 已完整，跳过
         }
     }
-    let resp = client.get(url).send().map_err(|e| format!("下载失败: {e}"))?;
+    let resp = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("下载失败: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -212,7 +257,8 @@ fn download_verify(client: &reqwest::blocking::Client, url: &str, dest: &std::pa
         std::fs::create_dir_all(dir).map_err(|e| format!("创建目录失败: {e}"))?;
     }
     let mut f = std::fs::File::create(dest).map_err(|e| format!("写文件失败: {e}"))?;
-    f.write_all(&bytes).map_err(|e| format!("写文件失败: {e}"))?;
+    f.write_all(&bytes)
+        .map_err(|e| format!("写文件失败: {e}"))?;
     Ok(bytes.len() as u64)
 }
 
@@ -225,12 +271,25 @@ fn sha256_hex(data: &[u8]) -> String {
 
 /// 缺省插件安装根：~/.local/share/iac/plugins。
 fn default_plugins_dir() -> PathBuf {
-    dirs::data_dir().unwrap_or_else(|| PathBuf::from("/tmp")).join("iac").join("plugins")
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join("iac")
+        .join("plugins")
 }
 
 /// 注册插件行（幂等 upsert）。
 #[allow(clippy::too_many_arguments)]
-fn register_plugin(input: &PluginRef, name: &str, engine: &str, model: &str, files_json: &str, total: u64, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) -> bool {
+fn register_plugin(
+    input: &PluginRef,
+    name: &str,
+    engine: &str,
+    model: &str,
+    files_json: &str,
+    total: u64,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> bool {
     let id = &input.plugin_id;
     let q = SqlQuery {
         sql: "INSERT INTO model_plugins (id, name, engine, model, files, total_size, status, source, installed_at) \
@@ -248,7 +307,11 @@ fn register_plugin(input: &PluginRef, name: &str, engine: &str, model: &str, fil
         ],
     };
     let mut ack = ExecuteAck::default();
-    if !context.deps.store.storage_execute(&q, &mut ack, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_execute(&q, &mut ack, context, metrics, evolution)
+    {
         evolution.propagate("register_plugin", "注册插件失败");
         return false;
     }

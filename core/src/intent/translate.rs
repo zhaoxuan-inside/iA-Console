@@ -1,11 +1,13 @@
 //! I-033：跨方言翻译编排（AC-19/20/23/24）。链路：内置表（零 AI）→ 缓存 → AI 翻译/组合 → 回写。
 //! 组合规划自增长：AI 组合脚本入方案库（kind=script, tags=translation/auto）并回填 recipe_id（AC-24）。
 
-use crate::knowledge::translation_table;
 use crate::framework::{Context, Evolution, Metrics};
-use crate::knowledge::translation_store::{cache_translation, lookup_translation, CacheTranslationInput};
-use crate::knowledge::{ParamMap, ParamMapKind, TranslationInput, TranslationResult};
 use crate::intent::handler::default_provider;
+use crate::knowledge::translation_store::{
+    cache_translation, lookup_translation, CacheTranslationInput,
+};
+use crate::knowledge::translation_table;
+use crate::knowledge::{ParamMap, ParamMapKind, TranslationInput, TranslationResult};
 use crate::ports::{AiRequest, LlmResponse};
 use crate::recipe::handler::save_recipe;
 use crate::recipe::RecipeInput;
@@ -63,11 +65,18 @@ fn same_dialect(input: &TranslationInput) -> TranslationResult {
 }
 
 /// 内置条目 → 结果：首词替换 + 参数级映射 + 未匹配参数透传警示。
-fn from_builtin(input: &TranslationInput, entry: &translation_table::BuiltinEntry) -> TranslationResult {
+fn from_builtin(
+    input: &TranslationInput,
+    entry: &translation_table::BuiltinEntry,
+) -> TranslationResult {
     let mut params_out: Vec<ParamMap> = Vec::new();
     let mut mapped_out: Vec<String> = Vec::new();
-    let mut remaining: Vec<String> =
-        input.command.split_whitespace().skip(1).map(str::to_string).collect();
+    let mut remaining: Vec<String> = input
+        .command
+        .split_whitespace()
+        .skip(1)
+        .map(str::to_string)
+        .collect();
     let mut unmapped = Vec::new();
     // 组合短旗标拆分：-la → -l、-a 逐项查映射
     let mut expanded: Vec<String> = Vec::new();
@@ -158,7 +167,11 @@ fn translate_via_ai(
         timeout_ms: 30_000,
     };
     let mut resp = LlmResponse::default();
-    if !context.deps.ai.ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution) {
+    if !context
+        .deps
+        .ai
+        .ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution)
+    {
         // AI 不可用：降级返回原文，不阻塞（AC-19/IAC-1301 语义）
         metrics.counter("translate.degraded", 1);
         *output = TranslationResult::native_fallback(input);
@@ -197,7 +210,11 @@ fn translate_via_ai(
             result.recipe_id = Some(recipe.id.clone());
         }
     }
-    let cache_in = CacheTranslationInput { input: input.clone(), result: result.clone(), verified: false };
+    let cache_in = CacheTranslationInput {
+        input: input.clone(),
+        result: result.clone(),
+        verified: false,
+    };
     let _ = cache_translation(&cache_in, context, metrics, evolution);
     metrics.counter("translate.ai_done", 1);
     *output = result;
@@ -214,7 +231,11 @@ struct ParsedTranslation {
 /// 解析 AI 翻译响应（剥围栏）。
 fn parse_translation(text: &str) -> Option<ParsedTranslation> {
     let t = text.trim();
-    let body = t.strip_prefix("```json").or_else(|| t.strip_prefix("```")).map(str::trim).unwrap_or(t);
+    let body = t
+        .strip_prefix("```json")
+        .or_else(|| t.strip_prefix("```"))
+        .map(str::trim)
+        .unwrap_or(t);
     let start = body.find('{')?;
     let end = body.rfind('}')?;
     let v: serde_json::Value = serde_json::from_str(&body[start..=end]).ok()?;

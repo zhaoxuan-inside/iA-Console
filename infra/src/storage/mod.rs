@@ -3,7 +3,9 @@
 
 use iac_core::error::codes;
 use iac_core::framework::{Context, Evolution, Metrics};
-use iac_core::ports::{ExecuteAck, MigrationAck, MigrationDir, QueryRows, SqlQuery, SqlValue, StorePort};
+use iac_core::ports::{
+    ExecuteAck, MigrationAck, MigrationDir, QueryRows, SqlQuery, SqlValue, StorePort,
+};
 use rusqlite::types::Value as SqliteValue;
 use rusqlite::Connection;
 use std::sync::Mutex;
@@ -22,14 +24,18 @@ impl Storage {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     /// 内存库（测试与临时场景）。
     pub fn open_in_memory() -> Result<Self, rusqlite::Error> {
         let conn = Connection::open_in_memory()?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -130,9 +136,11 @@ impl StorePort for Storage {
             return fail_migrate(evolution, e);
         }
         for (name, sql) in MIGRATIONS {
-            let done: i64 = match conn
-                .query_row("SELECT COUNT(*) FROM schema_migrations WHERE version=?1", [name], |r| r.get(0))
-            {
+            let done: i64 = match conn.query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE version=?1",
+                [name],
+                |r| r.get(0),
+            ) {
                 Ok(n) => n,
                 Err(e) => return fail_migrate(evolution, e),
             };

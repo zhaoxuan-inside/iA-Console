@@ -2,12 +2,7 @@
 //! 设计语言见 _04/03：内容即界面、无框线、留白、焦点行 accent。
 
 use crate::theme::{color, CopyScope, Mode, Token};
-use iac_core::common::marker_parser::{classify, InputDecision};
-
-/// 命令形态判定（PATH 扫描 + 内建名单；GUI/CLI 共用口径）。
-pub fn looks_like_command(word: &str) -> bool {
-    crate::console::looks_like_command(word)
-}
+use iac_core::common::marker_parser::{classify, looks_like_command, InputDecision};
 use iac_core::common::render::{detect_format, highlight, HighlightInput, TextFormat};
 use iac_core::ports::RawText;
 use ratatui::style::{Color, Modifier, Style};
@@ -25,7 +20,13 @@ pub struct TuiState {
 
 impl Default for TuiState {
     fn default() -> Self {
-        Self { mode: Mode::Night, history: Vec::new(), input: String::new(), last_command: String::new(), last_translated: None }
+        Self {
+            mode: Mode::Night,
+            history: Vec::new(),
+            input: String::new(),
+            last_command: String::new(),
+            last_translated: None,
+        }
     }
 }
 
@@ -33,23 +34,45 @@ impl Default for TuiState {
 pub fn styled(mode: Mode, token: Token, bold: bool) -> Style {
     let hex = color(mode, token);
     let (r, g, b) = parse_hex(hex);
-    Style::default().fg(Color::Rgb(r, g, b)).add_modifier(if bold { Modifier::BOLD } else { Modifier::empty() })
+    Style::default()
+        .fg(Color::Rgb(r, g, b))
+        .add_modifier(if bold {
+            Modifier::BOLD
+        } else {
+            Modifier::empty()
+        })
 }
 
 fn parse_hex(hex: &str) -> (u8, u8, u8) {
     let h = hex.trim_start_matches('#');
-    (u8::from_str_radix(&h[0..2], 16).unwrap_or(0), u8::from_str_radix(&h[2..4], 16).unwrap_or(0), u8::from_str_radix(&h[4..6], 16).unwrap_or(0))
+    (
+        u8::from_str_radix(&h[0..2], 16).unwrap_or(0),
+        u8::from_str_radix(&h[2..4], 16).unwrap_or(0),
+        u8::from_str_radix(&h[4..6], 16).unwrap_or(0),
+    )
 }
 
 /// 输入行渲染：普通 fg；dangerous 命中红字+⚠（弱提醒三件套之文字件，AC-04）。
 pub fn render_input(state: &TuiState, risk_level: Option<&str>) -> Line<'static> {
     let dangerous = matches!(risk_level, Some("dangerous") | Some("destructive"));
-    let mut spans = vec![Span::styled("▍ ".to_string(), styled(state.mode, Token::Accent, false))];
+    let mut spans = vec![Span::styled(
+        "▍ ".to_string(),
+        styled(state.mode, Token::Accent, false),
+    )];
     if dangerous {
-        spans.push(Span::styled(state.input.clone(), styled(state.mode, Token::Destructive, true)));
-        spans.push(Span::styled(" ⚠".to_string(), styled(state.mode, Token::Destructive, false)));
+        spans.push(Span::styled(
+            state.input.clone(),
+            styled(state.mode, Token::Destructive, true),
+        ));
+        spans.push(Span::styled(
+            " ⚠".to_string(),
+            styled(state.mode, Token::Destructive, false),
+        ));
     } else {
-        spans.push(Span::styled(state.input.clone(), styled(state.mode, Token::Fg, true)));
+        spans.push(Span::styled(
+            state.input.clone(),
+            styled(state.mode, Token::Fg, true),
+        ));
     }
     Line::from(spans)
 }
@@ -60,10 +83,16 @@ pub fn render_output(state: &TuiState, text: &str) -> Vec<Line<'static>> {
     let mut format = TextFormat::Plain;
     let mut evo = iac_core::framework::Evolution::default();
     let mut m = iac_core::framework::Metrics::default();
-    let input = RawText { content: text.to_string(), hint: None };
+    let input = RawText {
+        content: text.to_string(),
+        hint: None,
+    };
     let _ = detect_format(&input, &mut format, &env.context(), &mut m, &mut evo);
     let spans_in = {
-        let hi = HighlightInput { text: text.to_string(), format: format.clone() };
+        let hi = HighlightInput {
+            text: text.to_string(),
+            format: format.clone(),
+        };
         let mut out = iac_core::common::render::StyledSpans::default();
         let _ = highlight(&hi, &mut out, &env.context(), &mut m, &mut evo);
         out
@@ -71,7 +100,11 @@ pub fn render_output(state: &TuiState, text: &str) -> Vec<Line<'static>> {
     // span → 行（简单按 \n 切分着色）
     let mut lines = Vec::new();
     for (i, line_text) in text.lines().enumerate() {
-        let line_start = text.match_indices(line_text).nth(i).map(|(p, _)| p).unwrap_or(0);
+        let line_start = text
+            .match_indices(line_text)
+            .nth(i)
+            .map(|(p, _)| p)
+            .unwrap_or(0);
         let line_end = line_start + line_text.len();
         let mut spans = Vec::new();
         for (s, e, kind) in &spans_in.spans {
@@ -79,14 +112,21 @@ pub fn render_output(state: &TuiState, text: &str) -> Vec<Line<'static>> {
                 let token = match kind {
                     iac_core::common::render::TokenKind::Keyword => Token::SynKeyword,
                     iac_core::common::render::TokenKind::Str => Token::SynString,
-                    iac_core::common::render::TokenKind::Comment | iac_core::common::render::TokenKind::Punct => Token::Fg25,
+                    iac_core::common::render::TokenKind::Comment
+                    | iac_core::common::render::TokenKind::Punct => Token::Fg25,
                     iac_core::common::render::TokenKind::Number => Token::Fg60,
                 };
-                spans.push(Span::styled(line_text[*s - line_start..*e - line_start].to_string(), styled(state.mode, token, false)));
+                spans.push(Span::styled(
+                    line_text[*s - line_start..*e - line_start].to_string(),
+                    styled(state.mode, token, false),
+                ));
             }
         }
         if spans.is_empty() {
-            spans.push(Span::styled(line_text.to_string(), styled(state.mode, Token::Fg, false)));
+            spans.push(Span::styled(
+                line_text.to_string(),
+                styled(state.mode, Token::Fg, false),
+            ));
         }
         lines.push(Line::from(spans));
     }
@@ -96,11 +136,16 @@ pub fn render_output(state: &TuiState, text: &str) -> Vec<Line<'static>> {
 /// 输入决策 → IPC 方法与参数（标记语义落地）。
 pub fn decision_to_request(decision: &InputDecision) -> Option<(&'static str, serde_json::Value)> {
     Some(match decision {
-        InputDecision::AiExplain { command } => ("iac_explain", serde_json::json!({"command": command})),
-        InputDecision::AiAsk { intent } => ("iac_ask", serde_json::json!({"intent": intent, "cwd": "."})),
-        InputDecision::LiteralCommand(command) => {
-            ("iac_execute", serde_json::json!({"command": command, "origin": "direct"}))
+        InputDecision::AiExplain { command } => {
+            ("iac_explain", serde_json::json!({"command": command}))
         }
+        InputDecision::AiAsk { intent } => {
+            ("iac_ask", serde_json::json!({"intent": intent, "cwd": "."}))
+        }
+        InputDecision::LiteralCommand(command) => (
+            "iac_execute",
+            serde_json::json!({"command": command, "origin": "direct"}),
+        ),
         _ => return None,
     })
 }
@@ -109,7 +154,10 @@ pub fn decision_to_request(decision: &InputDecision) -> Option<(&'static str, se
 pub fn copy_on_key(state: &TuiState, key: char) -> Option<(CopyScope, String)> {
     match key {
         'c' => Some((CopyScope::Command, state.last_command.clone())),
-        't' => state.last_translated.as_ref().map(|t| (CopyScope::Translated, t.clone())),
+        't' => state
+            .last_translated
+            .as_ref()
+            .map(|t| (CopyScope::Translated, t.clone())),
         'a' => Some((CopyScope::All, state.history.join("\n"))),
         _ => None,
     }
@@ -160,9 +208,14 @@ pub fn run_chat(json_mode: bool) -> i32 {
         }
         // 复制键位（y + c/t/a）
         if let Some(rest) = line.strip_prefix('y') {
-            if let Some((scope, content)) = copy_on_key(&state, rest.chars().next().unwrap_or(' ')) {
+            if let Some((scope, content)) = copy_on_key(&state, rest.chars().next().unwrap_or(' '))
+            {
                 let seq = copy_to_clipboard(scope, &content);
-                print!("\x1b]52;c;{};\x07", seq.trim_start_matches("\x1b]52;c;").trim_end_matches('\x07'));
+                print!(
+                    "\x1b]52;c;{};\x07",
+                    seq.trim_start_matches("\x1b]52;c;")
+                        .trim_end_matches('\x07')
+                );
                 std::io::stdout().flush().ok();
                 println!("已复制（{} 字节）", content.len());
                 continue;
@@ -173,7 +226,11 @@ pub fn run_chat(json_mode: bool) -> i32 {
             None => match &decision {
                 InputDecision::TaskSeparator => {
                     state.history.push("---".into());
-                    let _ = crate::ipc::request("iac_session_event", serde_json::json!({"kind": "separator"}), None);
+                    let _ = crate::ipc::request(
+                        "iac_session_event",
+                        serde_json::json!({"kind": "separator"}),
+                        None,
+                    );
                     println!("—— 新任务段 ——");
                 }
                 InputDecision::Note(text) => {
@@ -192,19 +249,22 @@ pub fn run_chat(json_mode: bool) -> i32 {
                 }
                 _ => {}
             },
-            Some((method, params)) => {
-                match crate::ipc::request(method, params, None) {
-                    Ok(resp) => {
-                        let rendered = crate::ipc::render(&resp, json_mode);
-                        state.history.push(rendered.clone());
-                        if let Some(cmd) = resp.result.as_ref().and_then(|r| r.get("command")).and_then(|c| c.as_str()) {
-                            state.last_command = cmd.to_string();
-                        }
-                        println!("{rendered}");
+            Some((method, params)) => match crate::ipc::request(method, params, None) {
+                Ok(resp) => {
+                    let rendered = crate::ipc::render(&resp, json_mode);
+                    state.history.push(rendered.clone());
+                    if let Some(cmd) = resp
+                        .result
+                        .as_ref()
+                        .and_then(|r| r.get("command"))
+                        .and_then(|c| c.as_str())
+                    {
+                        state.last_command = cmd.to_string();
                     }
-                    Err(msg) => println!("{msg}"),
+                    println!("{rendered}");
                 }
-            }
+                Err(msg) => println!("{msg}"),
+            },
         }
     }
     0
@@ -216,7 +276,10 @@ mod tests {
 
     #[test]
     fn dangerous_input_renders_warning_marker() {
-        let state = TuiState { input: "rm -rf ./build".into(), ..TuiState::default() };
+        let state = TuiState {
+            input: "rm -rf ./build".into(),
+            ..TuiState::default()
+        };
         let line = render_input(&state, Some("dangerous"));
         let joined: String = line.spans.iter().map(|s| s.content.clone()).collect();
         assert!(joined.contains("⚠"));

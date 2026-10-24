@@ -30,8 +30,9 @@ impl ExecStatus {
 }
 
 /// 执行记录入库（三账之一；stdout_full/stderr_full 全量写入，Q45）。
+/// id 空串时由 SQL 生成并回填（修复重建期发现的主键碰撞静默丢账缺陷）。
 pub fn insert_execution(
-    record: &ExecutionRecord,
+    record: &mut ExecutionRecord,
     context: &Context,
     metrics: &mut Metrics,
     evolution: &mut Evolution,
@@ -42,7 +43,8 @@ pub fn insert_execution(
         sql: "INSERT INTO executions (id, session_id, proposal_id, command, argv, cwd, shell, host, actor, \
               exit_code, status, risk_level, stdout_summary, stderr_summary, stdout_full, stderr_full, \
               started_at, duration_ms, journal_ref) \
-              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)"
+              VALUES (COALESCE(NULLIF(?1,''), lower(hex(randomblob(16)))),?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19) \
+              RETURNING id"
             .into(),
         params: vec![
             record.id.as_str().into(),
@@ -66,10 +68,16 @@ pub fn insert_execution(
             record.journal_ref.clone().unwrap_or_default().as_str().into(),
         ],
     };
-    if !context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution) {
+    let mut rows = QueryRows::default();
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("insert_execution", "写入执行记录失败");
         return false;
     }
+    record.id = rows.text(0, "id").unwrap_or_default().to_string();
     metrics.counter("history.recorded", 1);
     true
 }
@@ -110,9 +118,16 @@ pub fn query_history(
         params.push(until.into());
     }
     // 总数
-    let count_q = SqlQuery { sql: format!("SELECT COUNT(*) AS total FROM executions{where_clause}"), params: params.clone() };
+    let count_q = SqlQuery {
+        sql: format!("SELECT COUNT(*) AS total FROM executions{where_clause}"),
+        params: params.clone(),
+    };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&count_q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&count_q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("query_history", "统计历史总数失败");
         return false;
     }
@@ -138,7 +153,11 @@ pub fn query_history(
         params: page_params,
     };
     let mut page_rows = QueryRows::default();
-    if !context.deps.store.storage_query(&page_q, &mut page_rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&page_q, &mut page_rows, context, metrics, evolution)
+    {
         evolution.propagate("query_history", "查询历史失败");
         return false;
     }
@@ -169,7 +188,11 @@ pub fn clean_history(
             sql: "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(stdout_full)+LENGTH(stderr_full)),0) AS bytes FROM executions WHERE started_at < ?1".into(),
             params: vec![cutoff.into()],
         };
-        if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+        if !context
+            .deps
+            .store
+            .storage_query(&q, &mut rows, context, metrics, evolution)
+        {
             evolution.propagate("clean_history", "统计超期记录失败");
             return false;
         }
@@ -178,7 +201,10 @@ pub fn clean_history(
         *output = report;
         return true;
     }
-    let del_aged = SqlQuery { sql: "DELETE FROM executions WHERE started_at < ?1".into(), params: vec![cutoff.into()] };
+    let del_aged = SqlQuery {
+        sql: "DELETE FROM executions WHERE started_at < ?1".into(),
+        params: vec![cutoff.into()],
+    };
     if !delete_and_count(&del_aged, &mut report, context, metrics, evolution) {
         return false;
     }
@@ -188,7 +214,11 @@ pub fn clean_history(
         params: vec![],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&total_q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&total_q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("clean_history", "统计占用失败");
         return false;
     }
@@ -203,7 +233,11 @@ pub fn clean_history(
             params: vec![],
         };
         let mut id_rows = QueryRows::default();
-        if !context.deps.store.storage_query(&ids_q, &mut id_rows, context, metrics, evolution) {
+        if !context
+            .deps
+            .store
+            .storage_query(&ids_q, &mut id_rows, context, metrics, evolution)
+        {
             evolution.propagate("clean_history", "选取最旧记录失败");
             return false;
         }
@@ -213,8 +247,17 @@ pub fn clean_history(
         let mut removed_n = 0u64;
         for i in 0..id_rows.len() {
             let id = id_rows.text(i, "id").unwrap_or_default().to_string();
-            let del = SqlQuery { sql: "DELETE FROM executions WHERE id = ?1".into(), params: vec![id.as_str().into()] };
-            if !context.deps.store.storage_execute(&del, &mut Default::default(), context, metrics, evolution) {
+            let del = SqlQuery {
+                sql: "DELETE FROM executions WHERE id = ?1".into(),
+                params: vec![id.as_str().into()],
+            };
+            if !context.deps.store.storage_execute(
+                &del,
+                &mut Default::default(),
+                context,
+                metrics,
+                evolution,
+            ) {
                 evolution.propagate("clean_history", "容量清退删除失败");
                 return false;
             }
@@ -258,7 +301,11 @@ pub fn export_history(
         params,
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("export_history", "查询导出数据失败");
         return false;
     }
@@ -290,16 +337,27 @@ pub fn record_audit(
 ) -> bool {
     evolution.succeed();
     let q = SqlQuery {
-        sql: "INSERT INTO audit_log (at, actor, action, target, detail) VALUES (?1, ?2, ?3, ?4, ?5)".into(),
+        sql:
+            "INSERT INTO audit_log (at, actor, action, target, detail) VALUES (?1, ?2, ?3, ?4, ?5)"
+                .into(),
         params: vec![
             now_ms().into(),
             actor.as_tag().as_str().into(),
             action.into(),
             target.into(),
-            serde_json::to_string(&detail).unwrap_or_default().as_str().into(),
+            serde_json::to_string(&detail)
+                .unwrap_or_default()
+                .as_str()
+                .into(),
         ],
     };
-    let ok = context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution);
+    let ok = context.deps.store.storage_execute(
+        &q,
+        &mut Default::default(),
+        context,
+        metrics,
+        evolution,
+    );
     if !ok {
         evolution.propagate("record_audit", "审计写入失败");
     }
@@ -317,7 +375,11 @@ fn delete_and_count(
     evolution: &mut Evolution,
 ) -> bool {
     let mut ack = Default::default();
-    if !context.deps.store.storage_execute(q, &mut ack, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_execute(q, &mut ack, context, metrics, evolution)
+    {
         evolution.propagate("clean_history", "删除失败");
         return false;
     }
@@ -339,7 +401,11 @@ fn record_from_row(rows: &QueryRows, i: usize) -> ExecutionRecord {
         shell: rows.text(i, "shell").unwrap_or_default().into(),
         host: rows.text(i, "host").unwrap_or_default().into(),
         actor: rows.text(i, "actor").unwrap_or_default().into(),
-        exit_code: rows.int(i, "exit_code").map(i32::try_from).transpose().unwrap_or(None),
+        exit_code: rows
+            .int(i, "exit_code")
+            .map(i32::try_from)
+            .transpose()
+            .unwrap_or(None),
         status: ExecStatus::parse_str(rows.text(i, "status").unwrap_or("ok")),
         risk_level: rows.text(i, "risk_level").unwrap_or("safe").into(),
         stdout_summary: non_empty(rows.text(i, "stdout_summary")),

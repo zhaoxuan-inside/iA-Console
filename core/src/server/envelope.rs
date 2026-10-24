@@ -33,7 +33,13 @@ pub struct IpcResponse {
 
 impl IpcResponse {
     pub fn success(req: &IpcRequest, result: serde_json::Value) -> Self {
-        Self { v: 1, id: req.id.clone(), ok: true, result: Some(result), error: None }
+        Self {
+            v: 1,
+            id: req.id.clone(),
+            ok: true,
+            result: Some(result),
+            error: None,
+        }
     }
 
     pub fn failure(req: &IpcRequest, code: &str, message: impl Into<String>) -> Self {

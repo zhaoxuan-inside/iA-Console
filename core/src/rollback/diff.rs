@@ -19,8 +19,14 @@ pub fn diff_effects(
         return true;
     }
     let mut doc_bytes = SnapshotData::default();
-    let mref = ContentRef { reference: input.manifest_ref.clone() };
-    if !context.deps.snap.snapstore_fetch(&mref, &mut doc_bytes, context, metrics, evolution) {
+    let mref = ContentRef {
+        reference: input.manifest_ref.clone(),
+    };
+    if !context
+        .deps
+        .snap
+        .snapstore_fetch(&mref, &mut doc_bytes, context, metrics, evolution)
+    {
         evolution.propagate("diff_effects", "manifest 取回失败");
         return false;
     }
@@ -34,11 +40,18 @@ pub fn diff_effects(
     let mut current = Vec::new();
     let tree_in = crate::ports::CaptureTreeInput {
         roots: doc.roots.iter().map(std::path::PathBuf::from).collect(),
-        excludes: super::CAPTURE_EXCLUDES.iter().map(|s| s.to_string()).collect(),
+        excludes: super::CAPTURE_EXCLUDES
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
         max_file_bytes: super::CAPTURE_MAX_FILE_BYTES,
         max_total_bytes: super::CAPTURE_MAX_TOTAL_BYTES,
     };
-    if !context.deps.snap.capture_tree(&tree_in, &mut current, context, metrics, evolution) {
+    if !context
+        .deps
+        .snap
+        .capture_tree(&tree_in, &mut current, context, metrics, evolution)
+    {
         evolution.propagate("diff_effects", "现况捕获失败");
         return false;
     }
@@ -88,8 +101,16 @@ fn build_entries(
     let after: std::collections::HashMap<&str, &crate::ports::FileCaptured> =
         current.iter().map(|f| (f.path.as_str(), f)).collect();
     let mut entries = Vec::new();
-    let mut push = |path: &str, op: &str, before: Option<&str>, after: Option<&str>, entries: &mut Vec<EffectEntryRef>| {
-        let scope = if before.or(after).is_some() { "in" } else { "out_of_scope" };
+    let mut push = |path: &str,
+                    op: &str,
+                    before: Option<&str>,
+                    after: Option<&str>,
+                    entries: &mut Vec<EffectEntryRef>| {
+        let scope = if before.or(after).is_some() {
+            "in"
+        } else {
+            "out_of_scope"
+        };
         entries.push(EffectEntryRef {
             seq,
             execution_id: input.execution_id.clone(),
@@ -105,16 +126,32 @@ fn build_entries(
     };
     for (path, old) in &before {
         match after.get(*path) {
-            None => push(path, "deleted", old.content_ref.as_deref(), None, &mut entries),
-            Some(new) if new.sha256 != old.sha256 => {
-                push(path, "modified", old.content_ref.as_deref(), new.content_ref.as_deref(), &mut entries)
-            }
+            None => push(
+                path,
+                "deleted",
+                old.content_ref.as_deref(),
+                None,
+                &mut entries,
+            ),
+            Some(new) if new.sha256 != old.sha256 => push(
+                path,
+                "modified",
+                old.content_ref.as_deref(),
+                new.content_ref.as_deref(),
+                &mut entries,
+            ),
             Some(_) => {}
         }
     }
     for (path, new) in &after {
         if !before.contains_key(*path) {
-            push(path, "created", None, new.content_ref.as_deref(), &mut entries);
+            push(
+                path,
+                "created",
+                None,
+                new.content_ref.as_deref(),
+                &mut entries,
+            );
         }
     }
     entries
@@ -132,7 +169,11 @@ fn enforce_max_entries(
         sql: "SELECT COUNT(DISTINCT execution_id) AS n FROM rollback_journal".into(),
         params: vec![],
     };
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         return None;
     }
     let points = rows.int(0, "n")?;
@@ -148,7 +189,11 @@ fn enforce_max_entries(
         params: vec![crate::ports::SqlValue::Int(excess)],
     };
     let mut ack = crate::ports::ExecuteAck::default();
-    if context.deps.store.storage_execute(&dq, &mut ack, context, metrics, evolution) {
+    if context
+        .deps
+        .store
+        .storage_execute(&dq, &mut ack, context, metrics, evolution)
+    {
         metrics.counter("rollback.retired_points", excess as u64);
         Some(())
     } else {
@@ -167,8 +212,13 @@ mod tests {
         let mut out = Vec::new();
         let mut evo = Evolution::default();
         let mut m = Metrics::default();
-        assert!(diff_effects(&ManifestRef::default(), &mut out, &env.context(), &mut m, &mut evo));
+        assert!(diff_effects(
+            &ManifestRef::default(),
+            &mut out,
+            &env.context(),
+            &mut m,
+            &mut evo
+        ));
         assert!(out.is_empty());
     }
-
 }

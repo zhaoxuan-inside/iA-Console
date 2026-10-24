@@ -37,6 +37,7 @@ pub fn default_data_dir() -> PathBuf {
 
 /// MCP 模式（Q43）：进程内 dispatch 的 stdio JSON-RPC 服务；不走 socket。
 pub fn run_mcp_mode(data_dir: &std::path::Path) -> i32 {
+    let _ = std::fs::create_dir_all(data_dir);
     let storage = match Storage::open(&data_dir.join("iac.v2.db")) {
         Ok(s) => s,
         Err(e) => {
@@ -54,7 +55,13 @@ pub fn run_mcp_mode(data_dir: &std::path::Path) -> i32 {
             deps: &Deps::default(),
             locale: &Locale::default(),
         };
-        if !storage.storage_migrate(&iac_core::ports::MigrationDir {}, &mut ack, &ctx, &mut m, &mut evo) {
+        if !storage.storage_migrate(
+            &iac_core::ports::MigrationDir {},
+            &mut ack,
+            &ctx,
+            &mut m,
+            &mut evo,
+        ) {
             eprintln!("迁移失败（IAC-3103）: {}", evo.reason.unwrap_or_default());
             return 1;
         }
@@ -74,22 +81,34 @@ pub type CancelledSet = Arc<Mutex<HashMap<String, ()>>>;
 
 /// 运行 daemon（阻塞直至 stop 指令）。返回已服务的连接数。
 pub fn run(options: DaemonOptions) -> anyhow::Result<u64> {
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
     let (_tx, rx) = tokio::sync::mpsc::channel::<()>(1);
     runtime.block_on(serve(options, rx))
 }
 
-async fn serve(options: DaemonOptions, _shutdown: tokio::sync::mpsc::Receiver<()>) -> anyhow::Result<u64> {
+async fn serve(
+    options: DaemonOptions,
+    _shutdown: tokio::sync::mpsc::Receiver<()>,
+) -> anyhow::Result<u64> {
     // 单实例：socket 可连接 → 已有 daemon（IAC-6103）
     if UnixStream::connect(&options.socket_path).await.is_ok() {
-        anyhow::bail!("daemon 已在运行（IAC-6103）：{}", options.socket_path.display());
+        anyhow::bail!(
+            "daemon 已在运行（IAC-6103）：{}",
+            options.socket_path.display()
+        );
     }
     if let Some(dir) = options.socket_path.parent() {
         tokio::fs::create_dir_all(dir).await?;
     }
     let _ = std::fs::remove_file(&options.socket_path);
     let listener = UnixListener::bind(&options.socket_path)?;
-    tokio::fs::write(options.socket_path.with_extension("pid"), std::process::id().to_string()).await?;
+    tokio::fs::write(
+        options.socket_path.with_extension("pid"),
+        std::process::id().to_string(),
+    )
+    .await?;
 
     tokio::fs::create_dir_all(&options.data_dir).await?;
     // 重建基线数据文件：iac.v2.db（与旧 iac.db schema 物理隔离）
@@ -106,9 +125,17 @@ async fn serve(options: DaemonOptions, _shutdown: tokio::sync::mpsc::Receiver<()
             locale: &Locale::default(),
         };
         storage
-            .storage_migrate(&iac_core::ports::MigrationDir {}, &mut ack, &ctx, &mut m, &mut evo)
+            .storage_migrate(
+                &iac_core::ports::MigrationDir {},
+                &mut ack,
+                &ctx,
+                &mut m,
+                &mut evo,
+            )
             .then_some(())
-            .ok_or_else(|| anyhow::anyhow!("迁移失败（IAC-3103）: {}", evo.reason.unwrap_or_default()))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("迁移失败（IAC-3103）: {}", evo.reason.unwrap_or_default())
+            })?;
     }
     let config = Arc::new(std::sync::RwLock::new(load_config()));
     let cancelled: CancelledSet = Arc::new(Mutex::new(HashMap::new()));
@@ -171,8 +198,10 @@ async fn handle_connection(
         let config_task = Arc::clone(&config);
         let cancelled = Arc::clone(&cancelled);
         let req_text = trimmed.to_string();
-        let (resp, is_stop, apply_cfg) =
-            tokio::task::spawn_blocking(move || handle_request(&req_text, &deps, &config_task, &cancelled)).await?;
+        let (resp, is_stop, apply_cfg) = tokio::task::spawn_blocking(move || {
+            handle_request(&req_text, &deps, &config_task, &cancelled)
+        })
+        .await?;
         if let Some(new_cfg) = apply_cfg {
             // config_set 应用 + 落盘（组合根职责）
             if let Ok(mut w) = config.write() {
@@ -209,9 +238,14 @@ fn handle_request(
     let req: IpcRequest = serde_json::from_str(req_text).unwrap_or(parse_stub);
     // 取消登记（Q22）：请求前未清或 dispatch 期间被登记 → 迟到结果改写 IAC-6107
     let was_cancelled = req.id != "unknown"
-        && cancelled.lock().map(|mut m| m.remove(&req.id).is_some()).unwrap_or(false);
+        && cancelled
+            .lock()
+            .map(|mut m| m.remove(&req.id).is_some())
+            .unwrap_or(false);
     let actor = match req.actor.as_deref() {
-        Some(a) if a.starts_with("agent:") => Actor::Agent(a.trim_start_matches("agent:").to_string()),
+        Some(a) if a.starts_with("agent:") => {
+            Actor::Agent(a.trim_start_matches("agent:").to_string())
+        }
         _ => Actor::Human,
     };
     let session = SessionCtx {
@@ -219,10 +253,24 @@ fn handle_request(
         request_id: req.id.clone(),
         actor,
     };
-    let locale = Locale { lang: "zh-CN".into(), timezone: "Asia/Shanghai".into() };
+    let locale = Locale {
+        lang: "zh-CN".into(),
+        timezone: "Asia/Shanghai".into(),
+    };
     let cfg_guard = config.read().expect("config lock poisoned");
-    let ctx = Context { session: &session, config: &cfg_guard, deps, locale: &locale };
-    let mut out = IpcResponse { v: 1, id: req.id.clone(), ok: false, result: None, error: None };
+    let ctx = Context {
+        session: &session,
+        config: &cfg_guard,
+        deps,
+        locale: &locale,
+    };
+    let mut out = IpcResponse {
+        v: 1,
+        id: req.id.clone(),
+        ok: false,
+        result: None,
+        error: None,
+    };
     let mut evo = iac_core::framework::Evolution::default();
     let mut m = iac_core::framework::Metrics::default();
     let _ = dispatch_request(&req, &mut out, &ctx, &mut m, &mut evo);
@@ -248,7 +296,11 @@ fn handle_request(
         None
     };
     let is_stop = req.method == "iac_daemon_stop";
-    (serde_json::to_string(&out).unwrap_or_default(), is_stop, apply_cfg)
+    (
+        serde_json::to_string(&out).unwrap_or_default(),
+        is_stop,
+        apply_cfg,
+    )
 }
 
 /// 启动时加载配置（文件缺失/无效回退默认值并继续）。

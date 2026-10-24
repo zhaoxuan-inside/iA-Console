@@ -118,11 +118,22 @@ pub enum CopyScope {
 }
 
 /// 三档内容组装（AC-37 纯净规则：命令/译文档零装饰，全部档去色码快照）。
-pub fn build_copy_content(scope: CopyScope, command: &str, translated: Option<&str>, full_snapshot: &str) -> String {
+pub fn build_copy_content(
+    scope: CopyScope,
+    command: &str,
+    translated: Option<&str>,
+    full_snapshot: &str,
+) -> String {
     match scope {
         CopyScope::Command => clean_command(command),
-        CopyScope::Translated => translated.map(clean_command).unwrap_or_else(|| clean_command(command)),
-        CopyScope::All => full_snapshot.lines().map(str::trim_end).collect::<Vec<_>>().join("\n"),
+        CopyScope::Translated => translated
+            .map(clean_command)
+            .unwrap_or_else(|| clean_command(command)),
+        CopyScope::All => full_snapshot
+            .lines()
+            .map(str::trim_end)
+            .collect::<Vec<_>>()
+            .join("\n"),
     }
 }
 
@@ -148,12 +159,24 @@ pub mod base64_like {
     pub fn b64_encode(data: &[u8]) -> String {
         let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
         for chunk in data.chunks(3) {
-            let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+            let b = [
+                chunk[0],
+                *chunk.get(1).unwrap_or(&0),
+                *chunk.get(2).unwrap_or(&0),
+            ];
             let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
             out.push(TABLE[(n >> 18) as usize & 63] as char);
             out.push(TABLE[(n >> 12) as usize & 63] as char);
-            out.push(if chunk.len() > 1 { TABLE[(n >> 6) as usize & 63] as char } else { '=' });
-            out.push(if chunk.len() > 2 { TABLE[n as usize & 63] as char } else { '=' });
+            out.push(if chunk.len() > 1 {
+                TABLE[(n >> 6) as usize & 63] as char
+            } else {
+                '='
+            });
+            out.push(if chunk.len() > 2 {
+                TABLE[n as usize & 63] as char
+            } else {
+                '='
+            });
         }
         out
     }
@@ -168,7 +191,9 @@ mod tests {
         for mode in [Mode::Day, Mode::Night] {
             let p = palette(mode);
             assert_eq!(p.len(), 14);
-            assert!(p.iter().all(|(_, hex)| hex.starts_with('#') && hex.len() == 7));
+            assert!(p
+                .iter()
+                .all(|(_, hex)| hex.starts_with('#') && hex.len() == 7));
         }
     }
 
@@ -186,8 +211,14 @@ mod tests {
 
     #[test]
     fn copy_translated_falls_back_to_command() {
-        assert_eq!(build_copy_content(CopyScope::Translated, "ls", Some("Get-ChildItem"), ""), "Get-ChildItem");
-        assert_eq!(build_copy_content(CopyScope::Translated, "ls", None, ""), "ls");
+        assert_eq!(
+            build_copy_content(CopyScope::Translated, "ls", Some("Get-ChildItem"), ""),
+            "Get-ChildItem"
+        );
+        assert_eq!(
+            build_copy_content(CopyScope::Translated, "ls", None, ""),
+            "ls"
+        );
     }
 
     #[test]

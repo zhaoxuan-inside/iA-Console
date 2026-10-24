@@ -2,7 +2,7 @@
 //! 设计动机见 method-spec：观测统一走 metrics 门面，业务方法禁止手写埋点。
 
 use crate::config::Config;
-pub use crate::ports::{AiPort, ProcessPort, StorePort, SnapPort};
+pub use crate::ports::{AiPort, ProcessPort, SnapPort, StorePort};
 
 /// 会话与追踪上下文（dispatch 边界注入）。
 #[derive(Debug, Clone, Default)]
@@ -61,7 +61,9 @@ impl Default for Deps {
 
 impl std::fmt::Debug for Deps {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Deps").field("store", &"Box<dyn StorePort>").finish()
+        f.debug_struct("Deps")
+            .field("store", &"Box<dyn StorePort>")
+            .finish()
     }
 }
 
@@ -98,17 +100,26 @@ pub enum Level {
 impl Metrics {
     /// 业务计数（词典约定：业务方法只写业务指标）。
     pub fn counter(&mut self, name: &str, n: u64) {
-        self.events.push(MetricEvent::Counter { name: name.into(), n });
+        self.events.push(MetricEvent::Counter {
+            name: name.into(),
+            n,
+        });
     }
 
     /// 自定义标记（缓存命中、降级触发等）。
     pub fn mark(&mut self, key: &str, value: impl Into<String>) {
-        self.events.push(MetricEvent::Mark { key: key.into(), value: value.into() });
+        self.events.push(MetricEvent::Mark {
+            key: key.into(),
+            value: value.into(),
+        });
     }
 
     /// 统一日志收集（禁止业务代码 printf/echo）。
     pub fn log(&mut self, level: Level, msg: impl Into<String>) {
-        self.events.push(MetricEvent::Log { level, msg: msg.into() });
+        self.events.push(MetricEvent::Log {
+            level,
+            msg: msg.into(),
+        });
     }
 
     /// 测试与后端导出用：只读快照。
@@ -188,7 +199,10 @@ impl TestEnv {
             },
             config: Config::defaults(),
             deps: Deps::default(),
-            locale: Locale { lang: "zh-CN".into(), timezone: "Asia/Shanghai".into() },
+            locale: Locale {
+                lang: "zh-CN".into(),
+                timezone: "Asia/Shanghai".into(),
+            },
         }
     }
 

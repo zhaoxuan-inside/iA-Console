@@ -22,7 +22,10 @@ pub fn save_recipe(
 ) -> bool {
     evolution.succeed();
     if input.title.trim().is_empty() || input.command_template.trim().is_empty() {
-        evolution.fail(crate::error::codes::RECIPE_NAME_CONFLICT, "方案标题与命令模板不能为空");
+        evolution.fail(
+            crate::error::codes::RECIPE_NAME_CONFLICT,
+            "方案标题与命令模板不能为空",
+        );
         return false;
     }
     let risk = assess_static(&input.command_template);
@@ -43,11 +46,18 @@ pub fn save_recipe(
         ],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         // UNIQUE 冲突（name 重复）→ IAC-4101 语义
         evolution.fail(
             crate::error::codes::RECIPE_NAME_CONFLICT,
-            format!("方案保存失败：name「{}」已存在", input.name.as_deref().unwrap_or_default()),
+            format!(
+                "方案保存失败：name「{}」已存在",
+                input.name.as_deref().unwrap_or_default()
+            ),
         );
         return false;
     }
@@ -85,7 +95,9 @@ pub fn search_recipes(
     if let Some(qk) = &input.q {
         params.push(format!("%{qk}%").as_str().into());
         let n = params.len();
-        clauses.push(format!("(title LIKE ?{n} OR description LIKE ?{n} OR command_template LIKE ?{n})"));
+        clauses.push(format!(
+            "(title LIKE ?{n} OR description LIKE ?{n} OR command_template LIKE ?{n})"
+        ));
     }
     if let Some(tag) = &input.tag {
         params.push(format!("%\"{tag}\"%").as_str().into());
@@ -99,11 +111,24 @@ pub fn search_recipes(
         params.push(k.as_str().into());
         clauses.push(format!("kind = ?{}", params.len()));
     }
-    let where_sql = if clauses.is_empty() { String::new() } else { format!(" WHERE {}", clauses.join(" AND ")) };
+    let where_sql = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", clauses.join(" AND "))
+    };
     params.push((input.limit.max(1) as i64).into());
-    let sql = format!("SELECT {COLS} FROM recipes{where_sql} ORDER BY updated_at DESC LIMIT ?{}", params.len());
+    let sql = format!(
+        "SELECT {COLS} FROM recipes{where_sql} ORDER BY updated_at DESC LIMIT ?{}",
+        params.len()
+    );
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&SqlQuery { sql, params }, &mut rows, context, metrics, evolution) {
+    if !context.deps.store.storage_query(
+        &SqlQuery { sql, params },
+        &mut rows,
+        context,
+        metrics,
+        evolution,
+    ) {
         evolution.propagate("search_recipes", "检索方案失败");
         return false;
     }
@@ -128,12 +153,22 @@ pub fn delete_recipe(
     } else if let Some(name) = &input.name {
         ("name = ?1", name.clone())
     } else {
-        evolution.fail(crate::error::codes::RECIPE_NAME_CONFLICT, "删除需要 id 或 name");
+        evolution.fail(
+            crate::error::codes::RECIPE_NAME_CONFLICT,
+            "删除需要 id 或 name",
+        );
         return false;
     };
-    let q = SqlQuery { sql: format!("DELETE FROM recipes WHERE {clause}"), params: vec![param.as_str().into()] };
+    let q = SqlQuery {
+        sql: format!("DELETE FROM recipes WHERE {clause}"),
+        params: vec![param.as_str().into()],
+    };
     let mut ack = Default::default();
-    if !context.deps.store.storage_execute(&q, &mut ack, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_execute(&q, &mut ack, context, metrics, evolution)
+    {
         evolution.propagate("delete_recipe", "删除方案失败");
         return false;
     }
@@ -159,9 +194,16 @@ pub fn export_recipes(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let q = SqlQuery { sql: format!("SELECT {COLS} FROM recipes ORDER BY created_at ASC"), params: vec![] };
+    let q = SqlQuery {
+        sql: format!("SELECT {COLS} FROM recipes ORDER BY created_at ASC"),
+        params: vec![],
+    };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("export_recipes", "查询方案失败");
         return false;
     }
@@ -215,7 +257,10 @@ pub fn bump_usage(
         sql: "UPDATE recipes SET usage_count = usage_count + 1 WHERE id = ?1".into(),
         params: vec![recipe_id.into()],
     };
-    context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution)
+    context
+        .deps
+        .store
+        .storage_execute(&q, &mut Default::default(), context, metrics, evolution)
 }
 
 // ---------- 内部辅助 ----------
@@ -229,13 +274,24 @@ fn read_recipe(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let q = SqlQuery { sql: format!("SELECT {COLS} FROM recipes WHERE id = ?1"), params: vec![id.into()] };
+    let q = SqlQuery {
+        sql: format!("SELECT {COLS} FROM recipes WHERE id = ?1"),
+        params: vec![id.into()],
+    };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("read_recipe", "查询方案失败");
         return false;
     }
-    *output = if rows.is_empty() { None } else { Some(recipe_from_row(&rows, 0)) };
+    *output = if rows.is_empty() {
+        None
+    } else {
+        Some(recipe_from_row(&rows, 0))
+    };
     true
 }
 
@@ -244,15 +300,24 @@ fn recipe_from_row(rows: &QueryRows, i: usize) -> Recipe {
     Recipe {
         id: rows.text(i, "id").unwrap_or_default().into(),
         title: rows.text(i, "title").unwrap_or_default().into(),
-        description: rows.text(i, "description").filter(|s| !s.is_empty()).map(str::to_string),
+        description: rows
+            .text(i, "description")
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
         kind: rows.text(i, "kind").unwrap_or("command").into(),
-        name: rows.text(i, "name").filter(|s| !s.is_empty()).map(str::to_string),
+        name: rows
+            .text(i, "name")
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
         command_template: rows.text(i, "command_template").unwrap_or_default().into(),
         tags: serde_json::from_str(rows.text(i, "tags").unwrap_or("[]")).unwrap_or_default(),
         platform: rows.text(i, "platform").unwrap_or("all").into(),
         risk_level: risk_from_text(rows.text(i, "risk_level").unwrap_or("safe")),
         usage_count: rows.int(i, "usage_count").unwrap_or(0) as u64,
-        source_execution_id: rows.text(i, "source_execution_id").filter(|s| !s.is_empty()).map(str::to_string),
+        source_execution_id: rows
+            .text(i, "source_execution_id")
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
         created_at: rows.int(i, "created_at").unwrap_or(0),
         updated_at: rows.int(i, "updated_at").unwrap_or(0),
     }

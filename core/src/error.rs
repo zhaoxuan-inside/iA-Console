@@ -40,7 +40,11 @@ pub struct IacError {
 
 impl IacError {
     pub fn new(code: &str, message: impl Into<String>) -> Self {
-        Self { code: code.to_string(), message: message.into(), detail: None }
+        Self {
+            code: code.to_string(),
+            message: message.into(),
+            detail: None,
+        }
     }
 }
 

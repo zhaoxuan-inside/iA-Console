@@ -48,11 +48,20 @@ mod tests {
 
     fn match_cmd(command: &str, rules: Vec<crate::risk::RiskRule>) -> RiskAssessment {
         let env = crate::framework::TestEnv::new();
-        let input = RiskRulesInput { command: command.into(), rules };
+        let input = RiskRulesInput {
+            command: command.into(),
+            rules,
+        };
         let mut out = RiskAssessment::default();
         let mut m = Metrics::default();
         let mut e = Evolution::default();
-        assert!(match_risk_rules(&input, &mut out, &env.context(), &mut m, &mut e));
+        assert!(match_risk_rules(
+            &input,
+            &mut out,
+            &env.context(),
+            &mut m,
+            &mut e
+        ));
         out
     }
 

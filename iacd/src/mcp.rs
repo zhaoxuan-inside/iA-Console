@@ -10,15 +10,36 @@ use std::sync::Arc;
 
 /// 工具定义（域 9 四能力 + 诊断/翻译/会话辅助；与 IPC 方法同表）。
 const TOOLS: &[(&str, &str)] = &[
-    ("iac_ask", "意图→多候选提案（闸门在执行端）：输入 {intent, cwd?, shell?}"),
-    ("iac_execute", "执行命令（闸门+审计一致）：输入 {command, confirmed?, confirm_word?, origin?}"),
+    (
+        "iac_ask",
+        "意图→多候选提案（闸门在执行端）：输入 {intent, cwd?, shell?}",
+    ),
+    (
+        "iac_execute",
+        "执行命令（闸门+审计一致）：输入 {command, confirmed?, confirm_word?, origin?}",
+    ),
     ("iac_explain", "参数解释：输入 {command}"),
-    ("iac_diagnose", "诊断失败执行：输入 {execution_id? 或 command/exit_code/stderr}"),
-    ("iac_history_query", "历史检索（含 Agent 发起留痕）：输入 {q?, actor?, status?, limit?}"),
-    ("iac_recipes_search", "方案检索：输入 {q?, tag?, platform?, kind?, limit?}"),
-    ("iac_recipe_save", "保存方案：输入 {title, command_template, tags?, platform?, name?}"),
+    (
+        "iac_diagnose",
+        "诊断失败执行：输入 {execution_id? 或 command/exit_code/stderr}",
+    ),
+    (
+        "iac_history_query",
+        "历史检索（含 Agent 发起留痕）：输入 {q?, actor?, status?, limit?}",
+    ),
+    (
+        "iac_recipes_search",
+        "方案检索：输入 {q?, tag?, platform?, kind?, limit?}",
+    ),
+    (
+        "iac_recipe_save",
+        "保存方案：输入 {title, command_template, tags?, platform?, name?}",
+    ),
     ("iac_translate", "习惯方言翻译：输入 {command, from?, to?}"),
-    ("iac_sessions_current", "当前会话信息（事件流）：输入 {cwd?, shell?, host?}"),
+    (
+        "iac_sessions_current",
+        "当前会话信息（事件流）：输入 {cwd?, shell?, host?}",
+    ),
 ];
 
 /// MCP stdio 主循环（阻塞至 EOF）。session 固定派生自 agent:mcp 连接。
@@ -36,7 +57,11 @@ pub fn stdio_loop(deps: Arc<Deps>, config: Arc<iac_core::config::Config>) -> i32
             Err(_) => continue, // 通知类消息静默
         };
         let id = req.get("id").cloned().unwrap_or(Value::Null);
-        let method = req.get("method").and_then(|m| m.as_str()).unwrap_or_default().to_string();
+        let method = req
+            .get("method")
+            .and_then(|m| m.as_str())
+            .unwrap_or_default()
+            .to_string();
         let resp = match method.as_str() {
             "initialize" => serde_json::json!({
                 "jsonrpc": "2.0", "id": id,
@@ -78,7 +103,10 @@ fn tools_call(
     n: &AtomicU64,
 ) -> serde_json::Value {
     let id = req.get("id").cloned().unwrap_or(Value::Null);
-    let name = req["params"]["name"].as_str().unwrap_or_default().to_string();
+    let name = req["params"]["name"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     let arguments = match req["params"]["arguments"].clone() {
         Value::Null => serde_json::json!({}),
         v => v,
@@ -100,19 +128,40 @@ fn tools_call(
         request_id: ipc_req.id.clone(),
         actor: Actor::Agent("mcp".into()),
     };
-    let locale = Locale { lang: "zh-CN".into(), timezone: "Asia/Shanghai".into() };
-    let ctx = Context { session: &session, config, deps, locale: &locale };
-    let mut out = IpcResponse { v: 1, id: ipc_req.id.clone(), ok: false, result: None, error: None };
+    let locale = Locale {
+        lang: "zh-CN".into(),
+        timezone: "Asia/Shanghai".into(),
+    };
+    let ctx = Context {
+        session: &session,
+        config,
+        deps,
+        locale: &locale,
+    };
+    let mut out = IpcResponse {
+        v: 1,
+        id: ipc_req.id.clone(),
+        ok: false,
+        result: None,
+        error: None,
+    };
     let mut evo = iac_core::framework::Evolution::default();
     let mut m = iac_core::framework::Metrics::default();
     let _ = dispatch_request(&ipc_req, &mut out, &ctx, &mut m, &mut evo);
     let text = if out.ok {
-        serde_json::to_string_pretty(out.result.as_ref().unwrap_or(&Value::Null)).unwrap_or_default()
+        serde_json::to_string_pretty(out.result.as_ref().unwrap_or(&Value::Null))
+            .unwrap_or_default()
     } else {
         format!(
             "[{}] {}",
-            out.error.as_ref().map(|e| e.code.clone()).unwrap_or_default(),
-            out.error.as_ref().map(|e| e.message.clone()).unwrap_or_default()
+            out.error
+                .as_ref()
+                .map(|e| e.code.clone())
+                .unwrap_or_default(),
+            out.error
+                .as_ref()
+                .map(|e| e.message.clone())
+                .unwrap_or_default()
         )
     };
     serde_json::json!({

@@ -26,7 +26,11 @@ pub fn lookup_knowledge(
         params: vec![id.as_str().into()],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("lookup_knowledge", "查询知识缓存失败");
         return false;
     }
@@ -84,7 +88,11 @@ pub fn cache_knowledge(
         ],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("cache_knowledge", "写入知识缓存失败");
         return false;
     }

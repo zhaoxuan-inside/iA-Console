@@ -11,8 +11,14 @@ use crate::ports::LlmResponse;
 /// 静态快速通道：exit code → 结构化提示。
 fn static_hint(exit_code: i32) -> Option<(&'static str, &'static str)> {
     match exit_code {
-        127 => Some(("命令未找到", "命令不存在或不在 PATH 中；安装命令或检查 PATH，或让 AI 给出提案")),
-        126 => Some(("命令不可执行", "找到命令但无执行权限；检查 chmod 与文件类型")),
+        127 => Some((
+            "命令未找到",
+            "命令不存在或不在 PATH 中；安装命令或检查 PATH，或让 AI 给出提案",
+        )),
+        126 => Some((
+            "命令不可执行",
+            "找到命令但无执行权限；检查 chmod 与文件类型",
+        )),
         13 => Some(("权限被拒绝", "当前用户无权访问目标文件/目录")),
         _ => None,
     }
@@ -35,8 +41,10 @@ pub fn build_failure_context(
     metrics: &mut Metrics,
     _evolution: &mut Evolution,
 ) -> bool {
-    output.static_root_cause =
-        input.exit_code.and_then(static_hint).map(|(cause, note)| format!("{cause}：{note}"));
+    output.static_root_cause = input
+        .exit_code
+        .and_then(static_hint)
+        .map(|(cause, note)| format!("{cause}：{note}"));
     output.system = "你是 iA-console 错误医生。分析失败命令，只输出 JSON：\
         {root_cause, evidence:[stderr 原文片段], confidence:0~1, fix_proposals:[{command,explanation}]}。\
         evidence 必须逐字引用 stderr，引用不到则输出空数组。"
@@ -46,7 +54,10 @@ pub fn build_failure_context(
     output.user = format!(
         "命令：{}\n退出码：{}\n目录：{}\n平台 shell：{}\nstderr：\n{}\n",
         input.command,
-        input.exit_code.map(|c| c.to_string()).unwrap_or_else(|| "无".into()),
+        input
+            .exit_code
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "无".into()),
         input.cwd,
         input.shell,
         stderr
@@ -85,7 +96,10 @@ pub fn parse_diagnosis_response(
     let v: serde_json::Value = match serde_json::from_str(text) {
         Ok(v) => v,
         Err(e) => {
-            evolution.fail(crate::error::codes::DIAGNOSE, format!("诊断 JSON 解析失败: {e}"));
+            evolution.fail(
+                crate::error::codes::DIAGNOSE,
+                format!("诊断 JSON 解析失败: {e}"),
+            );
             return false;
         }
     };
@@ -185,7 +199,11 @@ fn ai_diagnose(
         timeout_ms: 30_000,
     };
     let mut resp = LlmResponse::default();
-    if !context.deps.ai.ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution) {
+    if !context
+        .deps
+        .ai
+        .ai_complete(&provider, &ai_in, &mut resp, context, metrics, evolution)
+    {
         evolution.propagate("diagnose_failure", "AI 诊断失败（静态通道未命中）");
         return false;
     }
@@ -206,11 +224,25 @@ fn locate_failure(
     evolution: &mut Evolution,
 ) -> Option<ExecutionRecord> {
     if let Some(id) = &input.execution_id {
-        let filter = HistoryFilter { q: None, session_id: None, actor: None, status: None, since: None, until: None, limit: 1, offset: 0, with_full_output: true };
+        let filter = HistoryFilter {
+            q: None,
+            session_id: None,
+            actor: None,
+            status: None,
+            since: None,
+            until: None,
+            limit: 1,
+            offset: 0,
+            with_full_output: true,
+        };
         // 精确取单条：借 q 全表过滤代价高，直接 LIKE 不适合 id——用 with_full_output + 分页过滤
         let mut page = HistoryPage::default();
         // 简化：查询最近 200 条再精确匹配（万条级检索由 history 域承担）
-        let mut scan = HistoryFilter { limit: 200, with_full_output: true, ..Default::default() };
+        let mut scan = HistoryFilter {
+            limit: 200,
+            with_full_output: true,
+            ..Default::default()
+        };
         let _ = &mut scan;
         if !query_history(&filter, &mut page, context, metrics, evolution) {
             return None;
@@ -230,11 +262,26 @@ fn locate_failure(
             host: "local".into(),
             stderr_full: input.stderr.clone(),
             stdout_full: input.stdout.clone(),
-            stderr_summary: Some(input.stderr.chars().rev().take(256).collect::<String>().chars().rev().collect()),
+            stderr_summary: Some(
+                input
+                    .stderr
+                    .chars()
+                    .rev()
+                    .take(256)
+                    .collect::<String>()
+                    .chars()
+                    .rev()
+                    .collect(),
+            ),
             ..Default::default()
         });
     }
-    let filter = HistoryFilter { status: Some(ExecStatus::Failed), limit: 1, with_full_output: true, ..Default::default() };
+    let filter = HistoryFilter {
+        status: Some(ExecStatus::Failed),
+        limit: 1,
+        with_full_output: true,
+        ..Default::default()
+    };
     let mut page = HistoryPage::default();
     if !query_history(&filter, &mut page, context, metrics, evolution) {
         return None;
@@ -253,7 +300,11 @@ fn static_diagnosis(record: &ExecutionRecord, cause: &str) -> Diagnosis {
         .lines()
         .rev()
         .take(3)
-        .map(|q| Evidence { source: "stderr".into(), quote: q.to_string(), note: String::new() })
+        .map(|q| Evidence {
+            source: "stderr".into(),
+            quote: q.to_string(),
+            note: String::new(),
+        })
         .collect::<Vec<_>>();
     Diagnosis {
         root_cause: cause.to_string(),
@@ -267,7 +318,11 @@ fn static_diagnosis(record: &ExecutionRecord, cause: &str) -> Diagnosis {
 
 fn strip_fences(text: &str) -> &str {
     let t = text.trim();
-    let body = t.strip_prefix("```json").or_else(|| t.strip_prefix("```")).unwrap_or(t).trim();
+    let body = t
+        .strip_prefix("```json")
+        .or_else(|| t.strip_prefix("```"))
+        .unwrap_or(t)
+        .trim();
     match (body.find('{'), body.rfind('}')) {
         (Some(a), Some(b)) if b > a => &body[a..=b],
         _ => body,
@@ -291,7 +346,10 @@ mod tests {
             stderr: "git: command not found".into(),
             ..Default::default()
         };
-        assert!(diagnose_failure(&input, &mut out, &env.context(), &mut m, &mut e), "evo={e:?}");
+        assert!(
+            diagnose_failure(&input, &mut out, &env.context(), &mut m, &mut e),
+            "evo={e:?}"
+        );
         assert!(out.root_cause.contains("命令未找到"));
         assert!(!out.evidence.is_empty(), "静态通道也引用 stderr 尾行");
         assert!(!out.speculation);

@@ -138,7 +138,12 @@ mod tests {
             GateAction::RequireDoubleEnter
         );
         assert_eq!(
-            gate_decision(RiskLevel::Destructive, CommandOrigin::Translated, false, false),
+            gate_decision(
+                RiskLevel::Destructive,
+                CommandOrigin::Translated,
+                false,
+                false
+            ),
             GateAction::RequireConfirmWord
         );
         assert_eq!(
@@ -159,7 +164,12 @@ mod tests {
         );
         // Agent 带确认标志即视为确认完成（Q35/Q37：Agent 无法做二次 Enter，标志即确认）
         assert_eq!(
-            gate_decision(RiskLevel::Destructive, CommandOrigin::Translated, true, true),
+            gate_decision(
+                RiskLevel::Destructive,
+                CommandOrigin::Translated,
+                true,
+                true
+            ),
             GateAction::Pass
         );
     }

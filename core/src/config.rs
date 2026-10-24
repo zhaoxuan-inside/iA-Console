@@ -136,7 +136,10 @@ fn default_summary_max() -> usize {
 // 子结构 Default 与各 serde default 函数同源（缺省值唯一出处）。
 impl Default for AiConfig {
     fn default() -> Self {
-        Self { default_provider: default_provider_name(), fallback_local: false }
+        Self {
+            default_provider: default_provider_name(),
+            fallback_local: false,
+        }
     }
 }
 impl Default for RollbackConfig {
@@ -153,12 +156,18 @@ impl Default for RollbackConfig {
 }
 impl Default for HistoryConfig {
     fn default() -> Self {
-        Self { retention_days: default_history_days(), retention_max_bytes: default_history_bytes() }
+        Self {
+            retention_days: default_history_days(),
+            retention_max_bytes: default_history_bytes(),
+        }
     }
 }
 impl Default for RenderConfig {
     fn default() -> Self {
-        Self { languages: default_languages(), output_detection: true }
+        Self {
+            languages: default_languages(),
+            output_detection: true,
+        }
     }
 }
 impl Default for ExecConfig {
@@ -243,7 +252,10 @@ impl Config {
                     }
                 }
                 ProviderKind::LocalPath if p.path.is_none() => {
-                    return Err(format!("provider[{}] local-path 必须配置模型文件 path", p.name));
+                    return Err(format!(
+                        "provider[{}] local-path 必须配置模型文件 path",
+                        p.name
+                    ));
                 }
                 _ => {}
             }
@@ -292,7 +304,8 @@ mod tests {
     fn env_overrides_win_over_file_values() {
         let mut c = Config::defaults();
         c.apply_env_with(|k| {
-            (k == "IAC_HABIT_DIALECT").then(|| "windows".into())
+            (k == "IAC_HABIT_DIALECT")
+                .then(|| "windows".into())
                 .or((k == "IAC_DEFAULT_PROVIDER").then(|| "glm".into()))
         });
         assert_eq!(c.ui.habit_dialect, Platform::Windows);

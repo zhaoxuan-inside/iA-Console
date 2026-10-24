@@ -29,8 +29,16 @@ fn main() {
     if mcp_mode {
         std::process::exit(iacd::run_mcp_mode(&data));
     }
-    println!("iacd 监听 {}: 数据目录 {}", socket.display(), data.display());
-    match iacd::run(iacd::DaemonOptions { socket_path: socket, data_dir: data, foreground: true }) {
+    println!(
+        "iacd 监听 {}: 数据目录 {}",
+        socket.display(),
+        data.display()
+    );
+    match iacd::run(iacd::DaemonOptions {
+        socket_path: socket,
+        data_dir: data,
+        foreground: true,
+    }) {
         Ok(n) => println!("iacd 已退出（服务连接数 {n}）"),
         Err(e) => {
             eprintln!("{e}");

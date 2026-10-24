@@ -1,7 +1,10 @@
 //! 会话存取（域 6）：事件流全量落盘（G6）、按 cwd+host 复用当前会话、全形态恢复（Q46）、
 //! 对话轨与钉住备注查询（Q33）。SQL 全参数化；失败转译 IAC-3102。
 
-use super::{CurrentSessionInput, EventKind, SessionEvent, SessionInfo, SessionListInput, SessionResumeInput, SessionSummary, now_ms};
+use super::{
+    now_ms, CurrentSessionInput, EventKind, SessionEvent, SessionInfo, SessionListInput,
+    SessionResumeInput, SessionSummary,
+};
 use crate::framework::{Context, Evolution, Metrics};
 use crate::ports::{QueryRows, SqlQuery};
 
@@ -66,7 +69,11 @@ pub fn get_or_create_current(
         params: vec![input.cwd.as_str().into(), input.host.as_str().into()],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("get_or_create_current", "查询当前会话失败");
         return false;
     }
@@ -106,7 +113,11 @@ fn create_session(
         ],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("create_session", "写入会话失败");
         return false;
     }
@@ -131,12 +142,19 @@ pub fn load_session(
         params: vec![session_id.into()],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("load_session", "查询会话失败");
         return false;
     }
     if rows.is_empty() {
-        evolution.fail(crate::error::codes::UNKNOWN_METHOD, format!("会话不存在: {session_id}"));
+        evolution.fail(
+            crate::error::codes::UNKNOWN_METHOD,
+            format!("会话不存在: {session_id}"),
+        );
         return false;
     }
     let env = parse_env(rows.text(0, "env_json").unwrap_or("[]"));
@@ -167,7 +185,11 @@ pub fn list_sessions(
         params: vec![i64::from(input.limit).into()],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("list_sessions", "查询会话列表失败");
         return false;
     }
@@ -209,11 +231,17 @@ pub fn append_event(
 ) -> bool {
     evolution.succeed();
     let seq_q = SqlQuery {
-        sql: "SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM session_events WHERE session_id = ?1".into(),
+        sql:
+            "SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM session_events WHERE session_id = ?1"
+                .into(),
         params: vec![input.session_id.as_str().into()],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&seq_q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&seq_q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("append_event", "查询事件序号失败");
         return false;
     }
@@ -226,12 +254,19 @@ pub fn append_event(
             input.session_id.as_str().into(),
             seq.into(),
             input.kind.as_str().into(),
-            serde_json::to_string(&input.payload).unwrap_or_default().as_str().into(),
+            serde_json::to_string(&input.payload)
+                .unwrap_or_default()
+                .as_str()
+                .into(),
             i64::from(input.pinned).into(),
             now_ms().into(),
         ],
     };
-    if !context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_execute(&q, &mut Default::default(), context, metrics, evolution)
+    {
         evolution.propagate("append_event", "写入事件失败");
         return false;
     }
@@ -249,7 +284,12 @@ pub fn record_separator(
     evolution: &mut Evolution,
 ) -> bool {
     append_event(
-        &AppendEventInput { session_id: session_id.into(), kind: EventKind::Separator, payload: serde_json::json!({}), pinned: false },
+        &AppendEventInput {
+            session_id: session_id.into(),
+            kind: EventKind::Separator,
+            payload: serde_json::json!({}),
+            pinned: false,
+        },
         &mut RecordAck::default(),
         context,
         metrics,
@@ -267,7 +307,12 @@ pub fn record_note(
     evolution: &mut Evolution,
 ) -> bool {
     append_event(
-        &AppendEventInput { session_id: session_id.into(), kind: EventKind::Note, payload: serde_json::json!({ "text": text }), pinned },
+        &AppendEventInput {
+            session_id: session_id.into(),
+            kind: EventKind::Note,
+            payload: serde_json::json!({ "text": text }),
+            pinned,
+        },
         &mut RecordAck::default(),
         context,
         metrics,
@@ -315,7 +360,11 @@ pub fn record_env(
         sql: "UPDATE sessions SET env_json = ?1, updated_at = ?2 WHERE id = ?3".into(),
         params: vec![json.as_str().into(), now_ms().into(), session_id.into()],
     };
-    if !context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_execute(&q, &mut Default::default(), context, metrics, evolution)
+    {
         evolution.propagate("record_env", "更新会话环境失败");
         return false;
     }
@@ -355,9 +404,16 @@ pub fn pinned_notes(
     if !load_events(session_id, &mut all, context, metrics, evolution) {
         return false;
     }
-    output.extend(all.iter().filter(|e| e.pinned && e.kind == EventKind::Note).filter_map(|e| {
-        e.payload.get("text").and_then(|t| t.as_str()).map(str::to_string)
-    }));
+    output.extend(
+        all.iter()
+            .filter(|e| e.pinned && e.kind == EventKind::Note)
+            .filter_map(|e| {
+                e.payload
+                    .get("text")
+                    .and_then(|t| t.as_str())
+                    .map(str::to_string)
+            }),
+    );
     true
 }
 
@@ -377,13 +433,18 @@ fn load_events(
         params: vec![session_id.into()],
     };
     let mut rows = QueryRows::default();
-    if !context.deps.store.storage_query(&q, &mut rows, context, metrics, evolution) {
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
         evolution.propagate("load_events", "查询事件流失败");
         return false;
     }
     for i in 0..rows.len() {
         let payload_raw = rows.text(i, "payload").unwrap_or("{}");
-        let payload: serde_json::Value = serde_json::from_str(payload_raw).unwrap_or(serde_json::json!({}));
+        let payload: serde_json::Value =
+            serde_json::from_str(payload_raw).unwrap_or(serde_json::json!({}));
         output.push(SessionEvent {
             seq: rows.int(i, "seq").unwrap_or(0),
             kind: EventKind::parse_str(rows.text(i, "kind").unwrap_or("command")),
@@ -417,11 +478,21 @@ fn parse_env(raw: &str) -> Vec<(String, String)> {
 }
 
 /// 触碰会话更新时间。
-fn touch_session(session_id: &str, context: &Context, metrics: &mut Metrics, evolution: &mut Evolution) {
+fn touch_session(
+    session_id: &str,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) {
     let q = SqlQuery {
         sql: "UPDATE sessions SET updated_at = ?1 WHERE id = ?2".into(),
         params: vec![now_ms().into(), session_id.into()],
     };
-    let _ = context.deps.store.storage_execute(&q, &mut Default::default(), context, metrics, evolution);
+    let _ = context.deps.store.storage_execute(
+        &q,
+        &mut Default::default(),
+        context,
+        metrics,
+        evolution,
+    );
 }
-

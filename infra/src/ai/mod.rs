@@ -4,10 +4,10 @@
 pub mod local;
 
 use iac_core::config::ProviderProfile;
-use iac_core::types::ProviderKind;
 use iac_core::error::codes;
 use iac_core::framework::{Context, Evolution, Metrics};
 use iac_core::ports::{AiRequest, LlmResponse};
+use iac_core::types::ProviderKind;
 use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -23,15 +23,26 @@ pub fn ai_complete(
 ) -> bool {
     evolution.succeed();
     let key = api_key(provider);
-    let remote = matches!(provider.kind, ProviderKind::Openai | ProviderKind::Anthropic);
+    let remote = matches!(
+        provider.kind,
+        ProviderKind::Openai | ProviderKind::Anthropic
+    );
     if remote && key.is_none() {
         evolution.fail(
             codes::CONFIG_KEY_MISSING,
-            format!("环境变量 {} 未设置", provider.api_key_env.as_deref().unwrap_or("<未配置 api_key_env>")),
+            format!(
+                "环境变量 {} 未设置",
+                provider
+                    .api_key_env
+                    .as_deref()
+                    .unwrap_or("<未配置 api_key_env>")
+            ),
         );
         return false;
     }
-    let client = Client::builder().timeout(Duration::from_millis(input.timeout_ms)).build();
+    let client = Client::builder()
+        .timeout(Duration::from_millis(input.timeout_ms))
+        .build();
     let Ok(client) = client else {
         evolution.fail(codes::AI_UNAVAILABLE, "HTTP 客户端构建失败");
         return false;
@@ -42,7 +53,9 @@ pub fn ai_complete(
         _ => openai_payload(provider, input, &key),
     };
     metrics.counter("ai.calls", 1);
-    let Some((content, model)) = send_and_parse(&client, &url, body, headers, provider.kind, evolution) else {
+    let Some((content, model)) =
+        send_and_parse(&client, &url, body, headers, provider.kind, evolution)
+    else {
         return false; // evolution 已写明原因
     };
     output.text = content;
@@ -70,11 +83,17 @@ fn send_and_parse(
     let status = resp.status();
     let text = resp.text().unwrap_or_default();
     if !status.is_success() {
-        evolution.fail(codes::AI_UNAVAILABLE, format!("AI 后端返回 {status}: {}", truncate(&text, 300)));
+        evolution.fail(
+            codes::AI_UNAVAILABLE,
+            format!("AI 后端返回 {status}: {}", truncate(&text, 300)),
+        );
         return None;
     }
     parse_text(&text, kind).or_else(|| {
-        evolution.fail(codes::AI_UNAVAILABLE, format!("响应解析失败: {}", truncate(&text, 300)));
+        evolution.fail(
+            codes::AI_UNAVAILABLE,
+            format!("响应解析失败: {}", truncate(&text, 300)),
+        );
         None
     })
 }
@@ -86,8 +105,15 @@ fn api_key(p: &ProviderProfile) -> Option<String> {
 }
 
 /// OpenAI 兼容：POST {base}/chat/completions，Bearer 鉴权。
-fn openai_payload(p: &ProviderProfile, input: &iac_core::ports::AiRequest, key: &str) -> (String, Value, reqwest::header::HeaderMap) {
-    let url = format!("{}/chat/completions", p.base_url.clone().unwrap_or_default());
+fn openai_payload(
+    p: &ProviderProfile,
+    input: &iac_core::ports::AiRequest,
+    key: &str,
+) -> (String, Value, reqwest::header::HeaderMap) {
+    let url = format!(
+        "{}/chat/completions",
+        p.base_url.clone().unwrap_or_default()
+    );
     let mut msgs = vec![json!({"role": "system", "content": input.system})];
     for (role, content) in &input.messages {
         msgs.push(json!({"role": role, "content": content}));
@@ -101,10 +127,22 @@ fn openai_payload(p: &ProviderProfile, input: &iac_core::ports::AiRequest, key: 
 }
 
 /// Anthropic 原生：POST {base}/v1/messages，x-api-key + anthropic-version。
-fn anthropic_payload(p: &ProviderProfile, input: &iac_core::ports::AiRequest, key: &str) -> (String, Value, reqwest::header::HeaderMap) {
+fn anthropic_payload(
+    p: &ProviderProfile,
+    input: &iac_core::ports::AiRequest,
+    key: &str,
+) -> (String, Value, reqwest::header::HeaderMap) {
     let base = p.base_url.clone().unwrap_or_default();
-    let url = if base.ends_with("/v1") { format!("{base}/messages") } else { format!("{base}/v1/messages") };
-    let msgs: Vec<Value> = input.messages.iter().map(|(r, c)| json!({"role": r, "content": c})).collect();
+    let url = if base.ends_with("/v1") {
+        format!("{base}/messages")
+    } else {
+        format!("{base}/v1/messages")
+    };
+    let msgs: Vec<Value> = input
+        .messages
+        .iter()
+        .map(|(r, c)| json!({"role": r, "content": c}))
+        .collect();
     let body = json!({
         "model": p.model.clone().unwrap_or_default(),
         "system": input.system,
@@ -113,8 +151,14 @@ fn anthropic_payload(p: &ProviderProfile, input: &iac_core::ports::AiRequest, ke
         "temperature": input.temperature,
     });
     let mut h = reqwest::header::HeaderMap::new();
-    h.insert("x-api-key", reqwest::header::HeaderValue::from_str(key).expect("invalid header key"));
-    h.insert("anthropic-version", reqwest::header::HeaderValue::from_static("2023-06-01"));
+    h.insert(
+        "x-api-key",
+        reqwest::header::HeaderValue::from_str(key).expect("invalid header key"),
+    );
+    h.insert(
+        "anthropic-version",
+        reqwest::header::HeaderValue::from_static("2023-06-01"),
+    );
     (url, body, h)
 }
 

@@ -1,9 +1,9 @@
 //! T-006 AI Adapter 测试：本地 mock HTTP server 覆盖 OpenAI/Anthropic 形态与错误路径。
 
 use iac_core::config::ProviderProfile;
-use iac_core::types::ProviderKind;
 use iac_core::framework::{Evolution, Metrics, TestEnv};
 use iac_core::ports::{AiRequest, LlmResponse};
+use iac_core::types::ProviderKind;
 use infra::ai::ai_complete;
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -51,7 +51,14 @@ fn run(p: &ProviderProfile) -> (bool, LlmResponse, Evolution) {
     let env = TestEnv::new();
     let mut out = LlmResponse::default();
     let mut evo = Evolution::default();
-    let ok = ai_complete(p, &req(), &mut out, &env.context(), &mut Metrics::default(), &mut evo);
+    let ok = ai_complete(
+        p,
+        &req(),
+        &mut out,
+        &env.context(),
+        &mut Metrics::default(),
+        &mut evo,
+    );
     (ok, out, evo)
 }
 
@@ -69,7 +76,8 @@ fn openai_shape_success() {
 #[test]
 fn anthropic_shape_success() {
     std::env::set_var("IAC_TEST_KEY", "test-key-123");
-    let base = serve_once("200 OK\r\n\r\n{\"content\":[{\"text\":\"你好\"}],\"model\":\"claude-x\"}");
+    let base =
+        serve_once("200 OK\r\n\r\n{\"content\":[{\"text\":\"你好\"}],\"model\":\"claude-x\"}");
     let (ok, out, _) = run(&provider(ProviderKind::Anthropic, base, "IAC_TEST_KEY"));
     assert!(ok);
     assert_eq!(out.text, "你好");
@@ -98,7 +106,11 @@ fn malformed_json_maps_to_1101() {
 #[test]
 fn missing_key_env_maps_to_5102() {
     // IAC_TEST_MISSING_KEY 故意不设置
-    let (ok, _, evo) = run(&provider(ProviderKind::Openai, "http://127.0.0.1:1".into(), "IAC_TEST_MISSING_KEY"));
+    let (ok, _, evo) = run(&provider(
+        ProviderKind::Openai,
+        "http://127.0.0.1:1".into(),
+        "IAC_TEST_MISSING_KEY",
+    ));
     assert!(!ok);
     assert_eq!(evo.reason_code.as_deref(), Some("IAC-5102"));
 }
@@ -106,7 +118,11 @@ fn missing_key_env_maps_to_5102() {
 #[test]
 fn unreachable_backend_maps_to_1101() {
     std::env::set_var("IAC_TEST_KEY", "test-key-123");
-    let (ok, _, evo) = run(&provider(ProviderKind::Openai, "http://127.0.0.1:9".into(), "IAC_TEST_KEY"));
+    let (ok, _, evo) = run(&provider(
+        ProviderKind::Openai,
+        "http://127.0.0.1:9".into(),
+        "IAC_TEST_KEY",
+    ));
     assert!(!ok);
     assert_eq!(evo.reason_code.as_deref(), Some("IAC-1101"));
 }

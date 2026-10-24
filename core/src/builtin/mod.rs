@@ -27,18 +27,66 @@ pub struct BuiltinDef {
 
 /// 内置命令总表（`ia-help` 列全部；名单随能力域走查登记扩充）。
 pub const BUILTINS: &[BuiltinDef] = &[
-    BuiltinDef { name: "ia-help", summary: "列出全部内置命令", usage: "ia-help" },
-    BuiltinDef { name: "ia-config", summary: "查看/修改配置", usage: "ia-config [get|set <键> <值>]" },
-    BuiltinDef { name: "ia-model", summary: "模型后端列表与切换", usage: "ia-model [list|use <名>]" },
-    BuiltinDef { name: "ia-daemon", summary: "daemon 生命周期管理", usage: "ia-daemon [status|stop]" },
-    BuiltinDef { name: "ia-history", summary: "执行记录检索/清理/导出", usage: "ia-history [query <词>|clean|export <路径>]" },
-    BuiltinDef { name: "ia-recipe", summary: "方案库保存/检索/删除/导出", usage: "ia-recipe [save|search <词>|show <名>|rm <名>|export <路径>]" },
-    BuiltinDef { name: "ia-sessions", summary: "会话列表与恢复（Q46）", usage: "ia-sessions [list|resume <id>]" },
-    BuiltinDef { name: "ia-rollback", summary: "回滚点列表与回放（Q49）", usage: "ia-rollback [list|replay [seq]]" },
-    BuiltinDef { name: "ia-file-history", summary: "单文件版本历史与恢复（Q49）", usage: "ia-file-history <路径> [restore <seq>]" },
-    BuiltinDef { name: "ia-script", summary: "脚本工坊制作/精修/运行", usage: "ia-script [make|refine <名>|run <名>]" },
-    BuiltinDef { name: "ia-theme", summary: "主题切换", usage: "ia-theme [day|night|auto]" },
-    BuiltinDef { name: "ia-exit", summary: "结束当前会话/窗口", usage: "ia-exit" },
+    BuiltinDef {
+        name: "ia-help",
+        summary: "列出全部内置命令",
+        usage: "ia-help",
+    },
+    BuiltinDef {
+        name: "ia-config",
+        summary: "查看/修改配置",
+        usage: "ia-config [get|set <键> <值>]",
+    },
+    BuiltinDef {
+        name: "ia-model",
+        summary: "模型后端列表与切换",
+        usage: "ia-model [list|use <名>]",
+    },
+    BuiltinDef {
+        name: "ia-daemon",
+        summary: "daemon 生命周期管理",
+        usage: "ia-daemon [status|stop]",
+    },
+    BuiltinDef {
+        name: "ia-history",
+        summary: "执行记录检索/清理/导出",
+        usage: "ia-history [query <词>|clean|export <路径>]",
+    },
+    BuiltinDef {
+        name: "ia-recipe",
+        summary: "方案库保存/检索/删除/导出",
+        usage: "ia-recipe [save|search <词>|show <名>|rm <名>|export <路径>]",
+    },
+    BuiltinDef {
+        name: "ia-sessions",
+        summary: "会话列表与恢复（Q46）",
+        usage: "ia-sessions [list|resume <id>]",
+    },
+    BuiltinDef {
+        name: "ia-rollback",
+        summary: "回滚点列表与回放（Q49）",
+        usage: "ia-rollback [list|replay [seq]]",
+    },
+    BuiltinDef {
+        name: "ia-file-history",
+        summary: "单文件版本历史与恢复（Q49）",
+        usage: "ia-file-history <路径> [restore <seq>]",
+    },
+    BuiltinDef {
+        name: "ia-script",
+        summary: "脚本工坊制作/精修/运行",
+        usage: "ia-script [make|refine <名>|run <名>]",
+    },
+    BuiltinDef {
+        name: "ia-theme",
+        summary: "主题切换",
+        usage: "ia-theme [day|night|auto]",
+    },
+    BuiltinDef {
+        name: "ia-exit",
+        summary: "结束当前会话/窗口",
+        usage: "ia-exit",
+    },
 ];
 
 /// 解析后的内置命令调用。
@@ -76,7 +124,10 @@ pub fn lookup(name: &str) -> Option<&'static BuiltinDef> {
 pub fn help_text() -> String {
     let mut out = String::from("内置命令（ia- 命名空间）：\n");
     for b in BUILTINS {
-        out.push_str(&format!("  {:<18} {}\n    用法: {}\n", b.name, b.summary, b.usage));
+        out.push_str(&format!(
+            "  {:<18} {}\n    用法: {}\n",
+            b.name, b.summary, b.usage
+        ));
     }
     out
 }

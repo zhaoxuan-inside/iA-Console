@@ -3,13 +3,15 @@
 
 use std::path::{Path, PathBuf};
 
+use iac_core::config::Config;
 use iac_core::error::codes;
 use iac_core::framework::{Context, Evolution, Metrics};
-use iac_core::config::Config;
 
 /// 平台数据目录（XDG；Windows 用 AppData）。
 pub fn data_dir() -> PathBuf {
-    dirs::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("iac")
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("iac")
 }
 
 /// 平台缺省配置路径：`$XDG_CONFIG_HOME|~/.config /iac/config.toml`（Windows: %APPDATA%）。

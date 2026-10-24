@@ -180,12 +180,18 @@ impl SnapPort for RealSnap {
         let mut stored_total: u64 = 0;
         for root in &input.roots {
             walk(root, &input.excludes, &mut |abs| {
-                let Ok(meta) = std::fs::metadata(abs) else { return };
+                let Ok(meta) = std::fs::metadata(abs) else {
+                    return;
+                };
                 if !meta.is_file() || meta.is_symlink() {
                     return;
                 }
-                let Ok(_rel) = abs.strip_prefix(root) else { return };
-                let Ok(bytes) = std::fs::read(abs) else { return };
+                let Ok(_rel) = abs.strip_prefix(root) else {
+                    return;
+                };
+                let Ok(bytes) = std::fs::read(abs) else {
+                    return;
+                };
                 let hex = sha256_hex(&bytes);
                 let storable = bytes.len() as u64 <= input.max_file_bytes
                     && stored_total + bytes.len() as u64 <= input.max_total_bytes;
@@ -284,7 +290,6 @@ impl SnapPort for RealSnap {
     }
 }
 
-
 /// 当前 Unix 秒。
 fn now_secs() -> u64 {
     std::time::SystemTime::now()
@@ -334,7 +339,9 @@ fn list_files(dir: &Path) -> Vec<(PathBuf, (u64, u64))> {
 }
 
 fn list_files_into(dir: &Path, out: &mut Vec<(PathBuf, (u64, u64))>) {
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in rd.flatten() {
         let Ok(meta) = entry.metadata() else { continue };
         if meta.is_dir() {
@@ -342,9 +349,16 @@ fn list_files_into(dir: &Path, out: &mut Vec<(PathBuf, (u64, u64))>) {
         } else if meta.is_file() {
             out.push((
                 entry.path(),
-                (meta.len(), meta.modified().map(|t| {
-                    t.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
-                }).unwrap_or(0)),
+                (
+                    meta.len(),
+                    meta.modified()
+                        .map(|t| {
+                            t.duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs())
+                                .unwrap_or(0)
+                        })
+                        .unwrap_or(0),
+                ),
             ));
         }
     }
@@ -352,7 +366,9 @@ fn list_files_into(dir: &Path, out: &mut Vec<(PathBuf, (u64, u64))>) {
 
 /// 递归遍历（跳过排除名、符号链接），叶子回调绝对路径。
 fn walk(cur: &Path, excludes: &[String], cb: &mut impl FnMut(&Path)) {
-    let Ok(rd) = std::fs::read_dir(cur) else { return };
+    let Ok(rd) = std::fs::read_dir(cur) else {
+        return;
+    };
     for entry in rd.flatten() {
         let Ok(meta) = entry.metadata() else { continue };
         let name = entry.file_name().to_string_lossy().to_string();
@@ -397,7 +413,9 @@ mod tests {
         let mut evo = Evolution::default();
         let mut m = Metrics::default();
         assert!(snap.snapstore_put(
-            &SnapshotData { bytes: b"hello rollback".to_vec() },
+            &SnapshotData {
+                bytes: b"hello rollback".to_vec()
+            },
             &mut cref,
             &env.context(),
             &mut m,
@@ -407,7 +425,9 @@ mod tests {
         // 去重：同内容再写仍成功
         let mut cref2 = ContentRef::default();
         assert!(snap.snapstore_put(
-            &SnapshotData { bytes: b"hello rollback".to_vec() },
+            &SnapshotData {
+                bytes: b"hello rollback".to_vec()
+            },
             &mut cref2,
             &env.context(),
             &mut m,
@@ -430,7 +450,9 @@ mod tests {
         let mut m = Metrics::default();
         let mut out = SnapshotData::default();
         assert!(!snap.snapstore_fetch(
-            &ContentRef { reference: "sha256:deadbeef".into() },
+            &ContentRef {
+                reference: "sha256:deadbeef".into()
+            },
             &mut out,
             &env.context(),
             &mut m,
@@ -496,17 +518,28 @@ mod tests {
         for i in 0..3u8 {
             let bytes: Vec<u8> = (0..512u32)
                 .map(|n| {
-                    let h = n.wrapping_mul(2654435761).wrapping_add(u32::from(i).wrapping_mul(0x9E37_79B9));
+                    let h = n
+                        .wrapping_mul(2654435761)
+                        .wrapping_add(u32::from(i).wrapping_mul(0x9E37_79B9));
                     (h >> 24) as u8 ^ n as u8
                 })
                 .collect();
             let mut cref = ContentRef::default();
-            assert!(snap.snapstore_put(&SnapshotData { bytes }, &mut cref, &env.context(), &mut m, &mut evo));
+            assert!(snap.snapstore_put(
+                &SnapshotData { bytes },
+                &mut cref,
+                &env.context(),
+                &mut m,
+                &mut evo
+            ));
         }
         // 容量压到单文件以下 → 至少清退 2 份
         let mut report = SweepReport::default();
         assert!(snap.sweep_expired(
-            &RetentionPolicy { days: 7, max_bytes: 256 },
+            &RetentionPolicy {
+                days: 7,
+                max_bytes: 256
+            },
             &mut report,
             &env.context(),
             &mut m,
@@ -524,7 +557,10 @@ mod tests {
         std::fs::write(&f, b"bye").unwrap();
         let mut ack = TrashAck::default();
         assert!(snap.trash_file(
-            &TrashRequest { abs_path: f.clone(), tag: "e1_1".into() },
+            &TrashRequest {
+                abs_path: f.clone(),
+                tag: "e1_1".into()
+            },
             &mut ack,
             &env.context(),
             &mut m,
@@ -533,7 +569,10 @@ mod tests {
         assert!(ack.moved && !f.exists() && ack.trash_path.contains("trash"));
         let mut report2 = SweepReport::default();
         assert!(snap.sweep_expired(
-            &RetentionPolicy { days: 0, max_bytes: u64::MAX },
+            &RetentionPolicy {
+                days: 0,
+                max_bytes: u64::MAX
+            },
             &mut report2,
             &env.context(),
             &mut m,

@@ -29,7 +29,10 @@ pub fn parse_proposal_response(
     let v: Value = match serde_json::from_str(&json_text) {
         Ok(v) => v,
         Err(e) => {
-            evolution.fail(crate::error::codes::AI_PARSE, format!("提案 JSON 解析失败: {e}"));
+            evolution.fail(
+                crate::error::codes::AI_PARSE,
+                format!("提案 JSON 解析失败: {e}"),
+            );
             return false;
         }
     };
@@ -68,7 +71,10 @@ pub fn parse_proposal_response(
 pub fn parse_explain_response(resp: &LlmResponse) -> Option<(Vec<ParamSpec>, String)> {
     let v: Value = serde_json::from_str(&extract_json(&resp.text)).ok()?;
     let params = parse_params(&v);
-    Some((params, v["summary"].as_str().unwrap_or_default().to_string()))
+    Some((
+        params,
+        v["summary"].as_str().unwrap_or_default().to_string(),
+    ))
 }
 
 /// 风险合成（Q34：静态为主、AI 自评为辅、冲突取更高）。
@@ -153,13 +159,19 @@ mod tests {
     use super::*;
 
     fn resp(text: &str) -> LlmResponse {
-        LlmResponse { text: text.into(), model: "test".into() }
+        LlmResponse {
+            text: text.into(),
+            model: "test".into(),
+        }
     }
 
     #[test]
     fn parses_multi_candidates_with_risk_conflict_higher() {
         let env = crate::framework::TestEnv::new();
-        let mut out = ParsedCandidates { candidates: vec![], raw: String::new() };
+        let mut out = ParsedCandidates {
+            candidates: vec![],
+            raw: String::new(),
+        };
         let mut m = Metrics::default();
         let mut e = Evolution::default();
         let text = r#"```json
@@ -168,7 +180,10 @@ mod tests {
           {"command":"rm -rf ./build","summary":"删构建目录","conventional":false,"risk":"safe","params":[],"impact":"删除"}
         ]}
         "#;
-        assert!(parse_proposal_response(&resp(text), &mut out, &env.context(), &mut m, &mut e), "evo={e:?}");
+        assert!(
+            parse_proposal_response(&resp(text), &mut out, &env.context(), &mut m, &mut e),
+            "evo={e:?}"
+        );
         assert_eq!(out.candidates.len(), 2);
         // 静态规则 rm -rf → dangerous；AI 报 safe → 冲突取更高（Q34）
         assert_eq!(out.candidates[1].risk_level, RiskLevel::Dangerous);
@@ -178,10 +193,19 @@ mod tests {
     #[test]
     fn rejects_response_without_command() {
         let env = crate::framework::TestEnv::new();
-        let mut out = ParsedCandidates { candidates: vec![], raw: String::new() };
+        let mut out = ParsedCandidates {
+            candidates: vec![],
+            raw: String::new(),
+        };
         let mut m = Metrics::default();
         let mut e = Evolution::default();
-        assert!(!parse_proposal_response(&resp("not json"), &mut out, &env.context(), &mut m, &mut e));
+        assert!(!parse_proposal_response(
+            &resp("not json"),
+            &mut out,
+            &env.context(),
+            &mut m,
+            &mut e
+        ));
         assert_eq!(e.reason_code.as_deref(), Some("IAC-1102"));
     }
 

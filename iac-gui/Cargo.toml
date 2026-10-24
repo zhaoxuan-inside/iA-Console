@@ -15,7 +15,9 @@ path = "src/main.rs"
 
 [dependencies]
 iac-core = { path = "../core" }
+infra = { path = "../infra" }
 eframe = { workspace = true }
 egui_term = "0.1"
+serde = { workspace = true }
 serde_json = { workspace = true }
-egui = "0.31"
+egui = "=0.31.0"

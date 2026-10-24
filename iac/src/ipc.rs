@@ -37,7 +37,11 @@ fn session_id() -> Option<String> {
 }
 
 /// 发送一次请求并取回响应。daemon 未运行 → IAC-6101 错误信封。
-pub fn request(method: &str, params: serde_json::Value, actor: Option<&str>) -> Result<IpcResponse, String> {
+pub fn request(
+    method: &str,
+    params: serde_json::Value,
+    actor: Option<&str>,
+) -> Result<IpcResponse, String> {
     request_inner(method, params, actor, session_id())
 }
 
@@ -63,7 +67,9 @@ fn request_inner(
         .map_err(|e| format!("IAC-6101: 写入失败 {e}"))?;
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
-    reader.read_line(&mut line).map_err(|e| format!("IAC-6101: 读取失败 {e}"))?;
+    reader
+        .read_line(&mut line)
+        .map_err(|e| format!("IAC-6101: 读取失败 {e}"))?;
     serde_json::from_str(line.trim()).map_err(|e| format!("IAC-6101: 响应解析失败 {e}"))
 }
 
@@ -79,8 +85,10 @@ fn uuid_like_id() -> String {
 pub fn render(resp: &IpcResponse, json_mode: bool) -> String {
     if resp.ok {
         if json_mode {
-            return serde_json::to_string_pretty(resp.result.as_ref().unwrap_or(&serde_json::Value::Null))
-                .unwrap_or_default();
+            return serde_json::to_string_pretty(
+                resp.result.as_ref().unwrap_or(&serde_json::Value::Null),
+            )
+            .unwrap_or_default();
         }
         return humanize(resp.result.as_ref().unwrap_or(&serde_json::Value::Null));
     }
@@ -101,7 +109,8 @@ fn humanize(result: &serde_json::Value) -> String {
     // 提案卡（多候选 Q17：列全部候选 + 活动位标记）
     if let Some(candidates) = obj.get("candidates").and_then(|v| v.as_array()) {
         let active = obj.get("active").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-        let mut lines = vec!["  提案候选（↑↓切换候选，GUI；CLI 用 --candidate-index）:".to_string()];
+        let mut lines =
+            vec!["  提案候选（↑↓切换候选，GUI；CLI 用 --candidate-index）:".to_string()];
         for (i, c) in candidates.iter().enumerate() {
             let mark = if i == active { "▍" } else { " " };
             let cmd = c["command"].as_str().unwrap_or_default();
@@ -113,9 +122,7 @@ fn humanize(result: &serde_json::Value) -> String {
             }
         }
         if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
-            lines.push(format!(
-                "\n    [执行 iac run --proposal {id} --yes] [取消]",
-            ));
+            lines.push(format!("\n    [执行 iac run --proposal {id} --yes] [取消]",));
         }
         return lines.join("\n");
     }
@@ -129,7 +136,11 @@ fn humanize(result: &serde_json::Value) -> String {
             lines.push(format!("\n{out}"));
         }
         // 失败兜底（Q18）：就地「要不要 AI 帮忙？」
-        if obj.get("offer_help").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if obj
+            .get("offer_help")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             lines.push("\n  命令失败了——要不要 AI 帮忙？运行 `iac doctor` 一键诊断".into());
         }
         return lines.join("\n");
