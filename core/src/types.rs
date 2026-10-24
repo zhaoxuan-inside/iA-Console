@@ -104,6 +104,141 @@ pub enum CaptureScope {
     AllHome,
 }
 
+/// 效果操作四类（词典：EffectOp，AC-29）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EffectOp {
+    Created,
+    Modified,
+    Deleted,
+    Renamed,
+}
+
+/// 捕获范围标记：in=范围内可回滚；out_of_scope=明示不可自动回滚（AC-29）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureScopeFlag {
+    In,
+    OutOfScope,
+}
+
+/// 单条效果日志（rollback_journal 行的领域形态，_06 internal 3 节）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectEntry {
+    pub seq: i64,
+    pub execution_id: String,
+    pub path: String,
+    pub op: EffectOp,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_path: Option<String>,
+    pub scope: CaptureScopeFlag,
+    pub created_at: i64,
+}
+
+/// 前像清单引用：manifest 在快照仓库的引用（executions.journal_ref）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestRef {
+    pub execution_id: String,
+    pub manifest_ref: String,
+    pub journal_ref: String,
+}
+
+/// 回滚定位：执行点 / 日志行 / 时间戳 / 最新。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RollbackPoint {
+    ExecutionId(String),
+    Seq(i64),
+    Timestamp(i64),
+    Last,
+}
+
+/// 回放范围 (to, from]：from 缺省=最新，to 缺省=最远（AC-33 三种范围语义）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RollbackRange {
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+}
+
+/// 回滚请求：范围 + 冲突策略（非交互缺省 Abort）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RollbackRequest {
+    pub range: RollbackRange,
+    pub on_conflict: ConflictPolicy,
+}
+
+/// 回滚点列表过滤。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RollbackListFilter {
+    pub q: Option<String>,
+    pub since: Option<i64>,
+    pub limit: u32,
+}
+
+/// 可回滚三态（AC-33：✔可回滚 / ◐部分 / ✘不可+原因）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Rollbackable {
+    Full,
+    Partial { reason: String },
+    None { reason: String },
+}
+
+/// 回滚点聚合视图（history 式列表行）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RollbackPointView {
+    pub seq: i64,
+    pub at: i64,
+    pub command: String,
+    pub effect_count: u32,
+    pub rollbackable: Rollbackable,
+}
+
+/// 被跳过条目（skip 策略 / 冲突 / 引用缺失 / out_of_scope）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkippedEntry {
+    pub entry: EffectEntry,
+    pub reason: String,
+}
+
+/// 回滚报告：已应用 + 跳过 + 回收站位置。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RollbackReport {
+    pub applied: Vec<EffectEntry>,
+    pub skipped: Vec<SkippedEntry>,
+    pub trash_dir: String,
+}
+
+/// 文件版本（对应各次执行的效果条目，AC-30）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileVersion {
+    pub seq: i64,
+    pub execution_id: String,
+    pub op: EffectOp,
+    pub content_ref: String,
+    pub at: i64,
+    pub command: String,
+}
+
+/// 单文件版本定位（恢复输入）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileVersionRef {
+    pub path: String,
+    pub seq: i64,
+}
+
+/// 恢复报告（含闸门留痕）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RestoreReport {
+    pub path: String,
+    pub restored_from: i64,
+    pub gate: crate::executor::GateInfo,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

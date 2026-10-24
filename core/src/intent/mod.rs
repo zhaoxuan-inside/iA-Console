@@ -7,7 +7,7 @@ pub mod store;
 pub mod translate;
 pub mod translation_table;
 
-pub use handler::{build_explain_doc, handle_ask, handle_explain, load_proposal, mark_proposal_status};
+pub use handler::{build_explain_doc, default_provider, handle_ask, handle_explain, load_proposal, mark_proposal_status};
 pub use translate::translate_command;
 
 use crate::knowledge::ParamSpec;

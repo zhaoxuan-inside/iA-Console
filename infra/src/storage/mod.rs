@@ -9,7 +9,10 @@ use rusqlite::Connection;
 use std::sync::Mutex;
 
 /// 嵌入迁移（T-004：Schema v1）。新增版本按序追加。
-pub const MIGRATIONS: &[(&str, &str)] = &[("0001_init", include_str!("migrations/0001_init.sql"))];
+pub const MIGRATIONS: &[(&str, &str)] = &[
+    ("0001_init", include_str!("migrations/0001_init.sql")),
+    ("0002_script_name_unique", include_str!("migrations/0002_script_name_unique.sql")),
+];
 
 /// SQLite 连接持有者。Connection 非 Sync，经 Mutex 串行化写（ADR-004 单写者）。
 pub struct Storage {

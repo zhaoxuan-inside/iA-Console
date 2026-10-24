@@ -4,3 +4,4 @@ pub mod hash;
 pub mod marker_parser;
 pub mod render;
 pub mod help_parser;
+pub mod script_assembler;

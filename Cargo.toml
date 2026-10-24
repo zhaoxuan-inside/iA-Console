@@ -38,6 +38,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # 工具
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 toml = "0.8"
 dirs = "5"
 

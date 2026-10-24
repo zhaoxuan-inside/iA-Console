@@ -10,3 +10,11 @@
 # IDE
 .idea/
 .vscode/
+
+# 构建产物（重建前清理，可由源码重新生成）
+/dist
+/squashfs-root
+/packaging/arch/pkg
+/packaging/arch/src
+*.pkg.tar.zst
+*.deb

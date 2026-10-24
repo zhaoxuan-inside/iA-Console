@@ -235,6 +235,219 @@ pub trait StorePort {
     ) -> bool;
 }
 
+/// 快照数据（IF-011 输入：原始内容，压缩由 Adapter 决定）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SnapshotData {
+    pub bytes: Vec<u8>,
+}
+
+/// 内容引用（IF-011 输出）：`sha256:<hex>`，内容寻址天然去重。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentRef {
+    pub reference: String,
+}
+
+/// retention 策略（IF-013 输入）：天数 + 容量双轨。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetentionPolicy {
+    pub days: u32,
+    pub max_bytes: u64,
+}
+
+/// 清理报告（IF-013 输出）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SweepReport {
+    pub removed: u32,
+    pub freed_bytes: u64,
+}
+
+/// 目录捕获输入：范围根 + 排除名 + 单文件/总量字节上限。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureTreeInput {
+    pub roots: Vec<std::path::PathBuf>,
+    pub excludes: Vec<String>,
+    pub max_file_bytes: u64,
+    pub max_total_bytes: u64,
+}
+
+/// 一次捕获中的一个文件：内容寻址元数据（stored=false 表示超限未存内容，仅指纹）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileCaptured {
+    pub path: String,
+    pub sha256: String,
+    pub size: u64,
+    pub stored: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_ref: Option<String>,
+}
+
+/// 回收站请求：把现文件移入回收站（而非抹除，AC-31）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrashRequest {
+    pub abs_path: std::path::PathBuf,
+    pub tag: String,
+}
+
+/// 回收站确认。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrashAck {
+    pub trash_path: String,
+    pub moved: bool,
+}
+
+/// 恢复写入（回放/单文件恢复共用）：内容直接替换目标文件。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WriteFileInput {
+    pub path: std::path::PathBuf,
+    pub bytes: Vec<u8>,
+}
+
+/// 快照 Port（IF-011/012/013 + 捕获/回收站/恢复写入；infra::snapstore 实现）。
+pub trait SnapPort {
+    /// IF-011：内容寻址写入（gzip 压缩 + 去重）。
+    fn snapstore_put(
+        &self,
+        input: &SnapshotData,
+        output: &mut ContentRef,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+
+    /// IF-012：按引用取回并校验完整性；已被回收报 IAC-1602。
+    fn snapstore_fetch(
+        &self,
+        input: &ContentRef,
+        output: &mut SnapshotData,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+
+    /// IF-013：retention（天数+容量 LRU）清理快照与回收站；无法回收到位报 IAC-1601。
+    fn sweep_expired(
+        &self,
+        input: &RetentionPolicy,
+        output: &mut SweepReport,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+
+    /// 捕获目录树指纹：遍历 roots（排除 excludes），小文件入库取内容引用，大文件仅记指纹。
+    fn capture_tree(
+        &self,
+        input: &CaptureTreeInput,
+        output: &mut Vec<FileCaptured>,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+
+    /// 文件移入回收站（保留相对结构）；目标已不存在返回 moved=false。
+    fn trash_file(
+        &self,
+        input: &TrashRequest,
+        output: &mut TrashAck,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+
+    /// 内容直接替换写入（父目录自动创建）。
+    fn write_file(
+        &self,
+        input: &WriteFileInput,
+        context: &Context,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool;
+
+    /// 数据根目录（快照/回收站的宿主目录）。
+    fn data_root(&self) -> std::path::PathBuf;
+}
+
+/// 测试桩：快照未接线。
+#[derive(Debug, Default)]
+pub struct NullSnap;
+
+impl SnapPort for NullSnap {
+    fn snapstore_put(
+        &self,
+        _input: &SnapshotData,
+        _output: &mut ContentRef,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1601", "快照仓库未接线（NullSnap 测试桩）");
+        false
+    }
+
+    fn snapstore_fetch(
+        &self,
+        _input: &ContentRef,
+        _output: &mut SnapshotData,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1602", "快照仓库未接线（NullSnap 测试桩）");
+        false
+    }
+
+    fn sweep_expired(
+        &self,
+        _input: &RetentionPolicy,
+        _output: &mut SweepReport,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1601", "快照仓库未接线（NullSnap 测试桩）");
+        false
+    }
+
+    fn capture_tree(
+        &self,
+        _input: &CaptureTreeInput,
+        _output: &mut Vec<FileCaptured>,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1601", "快照仓库未接线（NullSnap 测试桩）");
+        false
+    }
+
+    fn trash_file(
+        &self,
+        _input: &TrashRequest,
+        _output: &mut TrashAck,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1601", "快照仓库未接线（NullSnap 测试桩）");
+        false
+    }
+
+    fn write_file(
+        &self,
+        _input: &WriteFileInput,
+        _context: &Context,
+        _metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        evolution.fail("IAC-1601", "快照仓库未接线（NullSnap 测试桩）");
+        false
+    }
+
+    fn data_root(&self) -> std::path::PathBuf {
+        std::env::temp_dir()
+    }
+}
+
 /// 测试桩：未接线时的空实现（fail-fast，暴露未注入依赖的用例）。
 #[derive(Debug, Default)]
 pub struct NullStore;

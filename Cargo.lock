@@ -2053,6 +2053,7 @@ name = "infra"
 version = "0.1.0"
 dependencies = [
  "dirs",
+ "flate2",
  "iac-core",
  "reqwest",
  "rusqlite",

@@ -7,4 +7,5 @@ pub mod ai;
 pub mod config;
 pub mod modelhub;
 pub mod process;
+pub mod snapstore;
 pub mod storage;

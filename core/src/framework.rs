@@ -2,7 +2,7 @@
 //! 设计动机见 method-spec：观测统一走 metrics 门面，业务方法禁止手写埋点。
 
 use crate::config::Config;
-pub use crate::ports::{AiPort, ProcessPort, StorePort};
+pub use crate::ports::{AiPort, ProcessPort, StorePort, SnapPort};
 
 /// 会话与追踪上下文（dispatch 边界注入）。
 #[derive(Debug, Clone, Default)]
@@ -45,6 +45,7 @@ pub struct Deps {
     pub store: Box<dyn StorePort + Send + Sync>,
     pub ai: Box<dyn AiPort + Send + Sync>,
     pub process: Box<dyn ProcessPort + Send + Sync>,
+    pub snap: Box<dyn SnapPort + Send + Sync>,
 }
 
 impl Default for Deps {
@@ -53,6 +54,7 @@ impl Default for Deps {
             store: Box::new(crate::ports::NullStore),
             ai: Box::new(crate::ports::NullAi),
             process: Box::new(crate::ports::NullProcess),
+            snap: Box::new(crate::ports::NullSnap),
         }
     }
 }
@@ -212,6 +214,11 @@ impl TestEnv {
     }
 
     /// 换装进程 Adapter。
+    pub fn with_snap(mut self, snap: Box<dyn SnapPort + Send + Sync>) -> Self {
+        self.deps.snap = snap;
+        self
+    }
+
     pub fn with_process(mut self, process: Box<dyn ProcessPort + Send + Sync>) -> Self {
         self.deps.process = process;
         self

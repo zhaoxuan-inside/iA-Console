@@ -69,6 +69,10 @@ fn run_and_record(
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> bool {
+    // 回滚前像捕获（M7，尽力而为）：闸门通过后、执行前
+    let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| ".".into());
+    let mut manifest = crate::rollback::pre_capture(&cwd, context, metrics, evolution);
+    record.journal_ref = manifest.as_ref().map(|m| m.manifest_ref.clone());
     let timeout = input.timeout_ms.unwrap_or(context.config.exec.timeout_ms);
     let spec = ProcessSpec { command, cwd: None, env: vec![], timeout_ms: timeout };
     let mut result = ProcessResult::default();
@@ -85,6 +89,9 @@ fn run_and_record(
     record.stderr_summary = Some(truncate(&result.stderr, context.config.exec.stderr_summary_max));
     record.status = if result.exit_code == Some(0) { ExecStatus::Ok } else { ExecStatus::Failed };
     record.id = persist(record, context, metrics, evolution).unwrap_or_default();
+    if let Some(m) = manifest.as_mut() {
+        crate::rollback::post_diff(m, &record.id, context, metrics, evolution);
+    }
     metrics.counter("executed", 1);
     let diagnosis = if record.status == ExecStatus::Failed {
         run_diagnosis(record, context, metrics, evolution)
@@ -131,7 +138,7 @@ fn resolve_command(
 }
 
 /// 闸门决策（AC-04/35）：人类直输弱提醒不拦截；翻译高危与 Agent 恒确认。
-fn gate_decision(risk: &RiskAssessment, input: &ExecuteInput, context: &Context) -> GateInfo {
+pub fn gate_decision(risk: &RiskAssessment, input: &ExecuteInput, context: &Context) -> GateInfo {
     let is_agent = matches!(context.session.actor, crate::framework::Actor::Agent(_));
     let origin = input.origin.unwrap_or(CommandOrigin::Direct);
     let needs = risk.level >= crate::types::RiskLevel::Dangerous

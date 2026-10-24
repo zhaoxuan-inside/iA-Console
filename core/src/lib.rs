@@ -14,6 +14,8 @@ pub mod knowledge;
 pub mod history;
 pub mod ports;
 pub mod recipe;
+pub mod rollback;
+pub mod script;
 pub mod risk;
 pub mod server;
 pub mod session;

@@ -2,7 +2,7 @@
 
 pub mod handler;
 
-pub use handler::{confirm_and_execute, handle_execute};
+pub use handler::{confirm_and_execute, gate_decision, handle_execute};
 
 use crate::doctor::Diagnosis;
 use serde::{Deserialize, Serialize};

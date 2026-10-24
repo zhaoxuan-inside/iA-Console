@@ -73,6 +73,7 @@ async fn serve(options: DaemonOptions, _shutdown: tokio::sync::mpsc::Receiver<()
         store: Box::new(storage),
         ai: Box::new(RealAi),
         process: Box::new(RealProcess),
+        snap: Box::new(infra::snapstore::RealSnap),
     });
 
     let mut served: u64 = 0;

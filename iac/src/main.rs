@@ -79,6 +79,31 @@ enum Commands {
     },
     /// 行模式对话（无备用屏）
     Chat,
+    /// 执行回滚（M7：效果日志）
+    Rollback {
+        /// 列出回滚点（history 式）
+        #[arg(long)]
+        list: bool,
+        /// 回滚到指定行（其后全部逆序回放）
+        #[arg(long)]
+        to: Option<i64>,
+        /// 从指定行回放（缺省=最新）
+        #[arg(long)]
+        from: Option<i64>,
+        /// 冲突策略（ask/skip/abort；非交互缺省 abort）
+        #[arg(long)]
+        on_conflict: Option<String>,
+    },
+    /// 单文件版本与恢复（M7）
+    File {
+        #[command(subcommand)]
+        action: FileAction,
+    },
+    /// 脚本工坊（M8）
+    Script {
+        #[command(subcommand)]
+        action: ScriptAction,
+    },
     /// 习惯方言翻译（M5 落地）
     Translate {
         #[arg(long, value_enum)]
@@ -102,6 +127,52 @@ struct RunTarget {
     proposal: Option<String>,
     /// 直接执行的命令
     command: Vec<String>,
+}
+
+#[derive(clap::Subcommand)]
+enum FileAction {
+    /// 查看文件全部版本（对应各次执行）
+    History { path: String },
+    /// 恢复到指定版本（直接替换；现文件入回收站）
+    Restore {
+        path: String,
+        /// 版本行号（iac file history 查看）
+        #[arg(long)]
+        seq: i64,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum ScriptAction {
+    /// 从行号区间/任务段制作脚本并命名注册
+    Make {
+        /// 脚本名（全局唯一，之后 iac run @名 执行）
+        name: String,
+        /// 起始行（缺省=最远）
+        #[arg(long)]
+        from: Option<i64>,
+        /// 结束行（缺省=最新）
+        #[arg(long)]
+        to: Option<i64>,
+        /// 任务段收集（"last"=最近一个 --- 段）
+        #[arg(long)]
+        segment: Option<String>,
+        /// 目标形态：sh/bat/both（缺省 both）
+        #[arg(long, default_value = "both")]
+        target: String,
+        /// 显式触发 AI 精修
+        #[arg(long)]
+        refine: bool,
+    },
+    /// AI 精修：先出修订稿，确认后写回
+    Refine {
+        name: String,
+        /// 确认写回（需先取 refine 输出的 refined_body）
+        #[arg(long)]
+        confirm: bool,
+        #[arg(long)]
+        refined_body: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -179,6 +250,19 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             emit(ipc::request("iac_ask", params, None), json_mode)
         }
         Commands::Run { target, yes, cwd } => {
+            // @脚本名：脚本工坊命名脚本（AC-39）
+            if target.proposal.is_none() && target.command.len() == 1 && target.command[0].starts_with('@') {
+                let name = target.command[0][1..].to_string();
+                let _ = cwd;
+                return emit(
+                    ipc::request(
+                        "iac_script",
+                        serde_json::json!({"action": "run", "name": name, "args": [], "confirm_dangerous": yes}),
+                        None,
+                    ),
+                    json_mode,
+                );
+            }
             let (method, params) = match (&target.proposal, target.command.is_empty()) {
                 (Some(pid), _) => (
                     "iac_execute",
@@ -301,6 +385,46 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             console::run(mode)
         }
         Commands::Chat => tui::run_chat(json_mode),
+        Commands::Rollback { list, to, from, on_conflict } => {
+            let params = if list || (to.is_none() && from.is_none()) {
+                serde_json::json!({"action": "list", "filter": {"limit": 50}})
+            } else {
+                serde_json::json!({
+                    "action": "replay",
+                    "range": {"from": from, "to": to},
+                    "on_conflict": on_conflict.unwrap_or_else(|| "abort".into())
+                })
+            };
+            emit(ipc::request("iac_rollback", params, None), json_mode)
+        }
+        Commands::File { action } => match action {
+            FileAction::History { path } => emit(
+                ipc::request("iac_rollback", serde_json::json!({"action": "file_history", "path": path}), None),
+                json_mode,
+            ),
+            FileAction::Restore { path, seq } => emit(
+                ipc::request("iac_rollback", serde_json::json!({"action": "restore", "path": path, "seq": seq}), None),
+                json_mode,
+            ),
+        },
+        Commands::Script { action } => match action {
+            ScriptAction::Make { name, from, to, segment, target, refine } => emit(
+                ipc::request(
+                    "iac_script",
+                    serde_json::json!({"action": "make", "name": name, "from_seq": from, "to_seq": to, "segment": segment, "target": target, "refine": refine}),
+                    None,
+                ),
+                json_mode,
+            ),
+            ScriptAction::Refine { name, confirm, refined_body } => emit(
+                ipc::request(
+                    "iac_script",
+                    serde_json::json!({"action": "refine", "name": name, "confirm": confirm, "refined_body": refined_body}),
+                    None,
+                ),
+                json_mode,
+            ),
+        },
         Commands::Translate { from, command } => {
             if command.is_empty() {
                 eprintln!("用法：iac translate <命令...> [--from linux|macos|windows]");
