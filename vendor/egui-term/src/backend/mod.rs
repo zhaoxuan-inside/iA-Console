@@ -152,6 +152,7 @@ impl TerminalBackend {
         let pty_config = tty::Options {
             shell: Some(tty::Shell::new(settings.shell, settings.args)),
             working_directory: settings.working_directory,
+            env: settings.env,
             ..tty::Options::default()
         };
         let config = term::Config::default();

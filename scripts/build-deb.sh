@@ -4,7 +4,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-VERSION=0.2.0
+VERSION=0.2.1
 ARCH=amd64
 STAGE=dist/deb-stage
 OUT=dist/ia-console_${VERSION}_${ARCH}.deb

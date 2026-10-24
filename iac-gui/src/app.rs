@@ -90,8 +90,14 @@ impl Tab {
             id,
             ctx,
             tx,
+            // TERM/COLORTERM：默认 dumb 会破坏 starship 等现代提示符（首启体验）
             BackendSettings {
                 shell: system_shell(),
+                env: [
+                    ("TERM".to_string(), "xterm-256color".to_string()),
+                    ("COLORTERM".to_string(), "truecolor".to_string()),
+                ]
+                .into(),
                 ..Default::default()
             },
         )
@@ -289,9 +295,13 @@ fn windows0_mut(app: &mut ConsoleApp) -> Option<&mut WindowState> {
     app.windows.get_mut(0)
 }
 
-pub const WELCOME: &str = "iA Console v0.2.0 — 天下没有难用的 Console\n\n\
-     说人话或直接输入命令；??问 AI；ia-help 管理命令；--- 新任务段；# 备注（可钉住）；\n\
-     Ctrl+Shift+N 新窗口 / Ctrl+Shift+T 新标签 / Ctrl+B 对话轨 / Ctrl+Shift+W 关标签。";
+pub const WELCOME: &str = concat!(
+    "iA Console v",
+    env!("CARGO_PKG_VERSION"),
+    " — 天下没有难用的 Console\n\n",
+    "说人话或直接输入命令；??问 AI；ia-help 管理命令；--- 新任务段；# 备注（可钉住）；\n",
+    "Ctrl+Shift+N 新窗口 / Ctrl+Shift+T 新标签 / Ctrl+B 对话轨 / Ctrl+Shift+W 关标签。"
+);
 
 impl eframe::App for ConsoleApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -491,137 +501,150 @@ impl ConsoleApp {
         let Some(tab) = w.tabs.get_mut(active) else {
             return;
         };
-        egui::CollapsingHeader::new(
-            egui::RichText::new("任务条（提案 / AI / 管理）")
-                .monospace()
-                .size(11.0),
-        )
-        .default_open(true)
-        .show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .max_height(240.0)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    let entries = tab.entries.clone();
-                    let confirm = tab.confirm_state.clone();
-                    let busy = tab.busy;
-                    for entry in &entries {
-                        match entry {
-                            Entry::InputEcho(line) => {
-                                ui.label(
-                                    egui::RichText::new(format!("▍ {line}"))
-                                        .monospace()
-                                        .color(c(Token::Fg25)),
-                                );
-                            }
-                            Entry::Output(text) => {
-                                // TUI 风格：等宽、无框线
-                                ui.label(egui::RichText::new(text).monospace().color(c(Token::Fg)));
-                            }
-                            Entry::Notice(text) => {
-                                ui.label(
-                                    egui::RichText::new(text).monospace().color(c(Token::Fg25)),
-                                );
-                            }
-                            Entry::Note { text, pinned } => {
-                                let tag = if *pinned { "📌" } else { "" };
-                                ui.label(
-                                    egui::RichText::new(format!("# {text} {tag}"))
-                                        .monospace()
-                                        .color(c(Token::Fg60)),
-                                );
-                            }
-                            Entry::Separator => {
-                                ui.separator();
-                            }
-                            Entry::Proposal {
-                                id,
-                                candidates,
-                                active: act,
-                                context_json,
-                                expanded,
-                            } => {
-                                draw_proposal_card(
-                                    ui,
-                                    &c,
+        let strip = egui::Frame::NONE
+            .fill(c(Token::Surface))
+            .stroke(egui::Stroke::new(1.0_f32, c(Token::Hairline)))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(10, 8));
+        strip.show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.add_space(1.0);
+            egui::CollapsingHeader::new(
+                egui::RichText::new("任务条（提案 / AI / 管理）")
+                    .monospace()
+                    .size(11.0)
+                    .color(c(Token::Fg60)),
+            )
+            .default_open(true)
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_height(240.0)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let entries = tab.entries.clone();
+                        let confirm = tab.confirm_state.clone();
+                        let busy = tab.busy;
+                        for entry in &entries {
+                            match entry {
+                                Entry::InputEcho(line) => {
+                                    ui.label(
+                                        egui::RichText::new(format!("▍ {line}"))
+                                            .monospace()
+                                            .color(c(Token::Fg25)),
+                                    );
+                                }
+                                Entry::Output(text) => {
+                                    // TUI 风格：等宽、无框线
+                                    ui.label(
+                                        egui::RichText::new(text).monospace().color(c(Token::Fg)),
+                                    );
+                                }
+                                Entry::Notice(text) => {
+                                    ui.label(
+                                        egui::RichText::new(text).monospace().color(c(Token::Fg25)),
+                                    );
+                                }
+                                Entry::Note { text, pinned } => {
+                                    let tag = if *pinned { "📌" } else { "" };
+                                    ui.label(
+                                        egui::RichText::new(format!("# {text} {tag}"))
+                                            .monospace()
+                                            .color(c(Token::Fg60)),
+                                    );
+                                }
+                                Entry::Separator => {
+                                    ui.separator();
+                                }
+                                Entry::Proposal {
                                     id,
                                     candidates,
-                                    *act,
-                                    context_json.as_deref(),
-                                    *expanded,
-                                    &confirm,
-                                );
-                            }
-                            Entry::OfferHelp { execution_id } => {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new("命令失败了——要不要 AI 帮忙？")
-                                            .monospace()
-                                            .color(c(Token::Destructive)),
+                                    active: act,
+                                    context_json,
+                                    expanded,
+                                } => {
+                                    draw_proposal_card(
+                                        ui,
+                                        &c,
+                                        id,
+                                        candidates,
+                                        *act,
+                                        context_json.as_deref(),
+                                        *expanded,
+                                        &confirm,
                                     );
-                                    if ui
-                                        .selectable_label(
-                                            false,
-                                            egui::RichText::new("[问 AI]").monospace(),
-                                        )
-                                        .clicked()
-                                    {
-                                        let (tid, sid) = (tab.id, tab.session_id.clone());
-                                        let exec = execution_id.clone();
-                                        let tx = self.ipc_tx.clone();
-                                        let _ = std::thread::Builder::new().spawn(move || {
-                                            let resp = ipc::ensure_daemon_and_request(
-                                                "iac_diagnose",
-                                                serde_json::json!({"execution_id": exec}),
-                                                sid,
-                                            );
-                                            let _ = tx.send((tid, "iac_diagnose", resp));
-                                        });
-                                    }
-                                });
+                                }
+                                Entry::OfferHelp { execution_id } => {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            egui::RichText::new("命令失败了——要不要 AI 帮忙？")
+                                                .monospace()
+                                                .color(c(Token::Destructive)),
+                                        );
+                                        if ui
+                                            .selectable_label(
+                                                false,
+                                                egui::RichText::new("[问 AI]").monospace(),
+                                            )
+                                            .clicked()
+                                        {
+                                            let (tid, sid) = (tab.id, tab.session_id.clone());
+                                            let exec = execution_id.clone();
+                                            let tx = self.ipc_tx.clone();
+                                            let _ = std::thread::Builder::new().spawn(move || {
+                                                let resp = ipc::ensure_daemon_and_request(
+                                                    "iac_diagnose",
+                                                    serde_json::json!({"execution_id": exec}),
+                                                    sid,
+                                                );
+                                                let _ = tx.send((tid, "iac_diagnose", resp));
+                                            });
+                                        }
+                                    });
+                                }
+                                Entry::AiError {
+                                    method: _,
+                                    params,
+                                    reason,
+                                } => {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            egui::RichText::new(format!("AI 不可用：{reason}"))
+                                                .monospace()
+                                                .color(c(Token::Destructive)),
+                                        );
+                                        let retry = params.clone();
+                                        if ui
+                                            .selectable_label(
+                                                false,
+                                                egui::RichText::new("[重试]").monospace(),
+                                            )
+                                            .clicked()
+                                        {
+                                            let (tid, sid) = (tab.id, tab.session_id.clone());
+                                            let tx = self.ipc_tx.clone();
+                                            let method: &'static str = "iac_ask";
+                                            let _ = std::thread::Builder::new().spawn(move || {
+                                                let resp = ipc::ensure_daemon_and_request(
+                                                    method, retry, sid,
+                                                );
+                                                let _ = tx.send((tid, method, resp));
+                                            });
+                                        }
+                                    });
+                                }
                             }
-                            Entry::AiError {
-                                method: _,
-                                params,
-                                reason,
-                            } => {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new(format!("AI 不可用：{reason}"))
-                                            .monospace()
-                                            .color(c(Token::Destructive)),
-                                    );
-                                    let retry = params.clone();
-                                    if ui
-                                        .selectable_label(
-                                            false,
-                                            egui::RichText::new("[重试]").monospace(),
-                                        )
-                                        .clicked()
-                                    {
-                                        let (tid, sid) = (tab.id, tab.session_id.clone());
-                                        let tx = self.ipc_tx.clone();
-                                        let method: &'static str = "iac_ask";
-                                        let _ = std::thread::Builder::new().spawn(move || {
-                                            let resp =
-                                                ipc::ensure_daemon_and_request(method, retry, sid);
-                                            let _ = tx.send((tid, method, resp));
-                                        });
-                                    }
-                                });
-                            }
+                            ui.add_space(3.0);
                         }
-                        ui.add_space(3.0);
-                    }
-                    if busy {
-                        let dots = if ui.input(|i| (i.time as u64).is_multiple_of(2)) {
-                            "· ·"
-                        } else {
-                            "· · ·"
-                        };
-                        ui.label(egui::RichText::new(dots).monospace().color(c(Token::Fg25)));
-                    }
-                });
+                        if busy {
+                            let dots = if ui.input(|i| (i.time as u64).is_multiple_of(2)) {
+                                "· ·"
+                            } else {
+                                "· · ·"
+                            };
+                            ui.label(egui::RichText::new(dots).monospace().color(c(Token::Fg25)));
+                        }
+                    });
+            });
         });
     }
 
@@ -966,54 +989,110 @@ fn draw_proposal_card(
     expanded: bool,
     confirm: &ConfirmState,
 ) {
-    ui.label(
-        egui::RichText::new(format!("提案 {id}"))
-            .monospace()
-            .strong()
-            .color(c(Token::Accent)),
-    );
-    for (i, (cmd, risk, summary)) in candidates.iter().enumerate() {
-        let mark = if i == active { "▍" } else { " " };
-        let risk_color = match risk.as_str() {
-            "dangerous" | "destructive" => c(Token::Destructive),
-            "caution" => c(Token::Fg60),
-            _ => c(Token::Fg),
+    // Linear 式卡片：surface-2 底 + 发丝线描边 + 8px 圆角；活动候选以 accent 左竖条标记
+    let card = egui::Frame::NONE
+        .fill(c(Token::SurfaceRaised))
+        .stroke(egui::Stroke::new(1.0_f32, c(Token::Hairline)))
+        .corner_radius(egui::CornerRadius::same(8))
+        .inner_margin(egui::Margin::same(10));
+    card.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        // 头部：标题 + 活动候选风险 chip
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new("提案 ")
+                    .monospace()
+                    .strong()
+                    .color(c(Token::Fg)),
+            );
+            ui.label(egui::RichText::new(id).monospace().color(c(Token::Fg60)));
+            if let Some((_, risk, _)) = candidates.get(active) {
+                risk_chip(ui, c, risk);
+            }
+        });
+        ui.add_space(2.0);
+        for (i, (cmd, risk, summary)) in candidates.iter().enumerate() {
+            let is_active = i == active;
+            ui.horizontal(|ui| {
+                // accent 左竖条标记活动候选
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(3.0, 16.0), egui::Sense::hover());
+                if is_active {
+                    ui.painter().rect_filled(rect, 1.5, c(Token::Accent));
+                }
+                // 活动候选按风险着色（等级语义可见），非活动保持次级灰
+                let cmd_color = if is_active {
+                    risk_text_color(c, risk)
+                } else {
+                    c(Token::Fg60)
+                };
+                ui.label(egui::RichText::new(cmd).monospace().color(cmd_color));
+            });
+            if expanded && !summary.is_empty() {
+                ui.label(
+                    egui::RichText::new(format!("   {summary}"))
+                        .monospace()
+                        .small()
+                        .color(c(Token::Fg60)),
+                );
+            }
+        }
+        if expanded {
+            if let Some(ctx_json) = context_json {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(format!("注入上下文（透明可查）：{ctx_json}"))
+                        .monospace()
+                        .small()
+                        .color(c(Token::Fg25)),
+                );
+            }
+        }
+        let hint = match confirm {
+            ConfirmState::Armed => "⚠ dangerous：再次 Enter 确认（武装态）",
+            ConfirmState::AwaitWord => "⚠ destructive：在输入行输入确认词",
+            ConfirmState::Idle => "Enter 执行 · ↑↓ 切换候选 · e 展开 · Esc 取消",
         };
+        ui.add_space(3.0);
         ui.label(
-            egui::RichText::new(format!("{mark} [{risk}] {cmd}"))
+            egui::RichText::new(hint)
                 .monospace()
-                .color(risk_color),
+                .small()
+                .color(c(Token::Fg40)),
         );
-        if expanded && !summary.is_empty() {
-            ui.label(
-                egui::RichText::new(format!("    {summary}"))
-                    .monospace()
-                    .small()
-                    .color(c(Token::Fg60)),
-            );
-        }
-    }
-    if expanded {
-        if let Some(ctx_json) = context_json {
-            ui.label(
-                egui::RichText::new(format!("注入上下文（透明可查，Q20）：{ctx_json}"))
-                    .monospace()
-                    .small()
-                    .color(c(Token::Fg25)),
-            );
-        }
-    }
-    let hint = match confirm {
-        ConfirmState::Armed => "⚠ dangerous：再次 Enter 确认（武装态）",
-        ConfirmState::AwaitWord => "⚠ destructive：在输入行输入确认词",
-        ConfirmState::Idle => "[↑↓ 切换候选] [Enter 执行] [e 展开解释] [Esc 取消]",
+    });
+}
+
+/// 风险 chip：等级色 18% 底 + 等级色文本 + 4px 圆角（现代 pill 标签）。
+fn risk_chip(ui: &mut egui::Ui, c: &impl Fn(Token) -> egui::Color32, risk: &str) {
+    let (color_token, label) = match risk {
+        "destructive" => (Token::Destructive, "destructive"),
+        "dangerous" => (Token::Dangerous, "dangerous"),
+        "caution" => (Token::Caution, "caution"),
+        _ => (Token::Safe, "safe"),
     };
-    ui.label(
-        egui::RichText::new(hint)
-            .monospace()
-            .small()
-            .color(c(Token::Fg25)),
-    );
+    let fill = c(color_token).gamma_multiply(0.18);
+    egui::Frame::NONE
+        .fill(fill)
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(6, 1))
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(label)
+                    .monospace()
+                    .small()
+                    .color(c(color_token)),
+            );
+        });
+}
+
+/// 风险文本色：dangerous 走橙红（与 destructive 红拉开等级差）。
+fn risk_text_color(c: &impl Fn(Token) -> egui::Color32, risk: &str) -> egui::Color32 {
+    match risk {
+        "destructive" => c(Token::Destructive),
+        "dangerous" => c(Token::Dangerous),
+        "caution" => c(Token::Caution),
+        _ => c(Token::Fg),
+    }
 }
 
 /// IPC 响应 → 标签条目（多候选提案卡/失败兜底/AI 失效）。

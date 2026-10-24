@@ -31,3 +31,8 @@
 - 正面：输入/渲染正确性可控；终端查询在应用层闭环（vim/nvim 查询不再悬挂）。
 - 负面/代价：升级上游需手工 rebase（当前无上游活动，风险低）；vendor 目录入库。
 - 对 _00：tech_stack 的 egui_term 条目标注 vendored。
+
+## 补充补丁（0.2.1，2026-10-24）
+
+- `BackendSettings` 增加 `env: HashMap<String,String>` 并透传 `tty::Options.env`（上游缺口）。
+- 应用侧注入 `TERM=xterm-256color` / `COLORTERM=truecolor`：修复 PTY 默认 TERM=dumb 破坏现代提示符（starship 等首启报错）。

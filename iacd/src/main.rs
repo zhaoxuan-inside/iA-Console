@@ -10,7 +10,10 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("iacd {} — iA-console 守护进程（重建基线）", env!("CARGO_PKG_VERSION"));
+        println!(
+            "iacd {} — iA-console 守护进程（重建基线）",
+            env!("CARGO_PKG_VERSION")
+        );
         println!("用法：iacd [--foreground] [--socket <路径>] [--data <目录>] [--mcp]");
         println!("  --foreground  前台运行（默认亦为前台；后台化由 iac daemon start 负责）");
         println!("  --mcp         daemon 内置 MCP 服务（stdio JSON-RPC，Q43；不监听 socket）");
