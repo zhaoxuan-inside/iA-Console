@@ -594,7 +594,7 @@ fn route_script(
 // ---------- 配置 ----------
 
 /// iac_config_set：计算新配置返回（daemon 侧负责应用与落盘）；记审计。
-/// 支持键：ui.theme(day|night|auto) / ui.habit_dialect / ai.default_provider。
+/// 支持键：配置 schema 全量标量键 + providers（JSON 数组，交互向导与直改同通道）。
 fn route_config_set(
     params: &Value,
     context: &Context,
@@ -612,28 +612,7 @@ fn route_config_set(
         .unwrap_or_default()
         .to_string();
     let mut cfg = context.config.clone();
-    let changed = match key.as_str() {
-        "ui.theme" => serde_json::from_value::<crate::types::ThemeMode>(json!(value))
-            .map(|t| cfg.ui.theme = t)
-            .is_ok(),
-        "ui.habit_dialect" => serde_json::from_value::<crate::types::Platform>(json!(value))
-            .map(|p| cfg.ui.habit_dialect = p)
-            .is_ok(),
-        "ai.default_provider" if !value.is_empty() => {
-            cfg.ai.default_provider = value.clone();
-            true
-        }
-        "" => false,
-        other => {
-            return Err((
-                codes::CONFIG_INVALID.into(),
-                format!(
-                "不支持的配置键 {other}（支持 ui.theme / ui.habit_dialect / ai.default_provider）"
-            ),
-            ))
-        }
-    };
-    if !changed {
+    if !apply_config_set(&mut cfg, &key, &value)? {
         return Err((
             codes::CONFIG_INVALID.into(),
             format!("配置值非法: {key}={value}"),
@@ -652,6 +631,100 @@ fn route_config_set(
         evolution,
     );
     Ok(json!({ "config": serde_json::to_value(&cfg).unwrap_or_default(), "applied": false }))
+}
+
+/// 键值应用（route_config_set 子步骤）：不支持键 → Err；值解析失败 → Ok(false)。
+fn apply_config_set(
+    cfg: &mut crate::config::Config,
+    key: &str,
+    value: &str,
+) -> Result<bool, (String, String)> {
+    use crate::config::ProviderProfile;
+    use crate::types::{
+        CaptureScope, ClipboardMode, ConflictPolicy, ModelhubSource, Platform, ThemeMode,
+    };
+    fn parse_enum<T: serde::de::DeserializeOwned>(v: &str) -> Result<T, serde_json::Error> {
+        serde_json::from_value(json!(v))
+    }
+    Ok(match key {
+        "ui.theme" => parse_enum(value).map(|t: ThemeMode| cfg.ui.theme = t).is_ok(),
+        "ui.habit_dialect" => {
+            parse_enum(value).map(|p: Platform| cfg.ui.habit_dialect = p).is_ok()
+        }
+        "ui.clipboard" => {
+            parse_enum(value).map(|c: ClipboardMode| cfg.ui.clipboard = c).is_ok()
+        }
+        "ai.default_provider" if !value.is_empty() => {
+            cfg.ai.default_provider = value.to_string();
+            true
+        }
+        "ai.fallback_local" => value
+            .parse::<bool>()
+            .map(|b| cfg.ai.fallback_local = b)
+            .is_ok(),
+        "providers" => {
+            // 数组整体替换（交互向导的 provider 表单与 CLI 直改共用）
+            match serde_json::from_str::<Vec<ProviderProfile>>(value) {
+                Ok(list) => {
+                    cfg.providers = list;
+                    true
+                }
+                Err(_) => false,
+            }
+        }
+        "modelhub.source" => {
+            parse_enum(value).map(|s: ModelhubSource| cfg.modelhub.source = s).is_ok()
+        }
+        "rollback.enabled" => value.parse::<bool>().map(|b| cfg.rollback.enabled = b).is_ok(),
+        "rollback.capture_scope" => {
+            parse_enum(value).map(|s: CaptureScope| cfg.rollback.capture_scope = s).is_ok()
+        }
+        "rollback.max_entries" => value
+            .parse::<u32>()
+            .map(|n| cfg.rollback.max_entries = n)
+            .is_ok(),
+        "rollback.on_conflict" => {
+            parse_enum(value).map(|p: ConflictPolicy| cfg.rollback.on_conflict = p).is_ok()
+        }
+        "rollback.retention_days" => value
+            .parse::<u32>()
+            .map(|n| cfg.rollback.retention_days = n)
+            .is_ok(),
+        "rollback.retention_max_bytes" => value
+            .parse::<u64>()
+            .map(|n| cfg.rollback.retention_max_bytes = n)
+            .is_ok(),
+        "history.retention_days" => value
+            .parse::<u32>()
+            .map(|n| cfg.history.retention_days = n)
+            .is_ok(),
+        "history.retention_max_bytes" => value
+            .parse::<u64>()
+            .map(|n| cfg.history.retention_max_bytes = n)
+            .is_ok(),
+        "render.output_detection" => value
+            .parse::<bool>()
+            .map(|b| cfg.render.output_detection = b)
+            .is_ok(),
+        "exec.timeout_ms" => value.parse::<u64>().map(|n| cfg.exec.timeout_ms = n).is_ok(),
+        "exec.stdout_summary_max" => value
+            .parse::<usize>()
+            .map(|n| cfg.exec.stdout_summary_max = n)
+            .is_ok(),
+        "exec.stderr_summary_max" => value
+            .parse::<usize>()
+            .map(|n| cfg.exec.stderr_summary_max = n)
+            .is_ok(),
+        "" => false,
+        other => {
+            return Err((
+                codes::CONFIG_INVALID.into(),
+                format!(
+                    "不支持的配置键 {other}（支持 ui.theme/habit_dialect/clipboard、ai.default_provider/fallback_local、providers、modelhub.source、rollback.*、history.*、render.output_detection、exec.*；或运行 iac config 进入交互向导）"
+                ),
+            ))
+        }
+    })
 }
 
 /// iac_builtin：`ia-` 内置命令统一路由（Q28/Q30；GUI 与 CLI 共用映射，单一来源）。
@@ -790,4 +863,97 @@ fn fail(evolution: &Evolution) -> Result<Value, (String, String)> {
             .unwrap_or_else(|| codes::STORAGE.into()),
         evolution.reason.clone().unwrap_or_default(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn call_config_set(key: &str, value: &str) -> Result<Value, (String, String)> {
+        let session = crate::framework::SessionCtx {
+            session_id: "s-test".into(),
+            request_id: "r-test".into(),
+            actor: crate::framework::Actor::Human,
+        };
+        let deps = crate::framework::Deps::default();
+        let locale = crate::framework::Locale::default();
+        let cfg = crate::config::Config::defaults();
+        let context = crate::framework::Context {
+            session: &session,
+            config: &cfg,
+            deps: &deps,
+            locale: &locale,
+        };
+        let (mut metrics, mut evolution) = (Metrics::default(), Evolution::default());
+        route_config_set(
+            &json!({"key": key, "value": value}),
+            &context,
+            &mut metrics,
+            &mut evolution,
+        )
+    }
+
+    fn applied_config(resp: &Result<Value, (String, String)>) -> crate::config::Config {
+        let v = resp.as_ref().expect("ok");
+        serde_json::from_value(v.get("config").cloned().unwrap_or(Value::Null))
+            .expect("config 反序列化")
+    }
+
+    #[test]
+    fn config_set_covers_all_scalar_keys() {
+        // 枚举 / 布尔 / 数值 / 文本各抽一键走全链路（计算+校验+审计不炸）
+        let cfg = applied_config(&call_config_set("ui.theme", "night"));
+        assert_eq!(cfg.ui.theme, crate::types::ThemeMode::Night);
+        let cfg = applied_config(&call_config_set("ui.clipboard", "off"));
+        assert_eq!(cfg.ui.clipboard, crate::types::ClipboardMode::Off);
+        let cfg = applied_config(&call_config_set("ai.fallback_local", "true"));
+        assert!(cfg.ai.fallback_local);
+        let cfg = applied_config(&call_config_set("modelhub.source", "hf-mirror"));
+        assert_eq!(cfg.modelhub.source, crate::types::ModelhubSource::HfMirror);
+        let cfg = applied_config(&call_config_set("rollback.on_conflict", "skip"));
+        assert_eq!(cfg.rollback.on_conflict, crate::types::ConflictPolicy::Skip);
+        let cfg = applied_config(&call_config_set("rollback.max_entries", "2048"));
+        assert_eq!(cfg.rollback.max_entries, 2048);
+        let cfg = applied_config(&call_config_set("history.retention_days", "30"));
+        assert_eq!(cfg.history.retention_days, 30);
+        let cfg = applied_config(&call_config_set("exec.timeout_ms", "30000"));
+        assert_eq!(cfg.exec.timeout_ms, 30_000);
+        let cfg = applied_config(&call_config_set("exec.stdout_summary_max", "1024"));
+        assert_eq!(cfg.exec.stdout_summary_max, 1024);
+    }
+
+    #[test]
+    fn config_set_rejects_bad_values_and_unknown_keys() {
+        let err = call_config_set("ui.theme", "紫色").expect_err("非法枚举须失败");
+        assert_eq!(err.0, codes::CONFIG_INVALID);
+        let err = call_config_set("rollback.max_entries", "很大").expect_err("非法数值须失败");
+        assert_eq!(err.0, codes::CONFIG_INVALID);
+        let err = call_config_set("ai.default_provider", "").expect_err("空 provider 须失败");
+        assert_eq!(err.0, codes::CONFIG_INVALID);
+        let err = call_config_set("no.such_key", "1").expect_err("未知键须失败");
+        assert!(
+            err.1.contains("不支持的配置键"),
+            "错误信息指明键名：{}",
+            err.1
+        );
+    }
+
+    #[test]
+    fn config_set_providers_array_replaces_whole_list() {
+        let body = r#"[{"name":"remote","kind":"Openai","base_url":"https://api.example.com","api_key_env":"OPENAI_KEY","model":"gpt-x"},{"name":"local","kind":"local-plugin"}]"#;
+        let cfg = applied_config(&call_config_set("providers", body));
+        assert_eq!(cfg.providers.len(), 2);
+        assert_eq!(cfg.providers[0].name, "remote");
+        assert_eq!(
+            cfg.providers[1].kind,
+            crate::types::ProviderKind::LocalPlugin
+        );
+        // 结构校验兜底：远端缺 api_key_env 被拒（validate 报错）
+        let bad = r#"[{"name":"remote","kind":"Openai","base_url":"https://api.example.com","model":"gpt-x"}]"#;
+        let err = call_config_set("providers", bad).expect_err("远端档案缺字段须失败");
+        assert!(err.1.contains("api_key_env"), "指明缺失字段：{}", err.1);
+        // 非法 JSON
+        let err = call_config_set("providers", "[{").expect_err("坏 JSON 须失败");
+        assert_eq!(err.0, codes::CONFIG_INVALID);
+    }
 }

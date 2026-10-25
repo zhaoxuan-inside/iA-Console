@@ -1847,7 +1847,7 @@ dependencies = [
 
 [[package]]
 name = "iac"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "iac-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "infra",
  "serde",
@@ -1874,7 +1874,7 @@ dependencies = [
 
 [[package]]
 name = "iac-gui"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "eframe",
  "egui",
@@ -1887,7 +1887,7 @@ dependencies = [
 
 [[package]]
 name = "iacd"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "dirs",
@@ -2052,7 +2052,7 @@ dependencies = [
 
 [[package]]
 name = "infra"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "dirs",
  "flate2",

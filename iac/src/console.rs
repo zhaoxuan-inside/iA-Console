@@ -116,8 +116,8 @@ pub fn run(mode_override: Option<Mode>) -> i32 {
     0
 }
 
-/// 终端初始化：raw mode + 备用屏 + 鼠标滚轮。
-fn setup() -> Result<ratatui::DefaultTerminal, Box<dyn std::error::Error>> {
+/// 终端初始化：raw mode + 备用屏 + 鼠标滚轮（config_wizard 复用）。
+pub(crate) fn setup() -> Result<ratatui::DefaultTerminal, Box<dyn std::error::Error>> {
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     crossterm::execute!(
@@ -130,7 +130,7 @@ fn setup() -> Result<ratatui::DefaultTerminal, Box<dyn std::error::Error>> {
 }
 
 /// 终端还原。
-fn teardown(terminal: ratatui::DefaultTerminal) {
+pub(crate) fn teardown(terminal: ratatui::DefaultTerminal) {
     ratatui::restore();
     drop(terminal);
 }

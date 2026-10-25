@@ -59,10 +59,10 @@ enum Commands {
         #[command(subcommand)]
         action: SessionAction,
     },
-    /// 配置
+    /// 配置（裸命令进入交互式向导，参照 opencode CLI）
     Config {
         #[command(subcommand)]
-        action: ConfigAction,
+        action: Option<ConfigAction>,
     },
     /// daemon 生命周期
     Daemon {
@@ -447,7 +447,8 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             ),
         },
         Commands::Config { action } => match action {
-            ConfigAction::Get { key } => {
+            None => crate::config_wizard::run(),
+            Some(ConfigAction::Get { key }) => {
                 let resp = crate::ipc::request("iac_config_get", serde_json::json!({}), None);
                 match resp {
                     Ok(r) if r.ok => {
@@ -462,7 +463,7 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                     _ => render_err(&resp, json_mode),
                 }
             }
-            ConfigAction::Set { key, value } => emit(
+            Some(ConfigAction::Set { key, value }) => emit(
                 crate::ipc::request(
                     "iac_config_set",
                     serde_json::json!({"key": key, "value": value}),
@@ -470,7 +471,7 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 ),
                 json_mode,
             ),
-            ConfigAction::Path => {
+            Some(ConfigAction::Path) => {
                 println!(
                     "{}",
                     infra::config::default_config_path()
@@ -681,6 +682,7 @@ impl UnixStreamProbe {
     }
 }
 
+pub mod config_wizard;
 pub mod console;
 pub mod ipc;
 pub mod theme;
