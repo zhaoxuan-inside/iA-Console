@@ -1,0 +1,9 @@
+# iA-console 受控 zsh 启动文件（Q52）——与宿主 dotfiles 完全解耦：
+# 不加载 starship/插件/别名/主题，仅提供 iA 调性极简提示符（排版即层级，无色块装饰）；
+# 前景暗灰（ANSI 8）由 GUI 主题映射为纸感灰阶，昼夜两态均由主题保证可读。
+HISTFILE="$ZDOTDIR/.zsh_history"
+HISTSIZE=10000
+SAVEHIST=10000
+setopt NO_BEEP
+PROMPT=$'\n''%F{8}%~%f'$'\n''❯ '
+RPS1=''

@@ -86,18 +86,28 @@ pub struct Tab {
 impl Tab {
     fn new(id: u64, ctx: egui::Context, cwd: &str, session_id: Option<String>) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
+        // 受控干净 shell（Q52）：禁读宿主 rc（含 starship 等），提示符 = iA 自有极简两行；
+        // 受控 rc 落盘失败时退回直启（可用性优先，仅外观降级）。
+        let spawn = match crate::shell::ensure_rc_files(&crate::shell::rc_dir()) {
+            Ok(()) => crate::shell::controlled(&system_shell()),
+            Err(_) => crate::shell::ControlledShell {
+                shell: system_shell(),
+                args: vec![],
+                env: vec![],
+            },
+        };
+        let mut env = spawn.env;
+        // TERM/COLORTERM：默认 dumb 会破坏现代 TUI 程序的色彩与按键（首启体验）
+        env.push(("TERM".to_owned(), "xterm-256color".to_owned()));
+        env.push(("COLORTERM".to_owned(), "truecolor".to_owned()));
         let mut backend = TerminalBackend::new(
             id,
             ctx,
             tx,
-            // TERM/COLORTERM：默认 dumb 会破坏 starship 等现代提示符（首启体验）
             BackendSettings {
-                shell: system_shell(),
-                env: [
-                    ("TERM".to_string(), "xterm-256color".to_string()),
-                    ("COLORTERM".to_string(), "truecolor".to_string()),
-                ]
-                .into(),
+                shell: spawn.shell,
+                args: spawn.args,
+                env: env.into_iter().collect(),
                 ..Default::default()
             },
         )

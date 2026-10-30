@@ -1,0 +1,6 @@
+# iA-console 受控 bash 启动文件（Q52）——替代 /etc/bash.bashrc 与 ~/.bashrc：
+# 不加载任何宿主配置，仅提供 iA 调性极简提示符（排版即层级，无色块装饰）。
+HISTFILE="${BASH_SOURCE%/*}/.bash_history"
+HISTSIZE=10000
+HISTFILESIZE=20000
+PS1=$'\n\[\e[90m\]\w\[\e[0m\]\n❯ '

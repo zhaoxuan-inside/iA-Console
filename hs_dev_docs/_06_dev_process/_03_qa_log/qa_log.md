@@ -624,6 +624,14 @@
 
 ---
 
+### 2026-10-30 Q52 受控干净 shell（域 18 变更）
+
+- **开发者原话**：「为什么会启用 zsh 的提示符；本 console 应该是与外部完全无关的。」
+- **采纳决策**：CONFIRMED——GUI 终端标签 = **受控干净 shell**（「干净 shell + iA 自有提示符」级）：PTY 仍拉起系统 shell（真终端内核不变），但**禁读宿主用户 rc**（zsh=`ZDOTDIR` 指向 `<data_dir>/shell`、bash=`--rcfile` 同目录、fish=`--no-config`；未知 shell 直启兜底）；提示符 = **iA 自有极简两行**（暗灰 cwd + 默认色 `❯`，无色块、零图标字体依赖）；**env 变量照常继承**（PATH 等不受影响）；系统级 `/etc` 基线不在拦截范围。宿主 dotfiles（starship 等提示符主题）不进入 console 外观，任何机器长相一致。备选「环境全隔离」「去掉裸 shell 全走 iA 输入」未采纳（前者破坏日常工具链，后者重钉域 18 真终端内核、改动最大）。
+- **关联落盘**：PRD 骨架 §1/§2/§4（域 18，v2.1）；实现 `iac-gui/src/shell.rs` + `shell_assets/{zshrc,bashrc}`；打包 0.2.4-1。
+
+---
+
 ## 变更请求登记（CR）
 
 | CR 编号 | 变更描述 | 影响面 | 返工代价 | 开发者裁定 | 落盘 |

@@ -3,6 +3,7 @@
 pub mod app;
 pub mod ipc;
 pub mod layout;
+pub mod shell;
 pub mod theme;
 
 #[cfg(test)]
