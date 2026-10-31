@@ -1,2 +1,0 @@
-{"version": "1.0", "category": "task_active", "root": "_05_task_orchestration"}
-{"id": "iaconsole-rebuild", "title": "iA-console 从零重建（hs-dev-skill 全流程）", "path": "_02_task_detail/_01_iaconsole-rebuild/_00_task_detail.md", "status": "IN_PROGRESS", "digest": "68699889", "updated_at": "2026-10-17T00:37:37Z", "last_note": "阶段 0 需求审讯进行中（第二轮：AI 核心思想/开箱体验/UI 取证/验证环境）"}
