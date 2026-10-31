@@ -4,3 +4,13 @@ HISTFILE="${BASH_SOURCE%/*}/.bash_history"
 HISTSIZE=10000
 HISTFILESIZE=20000
 PS1=$'\n\[\e[90m\]\w\[\e[0m\]\n❯ '
+
+# 块式输出（Q54）：DEBUG trap + PROMPT_COMMAND 事件侧信道（尽力而为，US=\x1f 分隔）
+__iac_emit() { [ -n "$IAC_EVENT_FILE" ] && printf '%s\n' "$1" >> "$IAC_EVENT_FILE"; }
+__iac_running=0
+__iac_preexec() { [ "$__iac_running" = 1 ] && return; __iac_running=1; \
+  __iac_emit $'S\x1f'"${EPOCHREALTIME:-$(date +%s.0)}"$'\x1f'"${1//$'\n'/\\n}"; }
+__iac_precmd()  { __iac_running=0; \
+  __iac_emit $'E\x1f'"${EPOCHREALTIME:-$(date +%s.0)}"$'\x1f'"$?"$'\x1f'"$PWD"; }
+trap '__iac_preexec "$BASH_COMMAND"' DEBUG
+PROMPT_COMMAND=__iac_precmd

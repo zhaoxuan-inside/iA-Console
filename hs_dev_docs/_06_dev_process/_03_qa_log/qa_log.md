@@ -628,15 +628,19 @@
 
 - **开发者原话**：「为什么会启用 zsh 的提示符；本 console 应该是与外部完全无关的。」
 - **采纳决策**：CONFIRMED——GUI 终端标签 = **受控干净 shell**（「干净 shell + iA 自有提示符」级）：PTY 仍拉起系统 shell（真终端内核不变），但**禁读宿主用户 rc**（zsh=`ZDOTDIR` 指向 `<data_dir>/shell`、bash=`--rcfile` 同目录、fish=`--no-config`；未知 shell 直启兜底）；提示符 = **iA 自有极简两行**（暗灰 cwd + 默认色 `❯`，无色块、零图标字体依赖）；**env 变量照常继承**（PATH 等不受影响）；系统级 `/etc` 基线不在拦截范围。宿主 dotfiles（starship 等提示符主题）不进入 console 外观，任何机器长相一致。备选「环境全隔离」「去掉裸 shell 全走 iA 输入」未采纳（前者破坏日常工具链，后者重钉域 18 真终端内核、改动最大）。
-- **关联落盘**：PRD 骨架 §1/§2/§4（域 18，v2.1）；实现 `iac-gui/src/shell.rs` + `shell_assets/{zshrc,bashrc}`；打包 0.2.4-1。
-
----
-
 ### 2026-10-31 Q53 UI 全面 Warp 化（推翻 v0.2.2 调性裁定）
 
 - **开发者原话**：「UI 参考 Warp 进行修改。」（选项裁定：**全面 Warp 化**）
 - **采纳决策**：CONFIRMED——**推翻 v0.2.2「iA Writer 纸感」调性裁定**（含其「Linear 式勿回退」约束），GUI/TUI 视觉全面回到并钉定 **v0.2.1 基线：Linear 表面层次（四级 surface 阶梯/发丝线/6px 圆角）+ Warp 参照终端 ANSI（blue 槽=品牌色）+ 提案卡卡片化 + 风险 chip**；DESIGN.md 品味宪章重钉回该令牌体系，调性守护单测随之替换（夜底 #010102 系、surface 阶梯亮度递增、终端底同源）。Q52 受控干净 shell 不受影响。
 - **关联落盘**：PRD 骨架 v2.2；DESIGN.md（git 恢复 e94aa09 版）；theme.rs（GUI+TUI）+ app.rs 卡片化恢复、Q52 接线重放；打包 0.2.5-1。
+
+---
+
+### 2026-10-31 Q54 块式输出开工（「继续」令，Q53 后既定方向的落实）
+
+- **开发者原话**：「继续」（接上轮交付尾注：深挖 Warp 参照做块式输出等结构升级）。
+- **采纳决策**：CONFIRMED——**块式输出第一片**：受控 shell（Q52 红利）preexec/precmd 事件侧信道（US 分隔行写 `IAC_EVENT_FILE`，zsh 精确 / bash 尽力而为）→ GUI 每帧增量轮询（seek+offset）→ 命令块（命令文本/退出码/耗时/cwd）呈现于终端下方块条（SurfaceRaised 卡 + ✓绿/✗红 chip + 运行中灰显，Q53 调性）。**技术路线裁定**：fork 的 `PtyEvent` 是 alacritty_terminal `Event` 别名，OSC 133 带内拦截需二次 vendor alacritty_terminal（代价过高）——改走 rc 侧信道（更稳：结构化数据天然含退出码/cwd，跨 shell 一致）；OSC 133 带内路线留作 vendor 演进（DERIVED，非待办）。GUI 自身注入的 `cd '…' && clear`（Q41/Q46）不计块。块数上限 500 LRU。
+- **关联落盘**：PRD 骨架 §1/§2（域 18 呈现细则，v2.3）；实现 `iac-gui/src/blocks.rs` + shell_assets 钩子 + app.rs 块条面板；打包 0.2.6-1。
 
 ---
 

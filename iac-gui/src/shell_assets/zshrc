@@ -7,3 +7,10 @@ SAVEHIST=10000
 setopt NO_BEEP
 PROMPT=$'\n''%F{8}%~%f'$'\n''❯ '
 RPS1=''
+
+# 块式输出（Q54）：preexec/precmd 事件侧信道——US(\x1f) 分隔行写入 $IAC_EVENT_FILE，
+# 供 GUI 解析命令块（命令文本/起止/退出码/cwd）；未设置该变量时静默跳过。
+zmodload zsh/datetime 2>/dev/null
+__iac_emit() { [ -n "$IAC_EVENT_FILE" ] && print -r -- "$1" >> "$IAC_EVENT_FILE" }
+preexec() { __iac_emit $'S\x1f'"${EPOCHREALTIME:-$EPOCHSECONDS}"$'\x1f'"${1//$'\n'/\\n}" }
+precmd()  { __iac_emit $'E\x1f'"${EPOCHREALTIME:-$EPOCHSECONDS}"$'\x1f'"$?"$'\x1f'"$PWD" }

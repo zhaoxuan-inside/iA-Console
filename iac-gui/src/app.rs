@@ -81,6 +81,11 @@ pub struct Tab {
     pub expanded: HashSet<String>,
     pub sidebar_open: bool,
     pub dialogue: Vec<(String, String)>,
+    /// 块式输出（Q54）：已闭合命令块 / 运行中块 / 事件文件与游标。
+    pub blocks: Vec<crate::blocks::ShellBlock>,
+    pub pending_blocks: Vec<crate::blocks::ShellBlock>,
+    pub event_file: PathBuf,
+    pub event_offset: u64,
 }
 
 impl Tab {
@@ -100,6 +105,15 @@ impl Tab {
         // TERM/COLORTERM：默认 dumb 会破坏现代 TUI 程序的色彩与按键（首启体验）
         env.push(("TERM".to_owned(), "xterm-256color".to_owned()));
         env.push(("COLORTERM".to_owned(), "truecolor".to_owned()));
+        // 块式输出（Q54）：per-tab 事件文件（创建即截断旧会话残留），rc 钩子经 IAC_EVENT_FILE 追加
+        let event_dir = infra::config::data_dir().join("shell-events");
+        let _ = std::fs::create_dir_all(&event_dir);
+        let event_file = event_dir.join(format!("{id}.log"));
+        let _ = std::fs::File::create(&event_file);
+        env.push((
+            "IAC_EVENT_FILE".to_owned(),
+            event_file.to_string_lossy().into_owned(),
+        ));
         let mut backend = TerminalBackend::new(
             id,
             ctx,
@@ -141,7 +155,21 @@ impl Tab {
             expanded: HashSet::new(),
             sidebar_open: false,
             dialogue: vec![],
+            blocks: vec![],
+            pending_blocks: vec![],
+            event_file,
+            event_offset: 0,
         }
+    }
+
+    /// 块式输出（Q54）：增量轮询受控 shell 事件文件。
+    fn poll_shell_events(&mut self) {
+        self.event_offset = crate::blocks::poll(
+            &self.event_file,
+            self.event_offset,
+            &mut self.pending_blocks,
+            &mut self.blocks,
+        );
     }
 
     /// PTY 事件流：PtyWrite/颜色查询须应答，否则交互程序卡查询。
@@ -325,6 +353,7 @@ impl eframe::App for ConsoleApp {
         for w in &mut self.windows {
             for t in &mut w.tabs {
                 t.drain_pty(ctx, &self.term_theme);
+                t.poll_shell_events();
             }
         }
         self.drain_ipc();
@@ -477,6 +506,22 @@ impl ConsoleApp {
                 ui.separator();
                 self.draw_input_line(ui, window_idx);
             });
+        // 块条（Q54）：受控 shell 命令块，叠在输入行上方（空则不占位）
+        let has_blocks = self
+            .windows
+            .get(window_idx)
+            .and_then(|w| w.tabs.get(w.active))
+            .is_some_and(|t| !t.blocks.is_empty() || !t.pending_blocks.is_empty());
+        if has_blocks {
+            egui::TopBottomPanel::bottom("blocks")
+                .resizable(true)
+                .default_height(140.0)
+                .min_height(64.0)
+                .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 4)))
+                .show_inside(ui, |ui| {
+                    self.draw_blocks(ui, window_idx);
+                });
+        }
         // 可选对话轨侧栏（Q7/Q31 辅助视图）
         if let Some(w) = self.windows.get(window_idx) {
             if w.tabs.get(w.active).is_some_and(|t| t.sidebar_open) {
@@ -745,6 +790,30 @@ impl ConsoleApp {
     }
 
     /// 对话轨侧栏（Q31：续聊与历史场所）。
+    /// 块条（Q54）：命令块行（SurfaceRaised 卡 + 退出码/耗时着色，Warp 式块历史的克制版）。
+    fn draw_blocks(&mut self, ui: &mut egui::Ui, window_idx: usize) {
+        let mode = self.mode;
+        let Some(tab) = self
+            .windows
+            .get_mut(window_idx)
+            .and_then(|w| w.tabs.get_mut(w.active))
+        else {
+            return;
+        };
+        let (blocks, pending) = (tab.blocks.clone(), tab.pending_blocks.clone());
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                for b in &blocks {
+                    shell_block_row(ui, mode, b, false);
+                }
+                for b in &pending {
+                    shell_block_row(ui, mode, b, true);
+                }
+            });
+    }
+
     fn draw_sidebar(&mut self, ui: &mut egui::Ui, window_idx: usize) {
         let Some(w) = self.windows.get_mut(window_idx) else {
             return;
@@ -1254,6 +1323,57 @@ fn apply_ipc_result(tab: &mut Tab, method: &'static str, resp: Result<IpcRespons
             }
         }
     }
+}
+
+/// 命令块行（Q54）：`❯ 命令` + 右侧退出码/耗时 chip（运行中灰显）。
+fn shell_block_row(
+    ui: &mut egui::Ui,
+    mode: Mode,
+    block: &crate::blocks::ShellBlock,
+    running: bool,
+) {
+    let surface = theme::color(mode, Token::SurfaceRaised);
+    let hairline = theme::color(mode, Token::Hairline);
+    egui::Frame::default()
+        .fill(surface)
+        .stroke(egui::Stroke::new(1.0_f32, hairline))
+        .corner_radius(6.0)
+        .inner_margin(egui::Margin::symmetric(8, 5))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("❯")
+                        .monospace()
+                        .color(theme::color(mode, Token::Accent)),
+                );
+                let command = block.command.lines().next().unwrap_or_default();
+                ui.label(
+                    egui::RichText::new(command)
+                        .monospace()
+                        .color(theme::color(mode, Token::Fg)),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let chip = if running {
+                        egui::RichText::new("… 运行中")
+                            .monospace()
+                            .color(theme::color(mode, Token::Fg40))
+                    } else if block.exit == Some(0) {
+                        egui::RichText::new(format!("✓ {:.2}s", block.duration))
+                            .monospace()
+                            .color(theme::color(mode, Token::Safe))
+                    } else {
+                        egui::RichText::new(format!(
+                            "✗ {} · {:.2}s",
+                            block.exit.unwrap_or(-1),
+                            block.duration
+                        ))
+                        .monospace()
+                        .color(theme::color(mode, Token::Dangerous))
+                    };
+                    ui.label(chip);
+                });
+            });
+        });
 }
 
 /// 系统缺省 shell。

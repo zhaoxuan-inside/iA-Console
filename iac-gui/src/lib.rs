@@ -1,6 +1,7 @@
 //! iA-console GUI 库根：模块组织（逻辑尽量下沉为可单测的纯函数）。
 
 pub mod app;
+pub mod blocks;
 pub mod ipc;
 pub mod layout;
 pub mod shell;
