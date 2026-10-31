@@ -1,7 +1,6 @@
-//! 设计系统令牌 → egui。调性 = iA Writer（Information Architects）：
-//! 纸感中性色（昼=暖纸白 / 夜=软石墨）、单一克制蓝作唯一点缀、排版承担层级
-//! （字重与灰阶，而非填充盒）、去铬（无阴影、无 pill、发丝线已是最重装饰）、打字机式平静。
-//! 布局不随调性变化（多窗口/标签/终端/输入行，域 18）。令牌与 iac/src/theme.rs 同名同步。
+//! 设计系统令牌 → egui（重建 UI：Linear 式四级 surface 阶梯 + 克制点缀色，
+//! 终端调色板参照 Warp 的暖炭底现代 ANSI）。规范来源：design/refs/*.design.md。
+//! 令牌语义与 iac/src/theme.rs 保持同名（前端各自实现映射，避免 bin 互依赖）。
 
 use eframe::egui::{Color32, Context, FontData, FontDefinitions, Style};
 
@@ -14,25 +13,25 @@ pub enum Mode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)] // 令牌表全集，部分槽位随面板接线启用
 pub enum Token {
-    /// 画布（纸：昼=暖纸白，夜=软石墨；iA Writer 的"纸面"）
+    /// 画布（最深底，Linear canvas）
     Bg,
-    /// 抬升面一级（条区容器；与画布对比刻意极低——层级靠留白而非盒子）
+    /// 抬升面一级（终端块/条区容器）
     Surface,
-    /// 抬升面二级（保留槽位：仅最少场合使用）
+    /// 抬升面二级（卡片/输入框）
     SurfaceRaised,
-    /// 悬停/反馈面
+    /// 悬停面（surface-3）
     SurfaceHover,
-    /// 发丝线（最重的装饰）
+    /// 发丝线（边框/分隔）
     Hairline,
-    /// 正文（墨：暖调，非蓝白）
+    /// 正文（ink）
     Fg,
-    /// 次级文本
+    /// 次级文本（ink-subtle）
     Fg60,
-    /// 三级文本
+    /// 三级文本（ink-tertiary）
     Fg40,
-    /// 弱化文本
+    /// 弱化文本/微弱底
     Fg25,
-    /// 唯一点缀：iA 静蓝（仅光标/焦点/活动位/链接）
+    /// 品牌点缀（薰衣草蓝，克制使用：焦点/主操作/活动位）
     Accent,
     Safe,
     Caution,
@@ -48,74 +47,84 @@ pub fn color(mode: Mode, token: Token) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
-/// token → (R,G,B)。夜=软石墨系（#1E1F23 底，微暖），昼=暖纸系（#F7F5F0 底）；
-/// 语义色统一降饱和（鼠尾草绿/沙金/陶土/柔红），蓝槽=品牌静蓝。
+/// token → (R,G,B)。色值出处：design/refs/linear.app.design.md（surface 阶梯/ink 阶梯/点缀色）
+/// 与 design/refs/warp.design.md（终端现代 ANSI 的克制饱和度取向）。
 pub fn rgb(mode: Mode, token: Token) -> (u8, u8, u8) {
     let hex: &str = match (mode, token) {
+        // canvas：夜=#010102（Linear 最深底）；昼=近白带冷灰
         (_, Token::Bg) => match mode {
-            Mode::Day => "F7F5F0",
-            Mode::Night => "242322",
+            Mode::Day => "fbfbfc",
+            Mode::Night => "010102",
         },
+        // surface-1 阶梯
         (_, Token::Surface) => match mode {
-            Mode::Day => "F1EEE8",
-            Mode::Night => "292826",
+            Mode::Day => "f2f3f5",
+            Mode::Night => "0f1011",
         },
+        // surface-2
         (_, Token::SurfaceRaised) => match mode {
-            Mode::Day => "FBFAF6",
-            Mode::Night => "2C2B29",
+            Mode::Day => "ffffff",
+            Mode::Night => "141516",
         },
+        // surface-3（悬停）
         (_, Token::SurfaceHover) => match mode {
-            Mode::Day => "EBE8E1",
-            Mode::Night => "312F2D",
+            Mode::Day => "e9eaee",
+            Mode::Night => "18191a",
         },
+        // 发丝线
         (_, Token::Hairline) => match mode {
-            Mode::Day => "E2DED5",
-            Mode::Night => "383633",
+            Mode::Day => "e3e4e8",
+            Mode::Night => "23252a",
         },
+        // ink
         (_, Token::Fg) => match mode {
-            Mode::Day => "292926",
-            Mode::Night => "D9D7D0",
+            Mode::Day => "1c1c1f",
+            Mode::Night => "f7f8f8",
         },
+        // ink-subtle
         (_, Token::Fg60) => match mode {
-            Mode::Day => "6D6B63",
-            Mode::Night => "9D9B93",
+            Mode::Day => "6c707a",
+            Mode::Night => "8a8f98",
         },
+        // ink-tertiary
         (_, Token::Fg40) => match mode {
-            Mode::Day => "9B988F",
-            Mode::Night => "716F67",
+            Mode::Day => "9b9ea6",
+            Mode::Night => "62666d",
         },
+        // 弱化文本（比 tertiary 更隐）
         (_, Token::Fg25) => match mode {
-            Mode::Day => "C5C1B7",
-            Mode::Night => "4D4C46",
+            Mode::Day => "b7bac1",
+            Mode::Night => "4b4f56",
         },
-        // iA 静蓝：昼=墨水蓝，夜=粉末蓝（降饱和，非霓虹）
+        // 点缀：昼=品牌薰衣草 #5e6ad2；夜=hover 亮调 #828fff（暗底可读）
         (_, Token::Accent) => match mode {
-            Mode::Day => "3B6FD4",
-            Mode::Night => "6E9CE8",
+            Mode::Day => "5e6ad2",
+            Mode::Night => "828fff",
         },
         (_, Token::Safe) => match mode {
-            Mode::Day => "4E7A56",
-            Mode::Night => "7FB98A",
+            Mode::Day => "217a53",
+            Mode::Night => "3dd68c",
         },
         (_, Token::Caution) => match mode {
-            Mode::Day => "8F6B2B",
-            Mode::Night => "C9A26B",
+            Mode::Day => "ad5f00",
+            Mode::Night => "ffb224",
         },
+        // dangerous=橙红，destructive=红（等级差由色相区分）
         (_, Token::Dangerous) => match mode {
-            Mode::Day => "B25A3A",
-            Mode::Night => "CE8370",
+            Mode::Day => "bd4b00",
+            Mode::Night => "f76b15",
         },
         (_, Token::Destructive) => match mode {
-            Mode::Day => "AF4B44",
-            Mode::Night => "C97070",
+            Mode::Day => "d13438",
+            Mode::Night => "ff6369",
         },
         (_, Token::SynKeyword) => match mode {
-            Mode::Day => "7E5CC0",
-            Mode::Night => "A78BB5",
+            Mode::Day => "8250df",
+            Mode::Night => "b18aff",
         },
         (_, Token::SynString) => match mode {
-            Mode::Day => "3E7D74",
-            Mode::Night => "74A8A4",
+            Mode::Day => "0a7c6e",
+            Mode::Night => "45d4b8",
         },
     };
     (
@@ -125,74 +134,56 @@ pub fn rgb(mode: Mode, token: Token) -> (u8, u8, u8) {
     )
 }
 
-/// 全局样式：iA Writer 去铬——常态控件透明（文本即控件），无阴影；
-/// 悬停/激活才有极轻的面反馈；圆角收敛到 4~6px；间距安静（8/6）。
+/// 全局样式：Linear 式表面层次（surface 阶梯承载层级，不用阴影）、控件圆角、紧凑间距。
 pub fn apply_style(ctx: &Context, mode: Mode) {
     let build = || {
-        let ghost = |fg: Color32| egui::style::WidgetVisuals {
-            bg_fill: Color32::TRANSPARENT,
-            weak_bg_fill: Color32::TRANSPARENT,
-            bg_stroke: egui::Stroke::NONE,
-            corner_radius: egui::CornerRadius::same(4),
-            fg_stroke: egui::Stroke::new(1.0_f32, fg),
-            expansion: 0.0,
-        };
-        let soft = |fg: Color32, bg: Color32, stroke: egui::Stroke| egui::style::WidgetVisuals {
-            bg_fill: bg,
-            weak_bg_fill: bg,
-            bg_stroke: stroke,
-            corner_radius: egui::CornerRadius::same(4),
-            fg_stroke: egui::Stroke::new(1.0_f32, fg),
-            expansion: 0.0,
-        };
-        egui::Visuals {
+        let mut v = egui::Visuals {
             panel_fill: color(mode, Token::Bg),
-            window_fill: color(mode, Token::Bg),
-            extreme_bg_color: color(mode, Token::Bg),
+            window_fill: color(mode, Token::Surface),
+            extreme_bg_color: color(mode, Token::Surface),
             faint_bg_color: color(mode, Token::SurfaceHover),
             override_text_color: Some(color(mode, Token::Fg)),
             hyperlink_color: color(mode, Token::Accent),
             selection: egui::style::Selection {
-                bg_fill: color(mode, Token::Accent).gamma_multiply(0.16),
+                bg_fill: color(mode, Token::Accent).gamma_multiply(0.28),
                 stroke: egui::Stroke::NONE,
             },
             window_stroke: egui::Stroke::new(1.0_f32, color(mode, Token::Hairline)),
-            window_corner_radius: egui::CornerRadius::same(6),
-            menu_corner_radius: egui::CornerRadius::same(6),
-            window_shadow: egui::Shadow::NONE,
-            widgets: egui::style::Widgets {
-                noninteractive: ghost(color(mode, Token::Fg60)),
-                inactive: ghost(color(mode, Token::Fg)),
-                hovered: soft(
-                    color(mode, Token::Fg),
-                    color(mode, Token::SurfaceHover),
-                    egui::Stroke::NONE,
-                ),
-                active: soft(
-                    color(mode, Token::Fg),
-                    color(mode, Token::SurfaceHover),
-                    egui::Stroke::new(1.0_f32, color(mode, Token::Accent)),
-                ),
-                open: soft(
-                    color(mode, Token::Fg),
-                    color(mode, Token::SurfaceHover),
-                    egui::Stroke::NONE,
-                ),
-            },
+            window_corner_radius: egui::CornerRadius::same(10),
+            menu_corner_radius: egui::CornerRadius::same(8),
             ..egui::Visuals::default()
-        }
+        };
+        // 控件：surface-2 底 + 发丝线描边 + 6px 圆角（Linear 紧凑圆角语义）
+        let widget = |bg: Color32, stroke: Color32| egui::style::WidgetVisuals {
+            bg_fill: bg,
+            weak_bg_fill: bg,
+            bg_stroke: egui::Stroke::new(1.0_f32, stroke),
+            corner_radius: egui::CornerRadius::same(6),
+            fg_stroke: egui::Stroke::new(1.0_f32, color(mode, Token::Fg)),
+            expansion: 0.0,
+        };
+        v.widgets.noninteractive =
+            widget(color(mode, Token::Surface), color(mode, Token::Hairline));
+        v.widgets.inactive = widget(
+            color(mode, Token::SurfaceRaised),
+            color(mode, Token::Hairline),
+        );
+        v.widgets.hovered = widget(color(mode, Token::SurfaceHover), color(mode, Token::Fg40));
+        v.widgets.active = widget(color(mode, Token::SurfaceHover), color(mode, Token::Accent));
+        v.widgets.active.fg_stroke = egui::Stroke::new(1.0_f32, color(mode, Token::Accent));
+        v
     };
     let mut style = Style {
         visuals: build(),
         ..Style::default()
     };
-    // 间距安静；菜单内边距 4
+    // 间距：紧凑（Linear spacing.xs~sm）；菜单内边距 6
     style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-    style.spacing.button_padding = egui::vec2(8.0, 4.0);
-    style.spacing.menu_margin = egui::Margin::symmetric(4, 4);
-    // 排版即层级：字号阶梯平缓（iA 节奏），等宽为默认工作字体
+    style.spacing.button_padding = egui::vec2(10.0, 5.0);
+    style.spacing.menu_margin = egui::Margin::symmetric(6, 6);
+    // 字号阶梯（Linear body-sm/caption 节奏；等宽 13px）
     style.text_styles = [
-        (egui::TextStyle::Heading, egui::FontId::proportional(16.0)),
+        (egui::TextStyle::Heading, egui::FontId::proportional(17.0)),
         (egui::TextStyle::Body, egui::FontId::proportional(13.5)),
         (egui::TextStyle::Button, egui::FontId::proportional(13.0)),
         (egui::TextStyle::Small, egui::FontId::proportional(11.5)),
@@ -208,70 +199,70 @@ pub fn apply_style(ctx: &Context, mode: Mode) {
     });
 }
 
-/// 终端 ANSI：与纸面同底（夜=软石墨、昼=暖纸），ANSI 降饱和的暖调集，
-/// 蓝槽=品牌静蓝（终端与面板同一支点缀）。
+/// 终端 ANSI 调色板：夜=Linear surface-1 暖炭底 + 现代克制 ANSI（Warp 取向，点缀蓝入 brand 槽）；
+/// 昼=白底深 ANSI。派生关系仅 black/bright 白，其余为独立现代值。
 pub fn terminal_palette(mode: Mode) -> egui_term::ColorPalette {
     if mode == Mode::Night {
         return egui_term::ColorPalette {
-            foreground: "#D9D7D0".into(),
-            background: "#242322".into(),
-            bright_foreground: Some("#EDEBE4".into()),
-            dim_foreground: "#9C9A92".into(),
-            black: "#2A2927".into(),
-            red: "#C97070".into(),
-            green: "#7FB98A".into(),
-            yellow: "#C9A26B".into(),
-            blue: "#6E9CE8".into(),
-            magenta: "#A78BB5".into(),
-            cyan: "#74A8A4".into(),
-            white: "#9C9A92".into(),
-            bright_black: "#3E3C39".into(),
-            bright_red: "#D98282".into(),
-            bright_green: "#93C79E".into(),
-            bright_yellow: "#D8B480".into(),
-            bright_blue: "#86B0F0".into(),
-            bright_magenta: "#BBA3C6".into(),
-            bright_cyan: "#8CBAB6".into(),
-            bright_white: "#EDEBE4".into(),
-            dim_black: "#262522".into(),
-            dim_red: "#A65E5E".into(),
-            dim_green: "#6B9A75".into(),
-            dim_yellow: "#A98A5C".into(),
-            dim_blue: "#5C84C2".into(),
-            dim_magenta: "#8C7699".into(),
-            dim_cyan: "#628F8B".into(),
-            dim_white: "#83817A".into(),
+            foreground: "#f7f8f8".into(),
+            background: "#0f1011".into(),
+            bright_foreground: Some("#f7f8f8".into()),
+            dim_foreground: "#8a8f98".into(),
+            black: "#1c1d21".into(),
+            red: "#e5484d".into(),
+            green: "#30a46c".into(),
+            yellow: "#ffb224".into(),
+            blue: "#5e6ad2".into(),
+            magenta: "#bf7af0".into(),
+            cyan: "#4cc2d1".into(),
+            white: "#8a8f98".into(),
+            bright_black: "#34343a".into(),
+            bright_red: "#ff6369".into(),
+            bright_green: "#3dd68c".into(),
+            bright_yellow: "#ffd60a".into(),
+            bright_blue: "#828fff".into(),
+            bright_magenta: "#d38cff".into(),
+            bright_cyan: "#7cd6e0".into(),
+            bright_white: "#f7f8f8".into(),
+            dim_black: "#1c1d21".into(),
+            dim_red: "#c25658".into(),
+            dim_green: "#2a8a58".into(),
+            dim_yellow: "#d09a2e".into(),
+            dim_blue: "#5a61bd".into(),
+            dim_magenta: "#a56ad0".into(),
+            dim_cyan: "#45a8b4".into(),
+            dim_white: "#6c707a".into(),
         };
     }
     egui_term::ColorPalette {
-        foreground: "#292926".into(),
-        background: "#F7F5F0".into(),
-        bright_foreground: Some("#292926".into()),
-        dim_foreground: "#9B988F".into(),
-        black: "#E8E5DE".into(),
-        red: "#AF4B44".into(),
-        green: "#4E7A56".into(),
-        yellow: "#8F6B2B".into(),
-        blue: "#3B6FD4".into(),
-        magenta: "#7E5CC0".into(),
-        cyan: "#3E7D74".into(),
-        white: "#6D6B63".into(),
-        bright_black: "#C5C1B7".into(),
-        bright_red: "#9E443E".into(),
-        bright_green: "#456B4C".into(),
-        bright_yellow: "#7D5E26".into(),
-        bright_blue: "#3461BA".into(),
-        bright_magenta: "#6E4FAB".into(),
-        bright_cyan: "#376E66".into(),
-        bright_white: "#292926".into(),
-        dim_black: "#EFEDE6".into(),
-        dim_red: "#B86058".into(),
-        dim_green: "#5F8867".into(),
-        dim_yellow: "#9E7B39".into(),
-        dim_blue: "#5A82DC".into(),
-        dim_magenta: "#9074CC".into(),
-        dim_cyan: "#55918A".into(),
-        dim_white: "#9B988F".into(),
+        foreground: "#1c1c1f".into(),
+        background: "#ffffff".into(),
+        bright_foreground: Some("#1c1c1f".into()),
+        dim_foreground: "#9b9ea6".into(),
+        black: "#ececee".into(),
+        red: "#d13438".into(),
+        green: "#217a53".into(),
+        yellow: "#ad5f00".into(),
+        blue: "#5e6ad2".into(),
+        magenta: "#8347b5".into(),
+        cyan: "#0f7e93".into(),
+        white: "#6c707a".into(),
+        bright_black: "#c9c9cf".into(),
+        bright_red: "#e5484d".into(),
+        bright_green: "#2fa06b".into(),
+        bright_yellow: "#c97a10".into(),
+        bright_blue: "#6f79e0".into(),
+        bright_magenta: "#9a5fd0".into(),
+        bright_cyan: "#2b96ab".into(),
+        bright_white: "#1c1c1f".into(),
+        dim_black: "#e3e4e8".into(),
+        dim_red: "#b84043".into(),
+        dim_green: "#256c4c".into(),
+        dim_yellow: "#96560e".into(),
+        dim_blue: "#545ec4".into(),
+        dim_magenta: "#7743a5".into(),
+        dim_cyan: "#127285".into(),
+        dim_white: "#9b9ea6".into(),
     }
 }
 
@@ -307,46 +298,36 @@ mod tests {
     #[test]
     fn day_night_palettes_differ() {
         assert_ne!(color(Mode::Day, Token::Fg), color(Mode::Night, Token::Fg));
-        // iA 调性锚点：夜=软石墨纸、昼=暖纸、点缀=静蓝
+        // Linear canvas 与 surface 阶梯锚点
         assert_eq!(
             color(Mode::Night, Token::Bg),
-            Color32::from_rgb(0x24, 0x23, 0x22)
+            Color32::from_rgb(0x01, 0x01, 0x02)
         );
         assert_eq!(
-            color(Mode::Day, Token::Bg),
-            Color32::from_rgb(0xF7, 0xF5, 0xF0)
+            color(Mode::Night, Token::Surface),
+            Color32::from_rgb(0x0f, 0x10, 0x11)
         );
         assert_eq!(
             color(Mode::Day, Token::Accent),
-            Color32::from_rgb(0x3B, 0x6F, 0xD4)
+            Color32::from_rgb(0x5e, 0x6a, 0xd2)
         );
     }
 
     #[test]
-    fn surface_ladder_stays_quiet() {
-        // iA 调性：阶梯存在但对比刻意低（层级靠留白），发丝线仅作最重装饰
+    fn surface_ladder_ascends_in_dark_mode() {
+        // 夜间阶梯：Bg < Surface < SurfaceRaised < SurfaceHover（亮度递增承载层级）
         let lum = |t: Token| {
             let (r, g, b) = rgb(Mode::Night, t);
             r as u32 + g as u32 + b as u32
         };
         assert!(lum(Token::Bg) < lum(Token::Surface));
-        assert!(lum(Token::Surface) < lum(Token::SurfaceHover));
-        // 对比度刻意小：相邻阶梯亮度差 < 32（安静，非 SaaS 强分层）
-        assert!(lum(Token::Surface) - lum(Token::Bg) < 32);
+        assert!(lum(Token::Surface) < lum(Token::SurfaceRaised));
+        assert!(lum(Token::SurfaceRaised) <= lum(Token::SurfaceHover));
+        // 发丝线必须与 surface 可区分（边框可见性）
         assert_ne!(
             color(Mode::Night, Token::Hairline),
             color(Mode::Night, Token::Surface)
         );
-    }
-
-    #[test]
-    fn night_bg_is_soft_not_pure_black() {
-        // iA 夜=软石墨：三通道均在 0x18~0x28 区间且微暖（R≥B），不是 Linear 式纯黑
-        let (r, g, b) = rgb(Mode::Night, Token::Bg);
-        assert!((0x18..=0x28).contains(&r));
-        assert!((0x18..=0x28).contains(&g));
-        assert!((0x18..=0x28).contains(&b));
-        assert!(r >= b, "微暖：R ≥ B");
     }
 
     #[test]
@@ -375,14 +356,12 @@ mod tests {
     }
 
     #[test]
-    fn terminal_shares_paper_with_panels() {
-        // 终端与面板同一张纸（无色缝）；蓝槽=同一支静蓝
+    fn terminal_palette_tracks_design_anchors() {
         let night = terminal_palette(Mode::Night);
-        assert_eq!(night.background, "#242322");
-        assert_eq!(night.foreground, "#D9D7D0");
-        assert_eq!(night.blue, "#6E9CE8");
+        assert_eq!(night.background, "#0f1011", "夜终端=surface-1 抬升面");
+        assert_eq!(night.blue, "#5e6ad2", "ANSI 蓝槽=品牌点缀");
+        assert_eq!(night.bright_blue, "#828fff");
         let day = terminal_palette(Mode::Day);
-        assert_eq!(day.background, "#F7F5F0");
-        assert_eq!(day.blue, "#3B6FD4");
+        assert_eq!(day.background, "#ffffff");
     }
 }
