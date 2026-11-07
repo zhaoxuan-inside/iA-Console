@@ -11,6 +11,9 @@
 .idea/
 .vscode/
 
+# 本地 AI 工具会话产物（ZCode 计划/会话状态）
+.zcode/
+
 # 构建产物（重建前清理，可由源码重新生成）
 /dist
 /squashfs-root
