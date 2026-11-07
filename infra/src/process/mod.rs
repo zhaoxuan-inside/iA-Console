@@ -106,20 +106,34 @@ fn apply_common(c: &mut Command, spec: &ProcessSpec) {
         .stdin(Stdio::null());
 }
 
-/// 读完整个流为 UTF-8（lossy）。
+/// 读完整个流为 UTF-8（lossy）：先收字节再转译，非法 UTF-8 以 U+FFFD 替换而非截断。
 fn read_all<R: Read>(pipe: &mut Option<R>) -> String {
-    let mut buf = String::new();
+    let mut raw = Vec::new();
     if let Some(p) = pipe {
-        let _ = p.read_to_string(&mut buf);
+        let _ = p.read_to_end(&mut raw);
     }
-    buf
+    String::from_utf8_lossy(&raw).into_owned()
 }
 
-/// 超时终止：std kill 直接杀 shell 进程。
-/// MVP 边界：`sh -c` 对单命令会 exec（kill 即杀目标）；复杂管道的子进程可能残留，
-/// v1.1 评估平台特定组终止（TODO(zhaoxuan): killpg 需 libc，当前镜像不可用）。
+/// 超时终止：unix 下子进程以独立进程组拉起（process_group(0)），经 `kill` 对整组
+/// 先 TERM 后 KILL（借外部 kill 二进制，免 libc 依赖；不可用时退化为 std kill）。
+/// windows 无进程组，退化为杀 shell 进程本身。
 fn kill_tree(child: &mut Child) {
-    let _ = child.kill();
+    #[cfg(unix)]
+    {
+        let group = format!("-{}", child.id());
+        let _ = Command::new("kill").arg("-TERM").arg(&group).status();
+        // 宽限至多 200ms 等退出，仍存活则整组 KILL
+        for _ in 0..10 {
+            match child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => std::thread::sleep(Duration::from_millis(20)),
+                Err(_) => break,
+            }
+        }
+        let _ = Command::new("kill").arg("-KILL").arg(&group).status();
+    }
+    let _ = child.kill(); // 兜底（含 windows / kill 二进制缺失）
 }
 
 /// ProcessPort 装配实现（iacd 接线用）。

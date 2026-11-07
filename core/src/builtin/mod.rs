@@ -7,7 +7,8 @@
 //! - ia-model [list|use <名>] → iac_config_get / iac_config_set（ai.default_provider）；
 //! - ia-daemon [status|stop] → iac_ping / iac_daemon_stop（start 由前端拉起，Q40）；
 //! - ia-history [query|clean|export] → iac_history_query / iac_history_clean / iac_history_export；
-//! - ia-recipe [save|search|show|rm|export] → iac_recipe_save / iac_recipes_search / …；
+//! - ia-recipe [search <词>|show <名>|rm <名>|export <路径>] → iac_recipes_search / iac_recipe_delete
+//!   （save 需多字段参数，走 CLI `iac recipe save` / GUI 表单）；
 //! - ia-sessions [list|resume <id>] → iac_session_list / iac_session_resume（Q46）；
 //! - ia-rollback [list|replay ...] → iac_rollback（Q49 双触达之命令侧）；
 //! - ia-file-history <路径> → iac_rollback file_history（Q49）；
@@ -54,8 +55,8 @@ pub const BUILTINS: &[BuiltinDef] = &[
     },
     BuiltinDef {
         name: "ia-recipe",
-        summary: "方案库保存/检索/删除/导出",
-        usage: "ia-recipe [save|search <词>|show <名>|rm <名>|export <路径>]",
+        summary: "方案库检索/删除/导出（save 经 CLI/GUI）",
+        usage: "ia-recipe [search <词>|show <名>|rm <名>|export <路径>]",
     },
     BuiltinDef {
         name: "ia-sessions",

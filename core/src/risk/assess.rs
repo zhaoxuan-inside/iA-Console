@@ -14,7 +14,7 @@ pub fn builtin_rules() -> Vec<RiskRule> {
 pub fn assess_risk(
     input: &RiskInput,
     output: &mut RiskAssessment,
-    context: &Context,
+    _context: &Context,
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> bool {
@@ -23,7 +23,7 @@ pub fn assess_risk(
         command: input.command.clone(),
         rules: builtin_rules(),
     };
-    if !match_risk_rules(&rules_input, output, context, metrics, evolution) {
+    if !match_risk_rules(&rules_input, output, metrics, evolution) {
         evolution.propagate("assess_risk", "规则匹配失败");
         return false;
     }

@@ -19,7 +19,7 @@ use crate::recipe::{
 };
 use crate::server::envelope::{IpcRequest, IpcResponse};
 use crate::session::store::{
-    append_event, get_or_create_current, list_sessions, resume_session, AppendEventInput,
+    append_event, get_or_create_current, list_sessions, resume_session, AppendEventInput, RecordAck,
 };
 use crate::session::{
     CurrentSessionInput, EventKind, SessionInfo, SessionListInput, SessionResumeInput,
@@ -410,6 +410,7 @@ fn route_session_event(
         .get("pinned")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let mut seq = None;
     let ev = match kind {
         "separator" => {
             let _ = pinned;
@@ -433,18 +434,23 @@ fn route_session_event(
                 .unwrap_or_default();
             crate::session::store::record_env(&sid, k, v, context, metrics, evolution)
         }
-        "ai_message" => append_event(
-            &AppendEventInput {
-                session_id: sid,
-                kind: EventKind::AiMessage,
-                payload: params.get("payload").cloned().unwrap_or(json!({})),
-                pinned,
-            },
-            &mut Default::default(),
-            context,
-            metrics,
-            evolution,
-        ),
+        "ai_message" => {
+            let mut ack = RecordAck::default();
+            let ok = append_event(
+                &AppendEventInput {
+                    session_id: sid,
+                    kind: EventKind::AiMessage,
+                    payload: params.get("payload").cloned().unwrap_or(json!({})),
+                    pinned,
+                },
+                &mut ack,
+                context,
+                metrics,
+                evolution,
+            );
+            seq = Some(ack.seq);
+            ok
+        }
         other => {
             return Err((
                 codes::UNKNOWN_METHOD.into(),
@@ -455,7 +461,10 @@ fn route_session_event(
     if !ev {
         return fail(evolution);
     }
-    Ok(json!({ "recorded": true }))
+    match seq {
+        Some(s) if s > 0 => Ok(json!({ "recorded": true, "seq": s })),
+        _ => Ok(json!({ "recorded": true })),
+    }
 }
 
 // ---------- 域 15/16：回滚与脚本 ----------
@@ -775,7 +784,8 @@ fn route_builtin(
         },
         "ia-daemon" => match args.first().map(String::as_str) {
             Some("stop") => call("iac_daemon_stop", json!({})),
-            _ => Ok(json!({"status": "ping-able"})),
+            // 状态：经同链路 iac_ping 实测可达性（daemon 组合根会在信封层叠加 pid/uptime）
+            _ => call("iac_ping", json!({})),
         },
         "ia-history" => match args.first().map(String::as_str) {
             Some("clean") => call(
@@ -791,12 +801,19 @@ fn route_builtin(
             Some("search") if args.len() >= 2 => {
                 call("iac_recipes_search", json!({"q": text_arg(1), "limit": 20}))
             }
+            Some("show") if args.len() >= 2 => {
+                call("iac_recipes_search", json!({"q": text_arg(1), "limit": 5}))
+            }
             Some("rm") if args.len() >= 2 => {
                 call("iac_recipe_delete", json!({"name": text_arg(1)}))
             }
             Some("export") if args.len() >= 2 => {
                 call("iac_recipe_export", json!({"path": text_arg(1)}))
             }
+            Some("save") => Err((
+                codes::UNKNOWN_METHOD.into(),
+                "ia-recipe save 需要多字段参数，请用 CLI：iac recipe save 或 GUI 表单".into(),
+            )),
             _ => call("iac_recipes_search", json!({"limit": 20})),
         },
         "ia-sessions" => match args.first().map(String::as_str) {
@@ -831,21 +848,56 @@ fn route_builtin(
                 json!({"usage": builtin::lookup("ia-file-history").map(|b| b.usage).unwrap_or_default()}),
             ),
         },
-        "ia-script" => match args.first().map(String::as_str) {
-            Some("run") if args.len() >= 2 => call(
-                "iac_script",
-                json!({"action": "run", "name": text_arg(1).trim_start_matches('@'), "confirm_dangerous": true}),
-            ),
-            Some("refine") if args.len() >= 2 => call(
-                "iac_script",
-                json!({"action": "refine", "name": text_arg(1)}),
-            ),
-            _ => Err((
-                codes::UNKNOWN_METHOD.into(),
-                "ia-script make 需要行号/任务段语义，经 CLI：iac script make <名> --segment last"
-                    .into(),
-            )),
-        },
+        "ia-script" => {
+            // 武装态与确认词随行内旗标透传（-y/--yes/--confirm-word <词>），
+            // 不预置 confirm_dangerous——闸门修复后此处自动武装会绕过 dangerous 确认
+            let confirm_dangerous = args.iter().any(|a| a == "-y" || a == "--yes");
+            let confirm_word = args
+                .iter()
+                .position(|a| a == "--confirm-word")
+                .and_then(|i| args.get(i + 1))
+                .cloned();
+            // 其余词元 = 脚本位置参数（ScriptRunInput.args；控制旗标及其值不入参）。
+            // run 时跳过前两个词元（子命令、脚本名）从第 3 个起收集
+            let mut script_args: Vec<String> = Vec::new();
+            let mut i = if args.first().map(String::as_str) == Some("run") {
+                2
+            } else {
+                0
+            };
+            while i < args.len() {
+                let a = &args[i];
+                if a == "-y" || a == "--yes" {
+                    i += 1;
+                } else if a == "--confirm-word" {
+                    i += 2; // 旗标 + 值
+                } else {
+                    script_args.push(a.clone());
+                    i += 1;
+                }
+            }
+            match args.first().map(String::as_str) {
+                Some("run") if args.len() >= 2 => call(
+                    "iac_script",
+                    json!({
+                        "action": "run",
+                        "name": text_arg(1).trim_start_matches('@'),
+                        "args": script_args,
+                        "confirm_dangerous": confirm_dangerous,
+                        "confirm_word": confirm_word,
+                    }),
+                ),
+                Some("refine") if args.len() >= 2 => call(
+                    "iac_script",
+                    json!({"action": "refine", "name": text_arg(1)}),
+                ),
+                _ => Err((
+                    codes::UNKNOWN_METHOD.into(),
+                    "ia-script make 需要行号/任务段语义，经 CLI：iac script make <名> --segment last"
+                        .into(),
+                )),
+            }
+        }
         other => Err((
             codes::BUILTIN_UNKNOWN.into(),
             format!("内置命令 {other} 无 IPC 形态（前端本地处理）"),

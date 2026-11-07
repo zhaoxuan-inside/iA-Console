@@ -101,6 +101,9 @@ pub struct ScriptRunInput {
     pub confirm_dangerous: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirm_word: Option<String>,
+    /// 客户端工作目录（Q45 字段真实性）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
 }
 
 /// API-013 make：collect → assemble →（可选 AI 精修）→ 命名注册（kind=script，name 唯一）。
@@ -247,6 +250,8 @@ pub fn refine_script(
 }
 
 /// API-014 run（AC-39）：按名取脚本 → 平台选版本 → 闸门（内部最高风险）→ 执行 → 记录+审计。
+/// 闸门语义：脚本是组合产物（历史命令组装）而非当下直输，origin 视同转译路径——
+/// dangerous 需武装态标志（confirm_dangerous），destructive 需确认词（AC-39「同一闸门」）。
 pub fn run_script(
     input: &ScriptRunInput,
     output: &mut ExecutionOutcome,
@@ -264,7 +269,7 @@ pub fn run_script(
     let is_agent = matches!(context.session.actor, crate::framework::Actor::Agent(_));
     let action = gate_decision(
         risk,
-        CommandOrigin::Direct,
+        CommandOrigin::Translated,
         is_agent,
         input.confirm_dangerous,
     );
@@ -296,18 +301,28 @@ pub fn run_script(
     let gate = GateInfo {
         level: risk,
         action,
-        origin: CommandOrigin::Direct,
+        origin: CommandOrigin::Translated,
         actor_tag: context.session.actor.as_tag(),
+        hits: crate::risk::assess_detail(&body).hits,
     };
-    let cwd = std::env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| ".".into());
+    let cwd = input.cwd.clone().unwrap_or_else(|| {
+        std::env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| ".".into())
+    });
     let mut manifest = pre_capture(&cwd, context, metrics, evolution);
     let timeout = context.config.exec.timeout_ms;
+    // 会话已声明环境变量注入执行（Q46，与 iac_execute 同一口径）
+    let env = crate::session::store::session_env(
+        &context.session.session_id,
+        context,
+        metrics,
+        evolution,
+    );
     let spec = ProcessSpec {
         command: body.clone(),
-        cwd: None,
-        env: vec![],
+        cwd: input.cwd.clone().map(std::path::PathBuf::from),
+        env,
         timeout_ms: timeout,
     };
     let mut result = ProcessResult::default();
@@ -336,10 +351,15 @@ pub fn run_script(
     };
     record.journal_ref = manifest.as_ref().map(|m| m.manifest_ref.clone());
     persist_record(&mut record, context, metrics, evolution);
+    let mut effects = Vec::new();
     if spawn_ok {
         if let Some(m) = manifest.as_mut() {
-            post_diff(m, &record.id, context, metrics, evolution);
+            effects = post_diff(m, &record.id, context, metrics, evolution);
         }
+        // 使用计数（Q23 频率数据源）：脚本实际执行即计一次（尽力而为）
+        let mut m2 = Metrics::default();
+        let mut e2 = Evolution::default();
+        let _ = crate::recipe::handler::bump_usage(&recipe.id, context, &mut m2, &mut e2);
     }
     if !context.session.session_id.is_empty() {
         let ev = AppendEventInput {
@@ -362,7 +382,7 @@ pub fn run_script(
         diagnosis: None,
         gate,
         offer_help,
-        effects: vec![],
+        effects,
     };
     true
 }

@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 
 /// IF-005：统一补全调用。按 Provider 档案选协议，密钥经环境变量（IAC-5102）。
+/// HTTP Client 进程级共享（httpx），超时按请求施加。
 pub fn ai_complete(
     provider: &ProviderProfile,
     input: &iac_core::ports::AiRequest,
@@ -40,22 +41,44 @@ pub fn ai_complete(
         );
         return false;
     }
-    let client = Client::builder()
-        .timeout(Duration::from_millis(input.timeout_ms))
-        .build();
-    let Ok(client) = client else {
-        evolution.fail(codes::AI_UNAVAILABLE, "HTTP 客户端构建失败");
-        return false;
-    };
     let key = key.unwrap_or_default();
+    // Anthropic 需把密钥放进请求头：环境变量值含非法头字符时提前报错，而非构建时 panic
+    if provider.kind == ProviderKind::Anthropic
+        && reqwest::header::HeaderValue::from_str(&key).is_err()
+    {
+        evolution.fail(
+            codes::CONFIG_KEY_MISSING,
+            format!(
+                "环境变量 {} 的值含非法字符（换行/非可见 ASCII），无法用作请求头",
+                provider
+                    .api_key_env
+                    .as_deref()
+                    .unwrap_or("<未配置 api_key_env>")
+            ),
+        );
+        return false;
+    }
+    let client = match crate::httpx::shared_client() {
+        Ok(c) => c,
+        Err(e) => {
+            evolution.fail(codes::AI_UNAVAILABLE, e);
+            return false;
+        }
+    };
     let (url, body, headers) = match provider.kind {
         ProviderKind::Anthropic => anthropic_payload(provider, input, &key),
         _ => openai_payload(provider, input, &key),
     };
     metrics.counter("ai.calls", 1);
-    let Some((content, model)) =
-        send_and_parse(&client, &url, body, headers, provider.kind, evolution)
-    else {
+    let Some((content, model)) = send_and_parse(
+        client,
+        &url,
+        body,
+        headers,
+        input.timeout_ms,
+        provider.kind,
+        evolution,
+    ) else {
         return false; // evolution 已写明原因
     };
     output.text = content;
@@ -69,10 +92,16 @@ fn send_and_parse(
     url: &str,
     body: Value,
     headers: reqwest::header::HeaderMap,
+    timeout_ms: u64,
     kind: ProviderKind,
     evolution: &mut Evolution,
 ) -> Option<(String, String)> {
-    let resp = client.post(url).json(&body).headers(headers).send();
+    let resp = client
+        .post(url)
+        .json(&body)
+        .headers(headers)
+        .timeout(Duration::from_millis(timeout_ms))
+        .send();
     let resp = match resp {
         Ok(r) => r,
         Err(e) => {
@@ -104,7 +133,7 @@ fn api_key(p: &ProviderProfile) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
 }
 
-/// OpenAI 兼容：POST {base}/chat/completions，Bearer 鉴权。
+/// OpenAI 兼容：POST {base}/chat/completions，Bearer 鉴权。空 system 不下发。
 fn openai_payload(
     p: &ProviderProfile,
     input: &iac_core::ports::AiRequest,
@@ -114,19 +143,26 @@ fn openai_payload(
         "{}/chat/completions",
         p.base_url.clone().unwrap_or_default()
     );
-    let mut msgs = vec![json!({"role": "system", "content": input.system})];
+    let mut msgs = Vec::new();
+    if !input.system.is_empty() {
+        msgs.push(json!({"role": "system", "content": input.system}));
+    }
     for (role, content) in &input.messages {
         msgs.push(json!({"role": role, "content": content}));
     }
-    let body = json!({
+    let mut body = json!({
         "model": p.model.clone().unwrap_or_default(),
         "messages": msgs,
         "temperature": input.temperature,
     });
+    if let Some(max_tokens) = p.max_tokens {
+        body["max_tokens"] = json!(max_tokens);
+    }
     (url, body, bearer(key))
 }
 
 /// Anthropic 原生：POST {base}/v1/messages，x-api-key + anthropic-version。
+/// 空 system 不下发；max_tokens 必填（档案可配，缺省 2048）。
 fn anthropic_payload(
     p: &ProviderProfile,
     input: &iac_core::ports::AiRequest,
@@ -143,18 +179,19 @@ fn anthropic_payload(
         .iter()
         .map(|(r, c)| json!({"role": r, "content": c}))
         .collect();
-    let body = json!({
+    let mut body = json!({
         "model": p.model.clone().unwrap_or_default(),
-        "system": input.system,
         "messages": msgs,
-        "max_tokens": 2048,
+        "max_tokens": p.max_tokens.unwrap_or(2048),
         "temperature": input.temperature,
     });
+    if !input.system.is_empty() {
+        body["system"] = json!(input.system);
+    }
     let mut h = reqwest::header::HeaderMap::new();
-    h.insert(
-        "x-api-key",
-        reqwest::header::HeaderValue::from_str(key).expect("invalid header key"),
-    );
+    if let Ok(v) = reqwest::header::HeaderValue::from_str(key) {
+        h.insert("x-api-key", v);
+    }
     h.insert(
         "anthropic-version",
         reqwest::header::HeaderValue::from_static("2023-06-01"),

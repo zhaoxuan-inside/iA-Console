@@ -129,7 +129,7 @@ fn looks_yaml(t: &str) -> bool {
     t.lines().take(3).any(is_yaml_kv)
 }
 
-/// ```lang 围栏或 shebang → 语言名。
+/// 代码围栏标记行（```` ```lang ````）或 shebang → 语言名。
 fn code_fence_lang(t: &str) -> Option<String> {
     for line in t.lines() {
         let l = line.trim();
@@ -298,9 +298,8 @@ fn highlight_code(text: &str, lang: &str, out: &mut StyledSpans) {
                 && word.contains(|c: char| c.is_ascii_digit())
             {
                 out.spans.push((abs, abs + word.len(), TokenKind::Number));
-            } else if word.starts_with('"') || word.starts_with('\'') {
-                out.spans.push((abs, abs + word.len(), TokenKind::Str));
             }
+            // 字符串 token 唯一来源=mark_quoted（词级不再打 Str，避免同区间重复 span）
         }
         // 行内字符串区间（引号段整体）
         mark_quoted(line, base, out);

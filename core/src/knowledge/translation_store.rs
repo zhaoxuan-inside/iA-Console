@@ -1,5 +1,5 @@
 //! 翻译缓存存取（I-031/I-032）：translations 表按 (original, from, to) 唯一。
-//! 缓存键 = 源命令首词（与登记一致；整条命令的参数差异由 param_maps 消化）。
+//! 缓存键 = 完整源命令（参数不同即未命中，杜绝首词键误取旧参数译文）。
 
 use super::{ParamMap, TranslationInput, TranslationResult};
 use crate::framework::{Context, Evolution, Metrics};
@@ -15,20 +15,20 @@ pub fn lookup_translation(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    let Some(first_word) = input.command.split_whitespace().next() else {
+    if input.command.trim().is_empty() {
         metrics.counter("translate.miss", 1);
         *output = None;
         return true;
-    };
+    }
     let q = SqlQuery {
-        sql: "SELECT original, translated, param_maps, source, note, recipe_id, verified \
+        sql: "SELECT original, translated, param_maps, source, recipe_id, verified \
               FROM translations WHERE from_platform = ?1 AND to_platform = ?2 AND original = ?3 \
               ORDER BY created_at DESC LIMIT 1"
             .into(),
         params: vec![
             platform_text(input.from).into(),
             platform_text(input.to).into(),
-            first_word.into(),
+            input.command.trim().into(),
         ],
     };
     let mut rows = QueryRows::default();
@@ -47,12 +47,15 @@ pub fn lookup_translation(
     }
     let param_maps: Vec<ParamMap> =
         serde_json::from_str(rows.text(0, "param_maps").unwrap_or("[]")).unwrap_or_default();
+    let source = rows.text(0, "source").unwrap_or("cache").to_string();
     *output = Some(TranslationResult {
-        original: input.command.clone(),
+        // 存储的原文回填（校验方据此确认命中与当前命令一致）
+        original: rows.text(0, "original").unwrap_or_default().into(),
         translated: rows.text(0, "translated").unwrap_or_default().into(),
         param_maps,
-        source: rows.text(0, "source").unwrap_or("cache").into(),
-        note: rows.text(0, "note").unwrap_or_default().into(),
+        // schema 无 note 列（历史 SELECT 含 note 恒报 IAC-3102，缓存读取自 v0.2.0 起从未生效）
+        note: format!("命中翻译缓存（{source}）"),
+        source,
         risk_level: None,
         recipe_id: rows
             .text(0, "recipe_id")
@@ -79,10 +82,11 @@ pub fn cache_translation(
     evolution: &mut Evolution,
 ) -> bool {
     evolution.succeed();
-    // 缓存键 = 源命令首词
-    let Some(first_word) = input.input.command.split_whitespace().next() else {
+    // 缓存键 = 完整源命令（与 lookup 同键；参数不同即独立条目，防误取旧参数译文）
+    let command = input.input.command.trim().to_string();
+    if command.is_empty() {
         return true;
-    };
+    }
     let param_maps =
         serde_json::to_string(&input.result.param_maps).unwrap_or_else(|_| "[]".into());
     let q = SqlQuery {
@@ -94,7 +98,7 @@ pub fn cache_translation(
               recipe_id = ?8, created_at = ?9"
             .into(),
         params: vec![
-            first_word.into(),
+            command.as_str().into(),
             input.result.translated.as_str().into(),
             platform_text(input.input.from).into(),
             platform_text(input.input.to).into(),

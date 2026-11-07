@@ -4,24 +4,26 @@ pub mod assess;
 pub mod rules;
 pub mod ruleset;
 
-pub use assess::{assess_risk, builtin_rules};
+pub use assess::assess_risk;
 pub use rules::match_risk_rules;
+pub use ruleset::builtin_rules;
 
-/// 仅取风险等级（闸门矩阵输入用）。
-pub fn assess_level(command: &str) -> crate::types::RiskLevel {
-    assess_static(command)
+/// 静态规则评估（含命中明细）：等级 + 命中规则 id + 影响面说明（闸门展示/记录用）。
+pub fn assess_detail(command: &str) -> RiskAssessment {
+    let input = RiskRulesInput {
+        command: command.to_string(),
+        rules: builtin_rules(),
+    };
+    let mut out = RiskAssessment::default();
+    let mut m = crate::framework::Metrics::default();
+    let mut e = crate::framework::Evolution::default();
+    let _ = match_risk_rules(&input, &mut out, &mut m, &mut e);
+    out
 }
 
 /// 静态规则评估：取全部命中规则的最高等级（纯函数，离线可用 Q34）。
 pub fn assess_static(command: &str) -> crate::types::RiskLevel {
-    let rules = builtin_rules();
-    let mut level = crate::types::RiskLevel::Safe;
-    for r in &rules {
-        if command.contains(&r.pattern) && r.level > level {
-            level = r.level;
-        }
-    }
-    level
+    assess_detail(command).level
 }
 
 /// 合成风险（Q34：静态为主、AI 自评为辅、冲突取更高）。

@@ -125,6 +125,7 @@ pub fn restore_file(
         action: crate::types::GateAction::WeakWarning,
         origin: crate::executor::CommandOrigin::Direct,
         actor_tag: context.session.actor.as_tag(),
+        hits: risk.hits,
     };
     let path = std::path::PathBuf::from(&input.path);
     if path.exists() {

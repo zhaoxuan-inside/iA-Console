@@ -35,17 +35,21 @@ pub fn translate_command(
         metrics.counter("translate.static_hit", 1);
         return true;
     }
-    // 2) 缓存（AI 历史译文/用户确认条目）
+    // 2) 缓存（AI 历史译文/用户确认条目）。缓存键=首词，命中须原文全串一致才复用——
+    //    否则 `ls -la /etc` 会误取上次 `ls` 的旧参数译文（不重映射即错命令），视为未命中走 AI
     let mut cached = None;
     if !lookup_translation(input, &mut cached, context, metrics, evolution) {
         evolution.propagate("translate_command", "查翻译缓存失败");
         return false;
     }
     if let Some(mut hit) = cached {
-        hit.risk_level = Some(assess_static(&hit.translated));
-        metrics.counter("translate.cache_hit", 1);
-        *output = hit;
-        return true;
+        if hit.original == input.command {
+            hit.risk_level = Some(assess_static(&hit.translated));
+            metrics.counter("translate.cache_hit", 1);
+            *output = hit;
+            return true;
+        }
+        metrics.counter("translate.cache_stale_skip", 1);
     }
     // 3) AI 翻译（未命中且后端可用）
     translate_via_ai(input, context, metrics, evolution, output)

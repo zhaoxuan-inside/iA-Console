@@ -193,20 +193,23 @@ pub fn pre_capture(
 }
 
 /// 执行编排共用：执行后 diff 入 journal 并回填 executions.journal_ref（尽力而为不阻断）。
+/// 返回本次落账的效果条目（ExecutionOutcome.effects 呈现用；diff 失败/无前像返回空）。
 pub fn post_diff(
     manifest: &mut ManifestRef,
     execution_id: &str,
     context: &crate::framework::Context,
     metrics: &mut crate::framework::Metrics,
     evolution: &mut crate::framework::Evolution,
-) {
+) -> Vec<EffectEntry> {
     if manifest.manifest_ref.is_empty() {
-        return;
+        return Vec::new();
     }
     manifest.execution_id = execution_id.to_string();
-    let mut effects = Vec::new();
-    if !diff_effects(manifest, &mut effects, context, metrics, evolution) {
+    let mut entries = Vec::new();
+    if !diff_effects(manifest, &mut entries, context, metrics, evolution) {
         evolution.ok = true;
         metrics.counter("rollback.diff_failed", 1);
+        return Vec::new();
     }
+    entries
 }

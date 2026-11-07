@@ -79,3 +79,41 @@ fn store_trait_object_still_compiles_for_dox() {
     fn assert_store(_: &dyn StorePort) {}
     assert_store(&iac_core::ports::NullStore);
 }
+
+#[test]
+fn invalid_utf8_output_is_lossy_not_truncated() {
+    // 输出含非法字节：此前 read_to_string 会在首个非法字节处静默截断
+    let (ok, out, _) = run("printf 'A\\xffB\\xc3'", 10_000, None, vec![]);
+    assert!(ok);
+    assert_eq!(
+        out.stdout, "A\u{FFFD}B\u{FFFD}",
+        "非法字节替换为 U+FFFD，且后续内容保留"
+    );
+}
+
+#[test]
+fn timeout_kills_whole_process_group() {
+    // 管道/后台孙进程也随组终止，不残留
+    let dir = std::env::temp_dir().join(format!("iac-grp-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let pidfile = dir.join("pid");
+    let cmd = format!("sleep 30 & echo $! > {}; sleep 30", pidfile.display());
+    let (ok, _, evo) = run(&cmd, 300, None, vec![]);
+    assert!(!ok);
+    assert_eq!(evo.reason_code.as_deref(), Some("IAC-2103"));
+    let pid = std::fs::read_to_string(&pidfile)
+        .expect("后台孙进程已写出 pid")
+        .trim()
+        .to_string();
+    // 孙进程最终消失（TERM 宽限 200ms + KILL；轮询至多 3s）
+    let mut gone = false;
+    for _ in 0..60 {
+        if !std::path::Path::new(&format!("/proc/{pid}")).exists() {
+            gone = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(gone, "孙进程 pid={pid} 未被组终止");
+    let _ = std::fs::remove_dir_all(dir);
+}

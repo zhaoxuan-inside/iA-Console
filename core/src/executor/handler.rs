@@ -10,7 +10,6 @@ use crate::history::store::{insert_execution, record_audit};
 use crate::history::{ExecStatus, ExecutionRecord};
 use crate::intent::{load_proposal, mark_proposal_status, ProposalStatus};
 use crate::ports::{ProcessResult, ProcessSpec};
-use crate::risk::assess_static;
 use crate::session::now_ms;
 use crate::session::store::{append_event, record_env, AppendEventInput, RecordAck};
 use crate::session::EventKind;
@@ -30,14 +29,15 @@ pub fn handle_execute(
         evolution.propagate("handle_execute", "解析待执行命令失败");
         return false;
     };
-    // 环境变量声明（Q46）：记录入会话 env 与事件流，不作为进程执行（daemon 子进程 export 无持久意义）
+    // 环境变量声明（Q46）：记录入会话 env 与事件流，不作为进程执行；
+    // 声明的变量经 session_env 注入后续 iac_execute/脚本执行的子进程环境
     if origin == CommandOrigin::Direct {
         if let Some((k, v)) = crate::common::marker_parser::parse_env_declaration(&command) {
             return record_env_only(input, &k, &v, output, context, metrics, evolution);
         }
     }
     // 风险：提案候选已含 AI 合成风险（Q34 冲突取更高），此处只对直输/翻译重评
-    let level = risk_level_for(input, &command, origin, context, metrics, evolution);
+    let (level, hits) = risk_level_for(input, &command, origin, context, metrics, evolution);
     let is_agent = matches!(context.session.actor, crate::framework::Actor::Agent(_));
     let action = gate_decision(level, origin, is_agent, input.confirmed);
     let gate = GateInfo {
@@ -45,6 +45,7 @@ pub fn handle_execute(
         action,
         origin,
         actor_tag: context.session.actor.as_tag(),
+        hits,
     };
     let mut record = build_record(input, &command, level, context);
     // 确认升级校验（Q21/Q37）
@@ -109,7 +110,7 @@ fn reject_and_record(
 ) -> bool {
     record.status = ExecStatus::Rejected;
     persist(record, context, metrics, evolution);
-    *output = outcome(record, gate);
+    *output = outcome(record, gate, Vec::new());
     record_audit(
         &context.session.actor,
         "reject",
@@ -128,7 +129,7 @@ fn reject_and_record(
 #[allow(clippy::too_many_arguments)]
 fn run_and_record(
     command: String,
-    _input: &ExecuteInput,
+    input: &ExecuteInput,
     record: &mut ExecutionRecord,
     gate: &GateInfo,
     output: &mut ExecutionOutcome,
@@ -140,10 +141,17 @@ fn run_and_record(
     let cwd = record.cwd.clone();
     let mut manifest = crate::rollback::pre_capture(&cwd, context, metrics, evolution);
     record.journal_ref = manifest.as_ref().map(|m| m.manifest_ref.clone());
+    // 会话已声明环境变量注入执行（Q46）：export 累积对后续 iac_execute/脚本可见
+    let env = crate::session::store::session_env(
+        &context.session.session_id,
+        context,
+        metrics,
+        evolution,
+    );
     let spec = ProcessSpec {
         command,
-        cwd: None,
-        env: vec![],
+        cwd: input.cwd.clone().map(std::path::PathBuf::from),
+        env,
         timeout_ms: context.config.exec.timeout_ms,
     };
     let mut result = ProcessResult::default();
@@ -159,7 +167,7 @@ fn run_and_record(
                 ExecStatus::Failed
             };
         persist(record, context, metrics, evolution);
-        *output = outcome(record, gate);
+        *output = outcome(record, gate, Vec::new());
         evolution.ok = true;
         return true;
     }
@@ -182,11 +190,12 @@ fn run_and_record(
         ExecStatus::Failed
     };
     persist(record, context, metrics, evolution);
-    if let Some(m) = manifest.as_mut() {
-        crate::rollback::post_diff(m, &record.id, context, metrics, evolution);
-    }
+    let effects = match manifest.as_mut() {
+        Some(m) => crate::rollback::post_diff(m, &record.id, context, metrics, evolution),
+        None => Vec::new(),
+    };
     metrics.counter("executed", 1);
-    let mut out = outcome(record, gate);
+    let mut out = outcome(record, gate, effects);
     // 失败兜底（Q18）：就地「要不要 AI 帮忙？」——诊断由用户一键触发（iac_diagnose）
     out.offer_help = record.status == ExecStatus::Failed;
     *output = out;
@@ -214,6 +223,7 @@ fn record_env_only(
             action: GateAction::Pass,
             origin: CommandOrigin::Direct,
             actor_tag: context.session.actor.as_tag(),
+            hits: Vec::new(),
         },
         ..Default::default()
     };
@@ -248,6 +258,7 @@ fn resolve_command(
 }
 
 /// 风险等级：提案候选用生成期合成风险（Q34），直输/翻译用静态规则现评。
+/// 返回 (等级, 命中规则 id)；提案合成风险无静态命中明细。
 fn risk_level_for(
     input: &ExecuteInput,
     command: &str,
@@ -255,7 +266,7 @@ fn risk_level_for(
     context: &Context,
     metrics: &mut Metrics,
     evolution: &mut Evolution,
-) -> RiskLevel {
+) -> (RiskLevel, Vec<String>) {
     let _ = (metrics, evolution);
     if origin == CommandOrigin::Proposal {
         if let Some(pid) = &input.proposal_id {
@@ -267,15 +278,16 @@ fn risk_level_for(
                     .unwrap_or(p.active)
                     .min(p.candidates.len().saturating_sub(1));
                 if let Some(c) = p.candidates.get(idx) {
-                    return c.risk_level;
+                    return (c.risk_level, Vec::new());
                 }
             }
         }
     }
-    assess_static(command)
+    let detail = crate::risk::assess_detail(command);
+    (detail.level, detail.hits)
 }
 
-/// 组装执行记录（cwd/shell/host 尽力从会话取，Q45 字段真实性）。
+/// 组装执行记录（cwd 优先取客户端声明，Q45 字段真实性）。
 fn build_record(
     input: &ExecuteInput,
     command: &str,
@@ -287,10 +299,13 @@ fn build_record(
         session_id: context.session.session_id.clone(),
         proposal_id: input.proposal_id.clone(),
         command: command.to_string(),
-        argv: command.split_whitespace().map(str::to_string).collect(),
-        cwd: std::env::current_dir()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| ".".into()),
+        // 账本 argv 对齐 sh -c 真实参数边界（引号感知；不闭合退空白切分）
+        argv: crate::common::shell_split::argv_of(command),
+        cwd: input.cwd.clone().unwrap_or_else(|| {
+            std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".into())
+        }),
         shell: "sh".into(),
         host: "local".into(),
         actor: context.session.actor.as_tag(),
@@ -361,8 +376,12 @@ fn persist(
     }
 }
 
-/// 组装输出（执行记录 ID 回填）。
-fn outcome(record: &ExecutionRecord, gate: &GateInfo) -> ExecutionOutcome {
+/// 组装输出（执行记录 ID 回填；effects=本次执行落账的效果条目）。
+fn outcome(
+    record: &ExecutionRecord,
+    gate: &GateInfo,
+    effects: Vec<crate::types::EffectEntry>,
+) -> ExecutionOutcome {
     ExecutionOutcome {
         execution_id: record.id.clone(),
         exit_code: record.exit_code,
@@ -373,7 +392,7 @@ fn outcome(record: &ExecutionRecord, gate: &GateInfo) -> ExecutionOutcome {
         diagnosis: None,
         gate: gate.clone(),
         offer_help: record.status == ExecStatus::Failed,
-        effects: vec![],
+        effects,
     }
 }
 

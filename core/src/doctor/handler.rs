@@ -224,27 +224,31 @@ fn locate_failure(
     evolution: &mut Evolution,
 ) -> Option<ExecutionRecord> {
     if let Some(id) = &input.execution_id {
-        let filter = HistoryFilter {
+        // 精确取单条：按 id 定位需扫最近 200 条再匹配（万条级检索由 history 域承担）
+        let scan = HistoryFilter {
             q: None,
             session_id: None,
             actor: None,
             status: None,
             since: None,
             until: None,
-            limit: 1,
+            limit: 200,
             offset: 0,
             with_full_output: true,
         };
-        // 精确取单条：借 q 全表过滤代价高，直接 LIKE 不适合 id——用 with_full_output + 分页过滤
         let mut page = HistoryPage::default();
-        // 简化：查询最近 200 条再精确匹配（万条级检索由 history 域承担）
-        let mut scan = HistoryFilter {
-            limit: 200,
-            with_full_output: true,
-            ..Default::default()
-        };
-        let _ = &mut scan;
-        if !query_history(&filter, &mut page, context, metrics, evolution) {
+        if !query_history(&scan, &mut page, context, metrics, evolution) {
+            return None;
+        }
+        if page.items.iter().all(|r| &r.id != id) {
+            // 目标不在最近 200 条内：如实报错（此前误用 limit=1 导致仅最新一条可诊断）
+            evolution.fail(
+                crate::error::codes::DIAGNOSE,
+                format!(
+                    "执行记录 {id} 不在最近 {} 条内，请用 iac_history_query 精确定位",
+                    scan.limit
+                ),
+            );
             return None;
         }
         return page.items.into_iter().find(|r| &r.id == id);

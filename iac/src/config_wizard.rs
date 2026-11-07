@@ -183,11 +183,13 @@ static FORM_FIELDS: &[(&str, &str)] = &[
 
 const KIND_CYCLE: &[&str] = &["Openai", "Anthropic", "local-plugin", "local-path"];
 
-/// 点路径取值（快照 JSON）。
-pub fn value_of(cfg: &Value, key: &str) -> Value {
-    key.split('.').fold(cfg.clone(), |acc, k| {
-        acc.get(k).cloned().unwrap_or(Value::Null)
-    })
+static NULL: Value = Value::Null;
+
+/// 点路径取值（快照 JSON；借用版：不逐帧深拷贝配置树）。
+pub fn value_of<'a>(cfg: &'a Value, key: &str) -> &'a Value {
+    key.split('.')
+        .try_fold(cfg, |acc, k| acc.get(k))
+        .unwrap_or(&NULL)
 }
 
 /// 值的行内展示（字符串裸显、Null 破折号）。
@@ -260,10 +262,12 @@ fn kind_next(k: &ProviderKind) -> ProviderKind {
     serde_json::from_value(json!(next)).unwrap_or(ProviderKind::LocalPlugin)
 }
 
-/// 中日韩宽度感知的左对齐补空（列表值列对齐）。
+/// 中日韩宽度感知的左对齐补空（列表值列对齐；宽度约定与 theme::str_width 同源）。
 fn pad(s: &str, width: usize) -> String {
-    let w: usize = s.chars().map(|c| if c.is_ascii() { 1 } else { 2 }).sum();
-    format!("{s}{}", " ".repeat(width.saturating_sub(w)))
+    format!(
+        "{s}{}",
+        " ".repeat(width.saturating_sub(crate::theme::str_width(s)))
+    )
 }
 
 /// 保存反馈（底部状态行）。
@@ -305,8 +309,9 @@ pub struct Wizard {
 
 impl Wizard {
     fn new(cfg: Value) -> Self {
-        let providers = serde_json::from_value::<Vec<ProviderProfile>>(value_of(&cfg, "providers"))
-            .unwrap_or_default();
+        let providers =
+            serde_json::from_value::<Vec<ProviderProfile>>(value_of(&cfg, "providers").clone())
+                .unwrap_or_default();
         let mode = match value_of(&cfg, "ui.theme").as_str() {
             Some("day") => Mode::Day,
             _ => Mode::Night,
@@ -347,7 +352,7 @@ impl Wizard {
     /// 以 daemon 快照为准回同步 provider 本地副本。
     fn sync_providers(&mut self) {
         if let Ok(p) =
-            serde_json::from_value::<Vec<ProviderProfile>>(value_of(&self.cfg, "providers"))
+            serde_json::from_value::<Vec<ProviderProfile>>(value_of(&self.cfg, "providers").clone())
         {
             self.providers = p;
             self.prov_selected = self
@@ -377,6 +382,7 @@ impl Wizard {
             api_key_env: None,
             model: None,
             path: None,
+            max_tokens: None,
         });
         self.prov_selected = self.providers.len() - 1;
         self.save_providers();
@@ -402,7 +408,7 @@ impl Wizard {
             }
             Kind::Providers => self.screen = Screen::Providers,
             Kind::Enum(opts) => {
-                let cur = display(&value_of(&self.cfg, item.key));
+                let cur = display(value_of(&self.cfg, item.key));
                 self.edit = Some(EditState {
                     item: idx,
                     picker: opts.iter().position(|o| *o == cur).unwrap_or(0),
@@ -414,7 +420,7 @@ impl Wizard {
                 self.edit = Some(EditState {
                     item: idx,
                     picker: 0,
-                    input: display(&value_of(&self.cfg, item.key)),
+                    input: display(value_of(&self.cfg, item.key)),
                 });
                 self.screen = Screen::Edit;
             }
@@ -565,7 +571,7 @@ impl Wizard {
 /// 入口（iac config 裸命令）：TTY 门卫 → 拉配置 → 全屏向导。
 pub fn run() -> i32 {
     use crossterm::tty::IsTty;
-    if !std::io::stdout().is_tty() {
+    if !std::io::stdout().is_tty() || !std::io::stdin().is_tty() {
         eprintln!("iac config 需要交互终端；非交互场景用 iac config set <key> <value>");
         return 2;
     }
@@ -625,8 +631,20 @@ fn draw(f: &mut Frame, wiz: &Wizard) {
             (lines, (pos + 1).saturating_sub(visible) as u16)
         }
         Screen::Edit => (edit_lines(wiz), 0),
-        Screen::Providers => (providers_lines(wiz), 0),
-        Screen::Form => (form_lines(wiz), 0),
+        Screen::Providers => {
+            // 档案多于一屏时跟随选中行（标题行偏移 +1）
+            let lines = providers_lines(wiz);
+            let visible = chunks[0].height as usize;
+            let pos = wiz.prov_selected + 1;
+            (lines, (pos + 1).saturating_sub(visible) as u16)
+        }
+        Screen::Form => {
+            // 字段行跟随选中（标题行偏移 +1）
+            let lines = form_lines(wiz);
+            let visible = chunks[0].height as usize;
+            let pos = wiz.form_field + 1;
+            (lines, (pos + 1).saturating_sub(visible) as u16)
+        }
     };
     f.render_widget(Paragraph::new(lines).scroll((scroll, 0)), chunks[0]);
     f.render_widget(Paragraph::new(bottom_line(wiz)), chunks[1]);
@@ -660,7 +678,7 @@ fn row_line(wiz: &Wizard, row: &Row) -> Line<'static> {
                 let n = wiz.providers.len();
                 format!("{n} 个档案 →")
             } else {
-                display(&value_of(&wiz.cfg, item.key))
+                display(value_of(&wiz.cfg, item.key))
             };
             let mut spans = vec![Span::styled(
                 marker.to_string(),
@@ -707,7 +725,7 @@ fn edit_lines(wiz: &Wizard) -> Vec<Line<'static>> {
     lines.push(Line::from(""));
     match &item.kind {
         Kind::Enum(opts) => {
-            let cur = display(&value_of(&wiz.cfg, item.key));
+            let cur = display(value_of(&wiz.cfg, item.key));
             for (i, opt) in opts.iter().enumerate() {
                 let cursor = i == e.picker;
                 let marker = if cursor { " ▍ " } else { "   " };
@@ -975,9 +993,9 @@ mod tests {
     #[test]
     fn value_of_walks_dotted_path_and_display() {
         let cfg = json!({"ui": {"theme": "night"}, "exec": {"timeout_ms": 120000}});
-        assert_eq!(display(&value_of(&cfg, "ui.theme")), "night");
-        assert_eq!(display(&value_of(&cfg, "exec.timeout_ms")), "120000");
-        assert_eq!(display(&value_of(&cfg, "no.such")), "—");
+        assert_eq!(display(value_of(&cfg, "ui.theme")), "night");
+        assert_eq!(display(value_of(&cfg, "exec.timeout_ms")), "120000");
+        assert_eq!(display(value_of(&cfg, "no.such")), "—");
     }
 
     #[test]
@@ -1000,6 +1018,7 @@ mod tests {
             api_key_env: None,
             model: None,
             path: None,
+            max_tokens: None,
         };
         set_field(&mut p, "base_url", "https://api.example.com");
         set_field(&mut p, "api_key_env", "OPENAI_KEY");
@@ -1022,6 +1041,7 @@ mod tests {
             api_key_env: Some("OPENAI_KEY".into()),
             model: Some("gpt-x".into()),
             path: None,
+            max_tokens: None,
         }];
         let body = serde_json::to_string(&list).expect("序列化");
         let back: Vec<ProviderProfile> = serde_json::from_str(&body).expect("反序列化");

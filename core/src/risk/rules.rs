@@ -1,14 +1,13 @@
 //! I-001：风险规则匹配（algorithm，纯函数）。同一输入恒同一输出（闸门终检复验依赖确定性）。
 
 use super::{RiskAssessment, RiskRulesInput};
-use crate::framework::{Context, Evolution, Metrics};
+use crate::framework::{Evolution, Metrics};
 use crate::types::RiskLevel;
 
 /// I-001：按规则集匹配命令，取最高风险等级；未命中任何规则 → safe（业务"否"仍属成功）。
 pub fn match_risk_rules(
     input: &RiskRulesInput,
     output: &mut RiskAssessment,
-    _context: &Context,
     metrics: &mut Metrics,
     _evolution: &mut Evolution,
 ) -> bool {
@@ -47,7 +46,6 @@ mod tests {
     }
 
     fn match_cmd(command: &str, rules: Vec<crate::risk::RiskRule>) -> RiskAssessment {
-        let env = crate::framework::TestEnv::new();
         let input = RiskRulesInput {
             command: command.into(),
             rules,
@@ -55,13 +53,7 @@ mod tests {
         let mut out = RiskAssessment::default();
         let mut m = Metrics::default();
         let mut e = Evolution::default();
-        assert!(match_risk_rules(
-            &input,
-            &mut out,
-            &env.context(),
-            &mut m,
-            &mut e
-        ));
+        assert!(match_risk_rules(&input, &mut out, &mut m, &mut e));
         out
     }
 

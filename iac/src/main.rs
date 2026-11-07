@@ -3,6 +3,7 @@
 //! 会话列表/恢复（Q46）、配置 set（审计走 daemon）、翻译 from/to 契约、确认词（Q37）。
 
 use clap::{Parser, Subcommand};
+use std::io::IsTerminal;
 
 /// iA-console 前端：让天下没有难用的 Console。
 #[derive(Parser)]
@@ -277,37 +278,44 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             confirm_word,
             candidate_index,
         } => {
-            // @脚本名：脚本工坊命名脚本（AC-39）
+            // @脚本名：脚本工坊命名脚本（AC-39）；@名 后随参数透传脚本 args
             if target.proposal.is_none()
-                && target.command.len() == 1
+                && !target.command.is_empty()
                 && target.command[0].starts_with('@')
             {
                 let name = target.command[0][1..].to_string();
+                let args: Vec<String> = target.command[1..].to_vec();
                 return emit(
                     crate::ipc::request(
                         "iac_script",
-                        serde_json::json!({"action": "run", "name": name, "args": [], "confirm_dangerous": yes, "confirm_word": confirm_word}),
+                        serde_json::json!({"action": "run", "name": name, "args": args, "confirm_dangerous": yes, "confirm_word": confirm_word, "cwd": crate::ipc::client_cwd()}),
                         None,
                     ),
                     json_mode,
                 );
             }
             let (method, params) = match (&target.proposal, target.command.is_empty()) {
-                (Some(pid), _) => (
+                (Some(pid), true) => (
                     "iac_execute",
                     serde_json::json!({
                         "proposal_id": pid, "confirmed": yes, "confirm_word": confirm_word,
-                        "candidate_index": candidate_index, "origin": "proposal"
+                        "candidate_index": candidate_index, "origin": "proposal",
+                        "cwd": crate::ipc::client_cwd()
                     }),
                 ),
                 (None, false) => (
                     "iac_execute",
                     serde_json::json!({
-                        "command": target.command.join(" "), "confirmed": yes,
-                        "confirm_word": confirm_word, "origin": "direct"
+                        "command": join_command(&target.command), "confirmed": yes,
+                        "confirm_word": confirm_word, "origin": "direct",
+                        "cwd": crate::ipc::client_cwd()
                     }),
                 ),
-                _ => {
+                (Some(_), false) => {
+                    eprintln!("用法：--proposal 与命令词不可同给");
+                    return 2;
+                }
+                (None, true) => {
                     eprintln!("用法：iac run <命令> 或 iac run --proposal <id>");
                     return 2;
                 }
@@ -322,7 +330,7 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             emit(
                 crate::ipc::request(
                     "iac_explain",
-                    serde_json::json!({"command": command.join(" ")}),
+                    serde_json::json!({"command": join_command(&command)}),
                     None,
                 ),
                 json_mode,
@@ -385,7 +393,7 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 emit(
                     crate::ipc::request(
                         "iac_recipe_save",
-                        serde_json::json!({"title": title, "description": description, "name": name, "command_template": command.join(" "), "tags": tags, "platform": "all"}),
+                        serde_json::json!({"title": title, "description": description, "name": name, "command_template": join_command(&command), "tags": tags, "platform": "all"}),
                         None,
                     ),
                     json_mode,
@@ -424,7 +432,7 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             SessionAction::New => emit(
                 crate::ipc::request(
                     "iac_sessions_current",
-                    serde_json::json!({"cwd": ".", "shell": "sh", "host": "local"}),
+                    serde_json::json!({"cwd": crate::ipc::client_cwd(), "shell": crate::ipc::client_shell(), "host": "local"}),
                     None,
                 ),
                 json_mode,
@@ -453,14 +461,39 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 match resp {
                     Ok(r) if r.ok => {
                         let v = r.result.unwrap_or_default();
-                        let picked = key.split('.').fold(&v, |acc, k| &acc[k]);
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(picked).unwrap_or_default()
-                        );
-                        0
+                        let picked = key.split('.').try_fold(&v, |acc, k| acc.get(k));
+                        match picked {
+                            Some(p) if !p.is_null() => {
+                                // 人类模式：字符串标量裸显（iac config get ui.theme → night，不带引号）
+                                println!(
+                                    "{}",
+                                    if json_mode {
+                                        p.to_string()
+                                    } else {
+                                        match p.as_str() {
+                                            Some(s) => s.to_string(),
+                                            None => {
+                                                serde_json::to_string_pretty(p).unwrap_or_default()
+                                            }
+                                        }
+                                    }
+                                );
+                                0
+                            }
+                            _ => {
+                                eprintln!("配置键不存在：{key}");
+                                1
+                            }
+                        }
                     }
-                    _ => render_err(&resp, json_mode),
+                    Ok(r) => {
+                        eprintln!("{}", crate::ipc::render(&r, json_mode));
+                        1
+                    }
+                    Err(msg) => {
+                        eprintln!("{msg}");
+                        1
+                    }
                 }
             }
             Some(ConfigAction::Set { key, value }) => emit(
@@ -498,12 +531,25 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             }
             DaemonAction::Stop => {
                 let resp = crate::ipc::request("iac_daemon_stop", serde_json::json!({}), None);
-                if matches!(&resp, Ok(r) if r.ok) {
-                    println!("停机指令已发送");
-                    0
-                } else {
-                    println!("stop 指令已送达（daemon 将自行退出）");
-                    0
+                match resp {
+                    // daemon 对 stop 回 IAC-6106「受理」错误信封（ok=false 但语义=成功）
+                    Ok(r)
+                        if r.ok
+                            || r.error
+                                .as_ref()
+                                .is_some_and(|e| e.code == iac_core::error::codes::DAEMON_STOP) =>
+                    {
+                        println!("停机指令已发送");
+                        0
+                    }
+                    Ok(r) => {
+                        eprintln!("{}", crate::ipc::render(&r, json_mode));
+                        1
+                    }
+                    Err(_) => {
+                        println!("daemon 未运行");
+                        1
+                    }
                 }
             }
             DaemonAction::Mcp => {
@@ -545,14 +591,25 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 ),
                 json_mode,
             ),
-            FileAction::Restore { path, seq } => emit(
-                crate::ipc::request(
-                    "iac_rollback",
-                    serde_json::json!({"action": "restore", "path": path, "seq": seq}),
-                    None,
-                ),
-                json_mode,
-            ),
+            FileAction::Restore { path, seq } => {
+                // 交互终端先确认（覆盖现文件；回收站兜底）；非交互（脚本管道）直接执行
+                if std::io::stdin().is_terminal()
+                    && !confirm_interactive(&format!(
+                        "恢复 {path} 到版本 {seq}？（现文件移入回收站）"
+                    ))
+                {
+                    println!("已取消");
+                    return 0;
+                }
+                emit(
+                    crate::ipc::request(
+                        "iac_rollback",
+                        serde_json::json!({"action": "restore", "path": path, "seq": seq}),
+                        None,
+                    ),
+                    json_mode,
+                )
+            }
         },
         Commands::Script { action } => match action {
             ScriptAction::Make {
@@ -593,7 +650,7 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
                 Dialect::Macos => "macos",
                 Dialect::Windows => "windows",
             });
-            let mut params = serde_json::json!({"command": command.join(" ")});
+            let mut params = serde_json::json!({"command": join_command(&command)});
             if let Some(f) = from {
                 params["from"] = serde_json::json!(f);
             }
@@ -603,6 +660,46 @@ fn run(cli: Cli, json_mode: bool) -> i32 {
             )
         }
     }
+}
+
+/// 词元 → 命令串（POSIX 单引号保参界）：clap 分词后引号已失，
+/// 直拼 join(" ") 会把 `echo "a b"` 变 `echo a b`；此处对含空白/引号/转义的
+/// 词元加单引号（`'`→`'\''`），daemon 端 `sh -c` 与账本分词（core shell_split）按同一语义还原。
+/// 单词元=整条命令原文透传：`iac run "echo hello"` 是最自然的整串调用（脚本里 `iac run "$cmd"` 同），
+/// 再包引号会造出「带空格的命令名」（sh 报 127）；引号保护只服务多词元的参数边界场景。
+fn join_command(args: &[String]) -> String {
+    if let [single] = args {
+        return single.clone();
+    }
+    args.iter()
+        .map(|a| {
+            if a.is_empty()
+                || a.chars()
+                    .any(|c| c.is_whitespace() || matches!(c, '\'' | '"' | '\\' | '$' | '`'))
+            {
+                format!("'{}'", a.replace('\'', "'\\''"))
+            } else {
+                a.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// 交互确认（y/yes/是 为是；EOF/其他=否）。问题写 stderr，答案读 stdin。
+fn confirm_interactive(question: &str) -> bool {
+    use std::io::BufRead;
+    eprint!("{question} [y/N] ");
+    let mut line = String::new();
+    if std::io::stdin().lock().read_line(&mut line).unwrap_or(0) == 0 {
+        return false;
+    }
+    confirm_answer(&line)
+}
+
+/// 确认答案判定（纯函数可测）。
+fn confirm_answer(s: &str) -> bool {
+    matches!(s.trim(), "y" | "Y" | "yes" | "Yes" | "是")
 }
 
 fn emit(resp: Result<iac_core::server::IpcResponse, String>, json_mode: bool) -> i32 {
@@ -622,15 +719,7 @@ fn emit(resp: Result<iac_core::server::IpcResponse, String>, json_mode: bool) ->
     }
 }
 
-fn render_err(resp: &Result<iac_core::server::IpcResponse, String>, _json_mode: bool) -> i32 {
-    match resp {
-        Ok(r) => println!("{}", crate::ipc::render(r, false)),
-        Err(msg) => eprintln!("{msg}"),
-    }
-    0
-}
-
-/// 后台启动 iacd：脱离终端、标准流落盘。
+/// 后台启动 iacd：脱离终端、标准流落 data_dir/daemon.log、就绪探测消除竞态。
 fn daemon_start() -> i32 {
     let socket = crate::ipc::default_socket_path();
     if UnixStreamProbe::alive(&socket) {
@@ -645,15 +734,40 @@ fn daemon_start() -> i32 {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
+        // iacd 自身不重定向日志：stdout/stderr 追加至 data_dir/daemon.log（落盘失败退 null）
+        let data_dir = infra::config::data_dir();
+        let _ = std::fs::create_dir_all(&data_dir);
+        let log_path = data_dir.join("daemon.log");
+        let log = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path);
         let mut cmd = std::process::Command::new(&iacd_exe);
-        cmd.process_group(0)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+        cmd.process_group(0).stdin(std::process::Stdio::null());
+        match log {
+            Ok(f) => {
+                cmd.stdout(f.try_clone().expect("日志句柄")).stderr(f);
+            }
+            Err(_) => {
+                cmd.stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null());
+            }
+        }
         match cmd.spawn() {
             Ok(_) => {
-                println!("daemon 已启动");
-                0
+                // 就绪探测：socket 可连接才算启动成功（消除 spawn→listen 竞态）
+                for _ in 0..60 {
+                    if UnixStreamProbe::alive(&socket) {
+                        println!("daemon 已启动");
+                        return 0;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                eprintln!(
+                    "daemon 已拉起但 3s 内未就绪（日志：{}）",
+                    log_path.display()
+                );
+                1
             }
             Err(e) => {
                 eprintln!("启动失败（请确认 iacd 在 PATH）：{e}");
@@ -683,7 +797,74 @@ impl UnixStreamProbe {
 }
 
 pub mod config_wizard;
+pub mod confirm;
 pub mod console;
 pub mod ipc;
 pub mod theme;
 pub mod tui;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn join_command_preserves_argument_boundaries() {
+        // 含空格词元加引号；daemon 端 sh -c 与账本分词按同一语义还原
+        assert_eq!(join_command(&["echo".into(), "a b".into()]), "echo 'a b'");
+        assert_eq!(
+            join_command(&["touch".into(), "my file.txt".into()]),
+            "touch 'my file.txt'"
+        );
+        // 普通词元原样
+        assert_eq!(
+            join_command(&["rm".into(), "-rf".into(), "./build".into()]),
+            "rm -rf ./build"
+        );
+        // 引号/转义/展开字符触发加引号；单引号 POSIX 转义
+        assert_eq!(join_command(&["it's".into(), "x".into()]), "'it'\\''s' x");
+        assert_eq!(join_command(&["a$b".into(), "y".into()]), "'a$b' y");
+        assert_eq!(join_command(&["".into(), "z".into()]), "'' z");
+    }
+
+    #[test]
+    fn join_command_single_arg_is_verbatim_whole_command() {
+        // 整串调用（最自然形态）必须原文透传——包引号会造出带空格的命令名（127 回归）
+        assert_eq!(join_command(&["echo hello".into()]), "echo hello");
+        assert_eq!(join_command(&["echo \"a b\"".into()]), "echo \"a b\"");
+        assert_eq!(join_command(&["it's".into()]), "it's");
+        assert_eq!(join_command(&["".into()]), "");
+        // 透传后经 core shell_split 分词，参数边界与 sh -c 真实执行一致
+        assert_eq!(
+            iac_core::common::shell_split::argv_of(&join_command(&["echo \"a b\"".into()])),
+            vec!["echo".to_string(), "a b".to_string()]
+        );
+    }
+
+    #[test]
+    fn join_command_round_trips_through_core_split() {
+        // 与 core 账本分词同语义往返：参数边界不丢
+        for args in [
+            vec!["echo".to_string(), "a b".to_string()],
+            vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                "printf '%s' x".to_string(),
+            ],
+        ] {
+            let joined = join_command(&args);
+            assert_eq!(
+                iac_core::common::shell_split::argv_of(&joined),
+                args,
+                "round-trip 失败：{joined}"
+            );
+        }
+    }
+
+    #[test]
+    fn confirm_answer_accepts_affirmatives_only() {
+        assert!(confirm_answer("y\n"));
+        assert!(confirm_answer("  是 "));
+        assert!(!confirm_answer("n\n"));
+        assert!(!confirm_answer(""));
+    }
+}

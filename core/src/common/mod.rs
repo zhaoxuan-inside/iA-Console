@@ -6,3 +6,4 @@ pub mod help_parser;
 pub mod marker_parser;
 pub mod render;
 pub mod script_assembler;
+pub mod shell_split;

@@ -48,6 +48,9 @@ pub struct ProviderProfile {
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// Anthropic 必填 max_tokens；缺省 2048。OpenAI 侧仅显式配置时下发。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<u32>,
 }
 
 /// 模型插件下载源。
@@ -329,6 +332,7 @@ mod tests {
             api_key_env: None,
             model: None,
             path: None,
+            max_tokens: None,
         });
         assert!(c.validate().is_err());
         let p2 = ProviderProfile {
@@ -338,6 +342,7 @@ mod tests {
             api_key_env: None,
             model: None,
             path: None,
+            max_tokens: None,
         };
         c.providers.push(p2);
         assert!(c.validate().is_err());

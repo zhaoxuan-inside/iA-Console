@@ -112,13 +112,10 @@ pub const BUILTIN: &[BuiltinEntry] = &[
         from: "macos",
         to: "linux",
         command_from: "pbcopy",
-        command_to: "xclip",
-        params: &[(
-            "-selection clipboard",
-            None,
-            ParamMapKind::ValueTransform,
-            "xclip 需显式 selection",
-        )],
+        // pbcopy 无旗标参数；xclip 缺省写 PRIMARY selection，需显式 -selection clipboard
+        // 才等价（此处直接并入目标命令，避免裸 xclip 语义漂移）
+        command_to: "xclip -selection clipboard",
+        params: &[],
         notes: "pbcopy → xclip -selection clipboard",
     },
     // ---- windows → macos ----

@@ -3,6 +3,8 @@
 
 pub mod ai;
 pub mod config;
+pub mod fsutil;
+pub mod httpx;
 pub mod modelhub;
 pub mod process;
 pub mod snapstore;

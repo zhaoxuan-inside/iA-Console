@@ -7,7 +7,7 @@ members = ["iac", "iac-gui", "iacd", "core", "infra"]
 egui_term = { path = "vendor/egui-term" }
 
 [workspace.package]
-version = "0.2.6"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 authors = ["zhaoxuan"]

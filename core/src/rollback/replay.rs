@@ -108,8 +108,9 @@ pub fn rollback_to(
             }
         }
     }
-    if !report.applied.is_empty() || swept == 0 {
-        // 撤销过的内容统一入回收站；引用缺失时给最近可用提示由前端呈现
+    if swept > 0 {
+        // 引用缺失计数（retention 回收的前像数，供前端提示与容量观测）
+        metrics.counter("rollback.snapshot_missing", swept as u64);
     }
     metrics.counter("rollback.applied", report.applied.len() as u64);
     *output = report;
@@ -161,7 +162,10 @@ fn apply_entry(
                 metrics,
                 evolution,
             ) {
-                return Err("移入回收站失败（IAC-1601）".into());
+                return Err(format!(
+                    "移入回收站失败（IAC-1601）: {}",
+                    evolution.reason.clone().unwrap_or_default()
+                ));
             }
             Ok(())
         }
@@ -244,7 +248,10 @@ fn trash_and_write(
         metrics,
         evolution,
     ) {
-        return Err("移入回收站失败（IAC-1601）".into());
+        return Err(format!(
+            "移入回收站失败（IAC-1601）: {}",
+            evolution.reason.clone().unwrap_or_default()
+        ));
     }
     write_through(context, metrics, evolution, path, bytes)
 }

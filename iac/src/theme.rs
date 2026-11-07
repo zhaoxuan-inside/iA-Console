@@ -29,24 +29,25 @@ pub enum Mode {
     Night,
 }
 
-/// 主题表：token → "#RRGGBB"。
+/// 主题表：token → "#RRGGBB"。色值与 iac-gui/src/theme.rs 同源对齐
+/// （design/refs/linear.app.design.md 的 Day 阶梯），两前端一套设计语言。
 pub fn palette(mode: Mode) -> [(&'static str, &'static str); 14] {
     match mode {
         Mode::Day => [
-            ("bg", "#FAFAF7"),
-            ("fg", "#262A33"),
-            ("fg-60", "#6B7080"),
-            ("fg-40", "#9CA1AC"),
-            ("fg-25", "#C3C7CE"),
-            ("accent", "#316BFF"),
-            ("safe", "#2E7D32"),
-            ("caution", "#B26A00"),
-            ("dangerous", "#C7500A"),
-            ("destructive", "#B3261E"),
-            ("diff-add", "#2E7D32"),
-            ("diff-del", "#B3261E"),
-            ("syn-keyword", "#8250DF"),
-            ("syn-string", "#0A6E6E"),
+            ("bg", "#fbfbfc"),
+            ("fg", "#1c1c1f"),
+            ("fg-60", "#6c707a"),
+            ("fg-40", "#9b9ea6"),
+            ("fg-25", "#b7bac1"),
+            ("accent", "#5e6ad2"),
+            ("safe", "#217a53"),
+            ("caution", "#ad5f00"),
+            ("dangerous", "#bd4b00"),
+            ("destructive", "#d13438"),
+            ("diff-add", "#217a53"),
+            ("diff-del", "#d13438"),
+            ("syn-keyword", "#8250df"),
+            ("syn-string", "#0a7c6e"),
         ],
         Mode::Night => [
             ("bg", "#010102"),
@@ -67,15 +68,54 @@ pub fn palette(mode: Mode) -> [(&'static str, &'static str); 14] {
     }
 }
 
-/// token → (R, G, B)（console 渲染用）。
-pub fn rgb(mode: Mode, token: Token) -> (u8, u8, u8) {
-    let hex = color(mode, token);
+/// token → 表下标（与 palette 数组序一致，O(1) 取色）。
+fn token_index(t: Token) -> usize {
+    match t {
+        Token::Bg => 0,
+        Token::Fg => 1,
+        Token::Fg60 => 2,
+        Token::Fg40 => 3,
+        Token::Fg25 => 4,
+        Token::Accent => 5,
+        Token::Safe => 6,
+        Token::Caution => 7,
+        Token::Dangerous => 8,
+        Token::Destructive => 9,
+        Token::DiffAdd => 10,
+        Token::DiffDel => 11,
+        Token::SynKeyword => 12,
+        Token::SynString => 13,
+    }
+}
+
+/// hex → (R, G, B)（启动期一次性解析进表）。
+fn hex_rgb(hex: &str) -> (u8, u8, u8) {
     let h = hex.trim_start_matches('#');
     (
         u8::from_str_radix(&h[0..2], 16).unwrap_or(0),
         u8::from_str_radix(&h[2..4], 16).unwrap_or(0),
         u8::from_str_radix(&h[4..6], 16).unwrap_or(0),
     )
+}
+
+/// 模式 → RGB 查找表（进程级缓存：每帧取色零解析）。
+fn rgb_table(mode: Mode) -> &'static [(u8, u8, u8); 14] {
+    static DAY: std::sync::OnceLock<[(u8, u8, u8); 14]> = std::sync::OnceLock::new();
+    static NIGHT: std::sync::OnceLock<[(u8, u8, u8); 14]> = std::sync::OnceLock::new();
+    match mode {
+        Mode::Day => DAY.get_or_init(|| palette(Mode::Day).map(|(_, hex)| hex_rgb(hex))),
+        Mode::Night => NIGHT.get_or_init(|| palette(Mode::Night).map(|(_, hex)| hex_rgb(hex))),
+    }
+}
+
+/// token → (R, G, B)（console 渲染用；查表，无逐帧 hex 解析）。
+pub fn rgb(mode: Mode, token: Token) -> (u8, u8, u8) {
+    rgb_table(mode)[token_index(token)]
+}
+
+/// 终端显示宽度（列数）：ASCII=1，其余按宽字符=2（pad 与光标定位共用约定）。
+pub fn str_width(s: &str) -> usize {
+    s.chars().map(|c| if c.is_ascii() { 1 } else { 2 }).sum()
 }
 
 /// token → 颜色值。
@@ -146,10 +186,22 @@ fn clean_command(cmd: &str) -> String {
         .to_string()
 }
 
-/// OSC 52 序列：`ESC]52;c;<base64>(BEL|ST)`。SSH 远程同样生效（ADR 前端通道约定）。
+/// OSC 52 序列：`ESC]52;c;<base64>BEL`（无尾分号，xterm/kitty 惯例；base64 不含 `;`，
+/// 分号并入数据会致部分终端解码失败）。SSH 远程同样生效（ADR 前端通道约定）。
+/// 内容上限 75KB（base64 后 ~100KB）：超限按字符边界截断，避免终端静默丢弃整条。
 pub fn osc52(content: &str) -> String {
     use base64_like::*;
-    format!("\x1b]52;c;{};\x07", b64_encode(content.as_bytes()))
+    const MAX_CONTENT: usize = 75_000;
+    let cut: &str = if content.len() <= MAX_CONTENT {
+        content
+    } else {
+        let mut end = MAX_CONTENT;
+        while !content.is_char_boundary(end) {
+            end -= 1;
+        }
+        &content[..end]
+    };
+    format!("\x1b]52;c;{}\x07", b64_encode(cut.as_bytes()))
 }
 
 /// 依赖无关的 base64 标准字母表实现（零第三方，仅 OSC52 用途）。
@@ -200,7 +252,9 @@ mod tests {
     #[test]
     fn day_night_differ_on_fg() {
         assert_ne!(color(Mode::Day, Token::Fg), color(Mode::Night, Token::Fg));
-        assert_eq!(color(Mode::Day, Token::Destructive), "#B3261E");
+        // 与 iac-gui Day destructive 同源（Linear 阶梯对齐，v0.3.0 令牌统一）
+        assert_eq!(color(Mode::Day, Token::Destructive), "#d13438");
+        assert_eq!(color(Mode::Day, Token::Accent), "#5e6ad2");
     }
 
     #[test]
@@ -226,7 +280,26 @@ mod tests {
         let seq = osc52("ls");
         assert!(seq.starts_with("\x1b]52;c;"));
         assert!(seq.ends_with("\x07"));
-        assert_eq!(seq, "\x1b]52;c;bHM=;\x07");
+        assert_eq!(seq, "\x1b]52;c;bHM=\x07");
+    }
+
+    #[test]
+    fn osc52_truncates_oversized_content() {
+        let big = "a".repeat(80_000);
+        let seq = osc52(&big);
+        // 75KB 截断 → base64 长度 100_000
+        let b64 = seq
+            .strip_prefix("\x1b]52;c;")
+            .and_then(|s| s.strip_suffix('\x07'))
+            .unwrap_or_default();
+        assert_eq!(b64.len(), 100_000, "超限内容按字符边界截断至 75KB");
+    }
+
+    #[test]
+    fn str_width_counts_cjk_as_two() {
+        assert_eq!(str_width("abc"), 3);
+        assert_eq!(str_width("主题"), 4);
+        assert_eq!(str_width(""), 0);
     }
 }
 

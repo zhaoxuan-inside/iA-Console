@@ -164,13 +164,7 @@ fn parse_and_fill(
     }
 }
 
-/// 原子写：先写临时文件再改名，避免半写文件。
+/// 原子写：唯一临时文件 + fsync + 改名（fsutil::write_atomic）。
 fn write_atomic(path: &Path, body: &str) -> std::io::Result<usize> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("toml.tmp");
-    std::fs::write(&tmp, body)?;
-    std::fs::rename(&tmp, path)?;
-    Ok(body.len())
+    crate::fsutil::write_atomic(path, body.as_bytes())
 }

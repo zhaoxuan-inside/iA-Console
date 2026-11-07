@@ -32,12 +32,15 @@ pub struct ExecuteInput {
     pub proposal_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate_index: Option<usize>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub origin: Option<CommandOrigin>,
     #[serde(default)]
     pub confirmed: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirm_word: Option<String>,
+    /// 客户端工作目录（Q45 字段真实性：cwd/捕获根随客户端而非 daemon 进程）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
 }
 
 /// 闸门判定信息（执行记录与客户端呈现共用）。
@@ -47,6 +50,9 @@ pub struct GateInfo {
     pub action: GateAction,
     pub origin: CommandOrigin,
     pub actor_tag: String,
+    /// 命中的风险规则 id（静态评估路径填充，弱提醒呈现用；提案合成风险为空）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hits: Vec<String>,
 }
 
 /// 执行结果（iac_execute 返回）。
@@ -76,8 +82,10 @@ pub struct ExecutionOutcome {
 
 /// 闸门矩阵（Q34~Q37 纯函数）：风险等级 × 来源 × 发起方 → 闸门动作。
 /// - 人类直输：dangerous 起 WeakWarning（弱提醒不拦截）；
-/// - 翻译/提案路径：dangerous → RequireDoubleEnter，destructive → RequireConfirmWord；
-/// - Agent 且未带确认标志：dangerous 起 RejectAgentUnconfirmed（闸门与人一致）。
+/// - 翻译/提案路径：dangerous → RequireDoubleEnter，destructive → RequireConfirmWord
+///   （destructive 恒需词，confirmed=true 不可替代——词经 check_escalation 服务端校验）；
+/// - Agent 且未带确认标志：dangerous 起 RejectAgentUnconfirmed（闸门与人一致；
+///   Agent 标志即确认，destructive 亦放行——Agent 无法输入确认词）。
 pub fn gate_decision(
     level: RiskLevel,
     origin: CommandOrigin,
@@ -104,6 +112,10 @@ pub fn gate_decision(
         } else {
             GateAction::Pass
         }
+    } else if level >= RiskLevel::Destructive {
+        // 人类路径 destructive 恒需确认词（Q37）：confirmed=true 只代表 dangerous
+        // 双确认完成，不可替代确认词——词由 check_escalation 校验，任何路径都绕不过
+        GateAction::RequireConfirmWord
     } else {
         GateAction::Pass
     }
@@ -148,6 +160,25 @@ mod tests {
         );
         assert_eq!(
             gate_decision(RiskLevel::Dangerous, CommandOrigin::Proposal, false, true),
+            GateAction::Pass
+        );
+    }
+
+    #[test]
+    fn destructive_needs_word_even_when_confirmed_for_humans() {
+        // 人类路径 destructive 恒需确认词：confirmed=true 只代表 dangerous 双确认完成，
+        // 不可替代词（Q37）——此前 confirmed=true 直接 Pass，确认词校验被短路
+        assert_eq!(
+            gate_decision(RiskLevel::Destructive, CommandOrigin::Proposal, false, true),
+            GateAction::RequireConfirmWord
+        );
+        assert_eq!(
+            gate_decision(RiskLevel::Destructive, CommandOrigin::Translated, false, true),
+            GateAction::RequireConfirmWord
+        );
+        // Agent 标志即确认（Q35/Q37：Agent 无法输入确认词）
+        assert_eq!(
+            gate_decision(RiskLevel::Destructive, CommandOrigin::Translated, true, true),
             GateAction::Pass
         );
     }

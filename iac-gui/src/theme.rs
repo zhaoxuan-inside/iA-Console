@@ -266,6 +266,37 @@ pub fn terminal_palette(mode: Mode) -> egui_term::ColorPalette {
     }
 }
 
+// ---------- 组件助手（2025-2026 组件语言：状态点 / kbd 键帽；Linear/Raycast 语义） ----------
+
+/// 状态点：实心小圆（daemon 连接 / 标签运行指示）。
+pub fn status_dot(ui: &mut egui::Ui, color: Color32, radius: f32) {
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(radius * 2.0, radius * 2.0), egui::Sense::hover());
+    ui.painter().circle_filled(rect.center(), radius, color);
+}
+
+/// kbd 键帽：mono 小字 + surface-2 底 + 发丝线 + 4px 圆角；可点击（返回 Response）。
+pub fn kbd_chip(ui: &mut egui::Ui, mode: Mode, keys: &str, id_salt: &str) -> egui::Response {
+    let inner = egui::Frame::NONE
+        .fill(color(mode, Token::SurfaceRaised))
+        .stroke(egui::Stroke::new(1.0_f32, color(mode, Token::Hairline)))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(5, 1))
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(keys)
+                    .monospace()
+                    .small()
+                    .color(color(mode, Token::Fg40)),
+            );
+        });
+    ui.interact(
+        inner.response.rect,
+        egui::Id::new(id_salt),
+        egui::Sense::click(),
+    )
+}
+
 /// 装载系统中文字体（egui 默认字库无 CJK）：扫描常见 Noto/WQY 路径，找不到则保持默认。
 pub fn install_fonts(ctx: &Context) {
     let candidates = [

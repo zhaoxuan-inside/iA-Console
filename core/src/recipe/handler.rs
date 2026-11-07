@@ -51,14 +51,20 @@ pub fn save_recipe(
         .store
         .storage_query(&q, &mut rows, context, metrics, evolution)
     {
-        // UNIQUE 冲突（name 重复）→ IAC-4101 语义
-        evolution.fail(
-            crate::error::codes::RECIPE_NAME_CONFLICT,
-            format!(
-                "方案保存失败：name「{}」已存在",
-                input.name.as_deref().unwrap_or_default()
-            ),
-        );
+        // UNIQUE 冲突（name 重复，rusqlite "UNIQUE constraint failed: recipes.name"）→ IAC-4101；
+        // 其余存储故障保持 IAC-3102 原语义（锁冲突/缺表等不得误报为重名）
+        let reason = evolution.reason.as_deref().unwrap_or_default();
+        if reason.contains("UNIQUE constraint") {
+            evolution.fail(
+                crate::error::codes::RECIPE_NAME_CONFLICT,
+                format!(
+                    "方案保存失败：name「{}」已存在",
+                    input.name.as_deref().unwrap_or_default()
+                ),
+            );
+        } else {
+            evolution.propagate("save_recipe", "方案存储失败");
+        }
         return false;
     }
     let id = rows.text(0, "id").unwrap_or_default().to_string();

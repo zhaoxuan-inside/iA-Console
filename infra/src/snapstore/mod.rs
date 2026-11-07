@@ -2,12 +2,12 @@
 //! 内容寻址（sha256）+ gzip 压缩 + 去重；retention 天数/容量双轨 LRU（AC-31/32）。
 //! 第三方组件：sha2 / flate2 / std::fs——业务层禁直接触达，一律经本模块。
 
+use crate::fsutil;
 use iac_core::framework::{Context, Evolution, Metrics};
 use iac_core::ports::{
     CaptureTreeInput, ContentRef, FileCaptured, RetentionPolicy, SnapPort, SnapshotData,
     SweepReport, TrashAck, TrashRequest, WriteFileInput,
 };
-use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -30,6 +30,15 @@ fn trash_dir() -> PathBuf {
     data_root().join("trash")
 }
 
+/// 跨文件系统判定（rename EXDEV）：unix 18 / windows ERROR_NOT_SAME_DEVICE 17。
+fn is_cross_device(e: &std::io::Error) -> bool {
+    if cfg!(windows) {
+        e.raw_os_error() == Some(17)
+    } else {
+        e.raw_os_error() == Some(18)
+    }
+}
+
 /// 真实实现：本地文件系统内容寻址仓库。
 #[derive(Debug, Default)]
 pub struct RealSnap;
@@ -37,6 +46,29 @@ pub struct RealSnap;
 impl RealSnap {
     pub fn new() -> Self {
         Self
+    }
+
+    /// 内容入库（snapstore_put 与 capture_tree 共用；调用方已算好 hex，免二次哈希）。
+    /// 去重命中仅计数；未命中 gzip + 原子写。
+    fn store_content(
+        &self,
+        bytes: &[u8],
+        hex: &str,
+        metrics: &mut Metrics,
+        evolution: &mut Evolution,
+    ) -> bool {
+        let dir = snapshots_dir().join(&hex[..2]);
+        let target = dir.join(format!("{hex}.gz"));
+        if !target.exists() {
+            let compressed = gzip(bytes);
+            if let Err(e) = fsutil::write_atomic(&target, &compressed) {
+                evolution.fail("IAC-1601", format!("快照写入失败: {e}"));
+                return false;
+            }
+        } else {
+            metrics.counter("snapstore.dedup", 1);
+        }
+        true
     }
 }
 
@@ -50,17 +82,9 @@ impl SnapPort for RealSnap {
         evolution: &mut Evolution,
     ) -> bool {
         evolution.succeed();
-        let hex = sha256_hex(&input.bytes);
-        let dir = snapshots_dir().join(&hex[..2]);
-        let target = dir.join(format!("{hex}.gz"));
-        if !target.exists() {
-            let compressed = gzip(&input.bytes);
-            if let Err(e) = write_atomic(&target, &compressed) {
-                evolution.fail("IAC-1601", format!("快照写入失败: {e}"));
-                return false;
-            }
-        } else {
-            metrics.counter("snapstore.dedup", 1);
+        let hex = fsutil::sha256_hex(&input.bytes);
+        if !self.store_content(&input.bytes, &hex, metrics, evolution) {
+            return false;
         }
         output.reference = format!("sha256:{hex}");
         true
@@ -79,11 +103,19 @@ impl SnapPort for RealSnap {
             evolution.fail("IAC-1602", format!("非法内容引用: {}", input.reference));
             return false;
         };
+        let hex = hex.to_ascii_lowercase();
+        if hex.len() != 64 || !hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+            evolution.fail("IAC-1602", format!("非法内容引用: {}", input.reference));
+            return false;
+        }
         let path = snapshots_dir().join(&hex[..2]).join(format!("{hex}.gz"));
         let raw = match std::fs::read(&path) {
             Ok(r) => r,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                evolution.fail("IAC-1602", format!("快照已被回收: {}", input.reference));
+                evolution.fail(
+                    "IAC-1602",
+                    format!("快照不存在（可能已被回收）: {}", input.reference),
+                );
                 return false;
             }
             Err(e) => {
@@ -98,7 +130,7 @@ impl SnapPort for RealSnap {
                 return false;
             }
         };
-        if sha256_hex(&bytes) != hex {
+        if fsutil::sha256_hex(&bytes) != hex {
             evolution.fail("IAC-1602", "快照完整性校验失败（sha256 不符）");
             return false;
         }
@@ -116,26 +148,22 @@ impl SnapPort for RealSnap {
     ) -> bool {
         evolution.succeed();
         let mut report = SweepReport::default();
-        // 快照：先按天数清退，再按容量 LRU 清退
+        let now = now_secs();
+        let day_secs = u64::from(input.days) * 86_400;
+        // 快照：先按天数清退，再按容量 LRU（mtime 升序）清退
         let mut snaps = list_files(&snapshots_dir());
         snaps.sort_by_key(|(_, meta)| meta.1);
-        let now = now_secs();
         for (path, (size, mtime)) in &snaps {
-            let aged = now.saturating_sub(*mtime) > u64::from(input.days) * 86_400;
-            if aged && std::fs::remove_file(path).is_ok() {
+            if now.saturating_sub(*mtime) > day_secs && std::fs::remove_file(path).is_ok() {
                 report.removed += 1;
                 report.freed_bytes += *size;
             }
         }
-        let mut rest: Vec<u64> = list_files(&snapshots_dir())
-            .into_iter()
-            .map(|(_, (size, _))| size)
-            .collect();
-        let mut total: u64 = rest.iter().sum();
-        rest.sort_unstable_by_key(|_| 0u8); // 顺序已被删除破坏，重新按 mtime 清退
-        let mut ordered = list_files(&snapshots_dir());
-        ordered.sort_by_key(|(_, meta)| meta.1);
-        for (path, (size, _)) in &ordered {
+        // 天数清退后重新列举，仍按 mtime 升序清退到容量线内
+        let mut rest = list_files(&snapshots_dir());
+        rest.sort_by_key(|(_, meta)| meta.1);
+        let mut total: u64 = rest.iter().map(|(_, (size, _))| size).sum();
+        for (path, (size, _)) in &rest {
             if total <= input.max_bytes {
                 break;
             }
@@ -147,19 +175,14 @@ impl SnapPort for RealSnap {
             }
         }
         // 回收站：仅按天数清退
-        for (path, (_, mtime)) in list_files(&trash_dir()) {
-            if now.saturating_sub(mtime) > u64::from(input.days) * 86_400
-                && std::fs::remove_file(path).is_ok()
-            {
+        for (path, (size, mtime)) in list_files(&trash_dir()) {
+            if now.saturating_sub(mtime) > day_secs && std::fs::remove_file(path).is_ok() {
                 report.removed += 1;
+                report.freed_bytes += size;
             }
         }
-        if list_files(&snapshots_dir())
-            .into_iter()
-            .map(|(_, (s, _))| s)
-            .sum::<u64>()
-            > input.max_bytes
-        {
+        // 终检：total 只在删除成功时扣减，无需再扫目录
+        if total > input.max_bytes {
             evolution.fail("IAC-1601", "快照仓库超限且无法回收，请调大 retention 上限");
             return false;
         }
@@ -171,7 +194,7 @@ impl SnapPort for RealSnap {
         &self,
         input: &CaptureTreeInput,
         output: &mut Vec<FileCaptured>,
-        context: &Context,
+        _context: &Context,
         metrics: &mut Metrics,
         evolution: &mut Evolution,
     ) -> bool {
@@ -186,33 +209,36 @@ impl SnapPort for RealSnap {
                 if !meta.is_file() || meta.is_symlink() {
                     return;
                 }
-                let Ok(_rel) = abs.strip_prefix(root) else {
+                if abs.strip_prefix(root).is_err() {
                     return;
                 };
-                let Ok(bytes) = std::fs::read(abs) else {
-                    return;
+                // 先 stat 判尺寸再决定读取方式：超限文件只流式取指纹，不整载入内存
+                let size = meta.len();
+                let storable =
+                    size <= input.max_file_bytes && stored_total + size <= input.max_total_bytes;
+                let payload = if storable {
+                    std::fs::read(abs).ok()
+                } else {
+                    None
                 };
-                let hex = sha256_hex(&bytes);
-                let storable = bytes.len() as u64 <= input.max_file_bytes
-                    && stored_total + bytes.len() as u64 <= input.max_total_bytes;
+                let hex = match &payload {
+                    Some(b) => fsutil::sha256_hex(b),
+                    None => match fsutil::sha256_file(abs) {
+                        Ok(h) => h,
+                        Err(_) => return,
+                    },
+                };
                 let mut captured = FileCaptured {
                     path: abs.to_string_lossy().to_string(),
                     sha256: hex,
-                    size: bytes.len() as u64,
+                    size,
                     stored: false,
                     content_ref: None,
                 };
-                if storable {
-                    let mut cref = ContentRef::default();
-                    if self.snapstore_put(
-                        &SnapshotData { bytes },
-                        &mut cref,
-                        context,
-                        metrics,
-                        evolution,
-                    ) {
+                if let Some(bytes) = payload {
+                    if self.store_content(&bytes, &captured.sha256, metrics, evolution) {
                         captured.stored = true;
-                        captured.content_ref = Some(cref.reference);
+                        captured.content_ref = Some(format!("sha256:{}", captured.sha256));
                         stored_total += captured.size;
                     }
                 }
@@ -242,18 +268,48 @@ impl SnapPort for RealSnap {
             evolution.fail("IAC-1601", "回收站目录创建失败");
             return false;
         }
-        let flat: String = input
-            .abs_path
-            .to_string_lossy()
+        // tag 一并扁平化（杜绝分隔符/穿越）；冲突自增后缀，绝不覆盖已有回收条目
+        let flat: String = format!("{}_{}", input.tag, input.abs_path.to_string_lossy())
             .chars()
             .map(|c| if c.is_alphanumeric() { c } else { '_' })
             .collect();
-        let target = dir.join(format!("{}_{}", input.tag, flat));
+        let mut target = dir.join(&flat);
+        let mut n = 1u32;
+        while target.exists() {
+            if n > 1000 {
+                evolution.fail("IAC-1601", format!("回收站条目冲突过多: {flat}"));
+                return false;
+            }
+            target = dir.join(format!("{flat}__{n}"));
+            n += 1;
+        }
         match std::fs::rename(&input.abs_path, &target) {
             Ok(()) => {
                 output.trash_path = target.to_string_lossy().to_string();
                 output.moved = true;
                 true
+            }
+            Err(e) if is_cross_device(&e) => {
+                // 跨文件系统 rename 必败（EXDEV，如 /tmp tmpfs → home 盘）：复制+删除兜底。
+                // 回滚效果均为常规文件（diff 依内容指纹），目录不支持跨设备回退。
+                if !input.abs_path.is_file() {
+                    evolution.fail("IAC-1601", format!("跨文件系统移动仅支持常规文件: {e}"));
+                    return false;
+                }
+                match std::fs::copy(&input.abs_path, &target)
+                    .and_then(|_| std::fs::remove_file(&input.abs_path))
+                {
+                    Ok(_) => {
+                        output.trash_path = target.to_string_lossy().to_string();
+                        output.moved = true;
+                        true
+                    }
+                    Err(e2) => {
+                        let _ = std::fs::remove_file(&target); // 半成品清理
+                        evolution.fail("IAC-1601", format!("移入回收站失败: {e2}"));
+                        false
+                    }
+                }
             }
             Err(e) => {
                 evolution.fail("IAC-1601", format!("移入回收站失败: {e}"));
@@ -270,14 +326,9 @@ impl SnapPort for RealSnap {
         evolution: &mut Evolution,
     ) -> bool {
         evolution.succeed();
-        if let Some(parent) = input.path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                evolution.fail("IAC-1601", format!("父目录创建失败: {e}"));
-                return false;
-            }
-        }
-        match std::fs::write(&input.path, &input.bytes) {
-            Ok(()) => true,
+        // 原子写：恢复过程崩溃不留半写文件
+        match fsutil::write_atomic(&input.path, &input.bytes) {
+            Ok(_) => true,
             Err(e) => {
                 evolution.fail("IAC-1601", format!("恢复写入失败: {e}"));
                 false
@@ -298,14 +349,6 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// sha256 十六进制小写。
-fn sha256_hex(bytes: &[u8]) -> String {
-    let mut h = Sha256::new();
-    h.update(bytes);
-    let out = h.finalize();
-    out.iter().map(|b| format!("{b:02x}")).collect()
-}
-
 /// gzip 压缩。
 fn gzip(bytes: &[u8]) -> Vec<u8> {
     let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
@@ -319,16 +362,6 @@ fn gunzip(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
     let mut out = Vec::new();
     dec.read_to_end(&mut out)?;
     Ok(out)
-}
-
-/// 原子写（临时文件 + 改名）。
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, bytes)?;
-    std::fs::rename(&tmp, path)
 }
 
 /// 列出目录下全部文件（递归：快照按 {hex前2}/{hex}.gz 分片，非递归会全部漏扫）。
@@ -504,6 +537,81 @@ mod tests {
             &mut evo
         ));
         assert!(out2.iter().all(|f| !f.stored));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn short_reference_fails_1602_without_panic() {
+        let _guard = FS_LOCK.lock().unwrap();
+        let (env, root) = env_with_root("shortref");
+        let snap = RealSnap::new();
+        let mut evo = Evolution::default();
+        let mut m = Metrics::default();
+        let mut out = SnapshotData::default();
+        // 此前 &hex[..2] 对短引用直接 panic
+        for bad in ["sha256:a", "sha256:", "sha256:zzzz", "not-a-ref"] {
+            assert!(!snap.snapstore_fetch(
+                &ContentRef {
+                    reference: bad.into()
+                },
+                &mut out,
+                &env.context(),
+                &mut m,
+                &mut evo
+            ));
+            assert_eq!(evo.reason_code.as_deref(), Some("IAC-1602"), "ref={bad}");
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn trash_collision_never_overwrites() {
+        let _guard = FS_LOCK.lock().unwrap();
+        let (env, root) = env_with_root("trashcol");
+        let snap = RealSnap::new();
+        let mut evo = Evolution::default();
+        let mut m = Metrics::default();
+        // 两个不同文件扁平化后同名（a/b.txt 与 a_b.txt → *_a_b_txt）：都须保留
+        let sub = root.join("a");
+        std::fs::create_dir_all(&sub).unwrap();
+        let f1 = sub.join("b.txt");
+        let f2 = root.join("a_b.txt");
+        std::fs::write(&f1, b"one").unwrap();
+        std::fs::write(&f2, b"two-two").unwrap();
+        let mut ack1 = TrashAck::default();
+        let mut ack2 = TrashAck::default();
+        assert!(snap.trash_file(
+            &TrashRequest {
+                abs_path: f1.clone(),
+                tag: "t1".into()
+            },
+            &mut ack1,
+            &env.context(),
+            &mut m,
+            &mut evo
+        ));
+        assert!(snap.trash_file(
+            &TrashRequest {
+                abs_path: f2.clone(),
+                tag: "t1".into()
+            },
+            &mut ack2,
+            &env.context(),
+            &mut m,
+            &mut evo
+        ));
+        assert!(ack1.moved && ack2.moved);
+        assert_ne!(ack1.trash_path, ack2.trash_path, "冲突条目应各自落位");
+        let kept: Vec<u64> = std::fs::read_dir(trash_dir())
+            .unwrap()
+            .flatten()
+            .map(|e| e.metadata().unwrap().len())
+            .collect();
+        assert_eq!(kept.len(), 2, "两条回收条目都存在，无覆盖");
+        assert!(
+            kept.contains(&3) && kept.contains(&7),
+            "两个文件内容都完整保留（3B + 7B）"
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 

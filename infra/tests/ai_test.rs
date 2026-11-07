@@ -16,6 +16,7 @@ fn provider(kind: ProviderKind, base: String, key_env: &str) -> ProviderProfile 
         api_key_env: Some(key_env.into()),
         model: Some("test-model".into()),
         path: None,
+        max_tokens: None,
     }
 }
 
@@ -125,4 +126,116 @@ fn unreachable_backend_maps_to_1101() {
     ));
     assert!(!ok);
     assert_eq!(evo.reason_code.as_deref(), Some("IAC-1101"));
+}
+
+/// 捕获请求体的 mock server（断言请求形状用）。
+fn serve_capture(response: &'static str) -> (String, std::sync::Arc<std::sync::Mutex<String>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().unwrap();
+    let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let cap = captured.clone();
+    std::thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut buf = vec![0u8; 65536];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]).into_owned();
+            let body = req
+                .split_once("\r\n\r\n")
+                .map(|(_, b)| b.to_string())
+                .unwrap_or_default();
+            *cap.lock().unwrap() = body;
+            let (status, resp_body) = response.split_once("\r\n\r\n").unwrap_or((response, ""));
+            let resp = format!(
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{resp_body}",
+                resp_body.len()
+            );
+            let _ = stream.write_all(resp.as_bytes());
+        }
+    });
+    (format!("http://{addr}"), captured)
+}
+
+#[test]
+fn malformed_key_fails_gracefully_not_panic() {
+    // 密钥含换行：此前 HeaderValue::from_str().expect() 会 panic，现应转译 IAC-5102
+    std::env::set_var("IAC_TEST_BAD_KEY", "key\nwith-newline");
+    let (ok, _, evo) = run(&provider(
+        ProviderKind::Anthropic,
+        "http://127.0.0.1:1".into(),
+        "IAC_TEST_BAD_KEY",
+    ));
+    assert!(!ok);
+    assert_eq!(evo.reason_code.as_deref(), Some("IAC-5102"));
+    assert!(evo.reason.as_deref().unwrap().contains("非法字符"));
+}
+
+#[test]
+fn empty_system_is_not_sent() {
+    std::env::set_var("IAC_TEST_KEY", "test-key-123");
+    let base = serve_once(
+        "200 OK\r\n\r\n{\"choices\":[{\"message\":{\"content\":\"ok\"}}],\"model\":\"m\"}",
+    );
+    let p = provider(ProviderKind::Openai, base, "IAC_TEST_KEY");
+    let env = TestEnv::new();
+    let input = AiRequest {
+        system: String::new(),
+        messages: vec![("user".into(), "hi".into())],
+        temperature: 0.2,
+        timeout_ms: 5_000,
+    };
+    let mut out = LlmResponse::default();
+    let mut evo = Evolution::default();
+    assert!(ai_complete(
+        &p,
+        &input,
+        &mut out,
+        &env.context(),
+        &mut Metrics::default(),
+        &mut evo
+    ));
+    // 请求体不含 system 消息（serve_once 不回显请求，这里用捕获版再验一次）
+    let (base2, captured) = serve_capture(
+        "200 OK\r\n\r\n{\"choices\":[{\"message\":{\"content\":\"ok\"}}],\"model\":\"m\"}",
+    );
+    let p2 = provider(ProviderKind::Openai, base2, "IAC_TEST_KEY");
+    let mut out2 = LlmResponse::default();
+    let mut evo2 = Evolution::default();
+    assert!(ai_complete(
+        &p2,
+        &input,
+        &mut out2,
+        &env.context(),
+        &mut Metrics::default(),
+        &mut evo2
+    ));
+    let body = captured.lock().unwrap().clone();
+    assert!(
+        !body.contains("\"role\":\"system\""),
+        "空 system 不应下发: {body}"
+    );
+}
+
+#[test]
+fn anthropic_max_tokens_from_profile() {
+    std::env::set_var("IAC_TEST_KEY", "test-key-123");
+    let (base, captured) =
+        serve_capture("200 OK\r\n\r\n{\"content\":[{\"text\":\"你好\"}],\"model\":\"claude-x\"}");
+    let mut p = provider(ProviderKind::Anthropic, base, "IAC_TEST_KEY");
+    p.max_tokens = Some(777);
+    let env = TestEnv::new();
+    let mut out = LlmResponse::default();
+    let mut evo = Evolution::default();
+    assert!(ai_complete(
+        &p,
+        &req(),
+        &mut out,
+        &env.context(),
+        &mut Metrics::default(),
+        &mut evo
+    ));
+    let body = captured.lock().unwrap().clone();
+    assert!(
+        body.contains("\"max_tokens\":777"),
+        "档案 max_tokens 应透传: {body}"
+    );
 }

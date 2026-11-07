@@ -22,8 +22,7 @@ impl Storage {
     /// 打开（或创建）数据库文件并启用 WAL。
     pub fn open(path: &std::path::Path) -> Result<Self, rusqlite::Error> {
         let conn = Connection::open(path)?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
+        Self::configure(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -32,10 +31,18 @@ impl Storage {
     /// 内存库（测试与临时场景）。
     pub fn open_in_memory() -> Result<Self, rusqlite::Error> {
         let conn = Connection::open_in_memory()?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
+        Self::configure(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
+    }
+
+    /// 公共 pragma：WAL、外键、busy_timeout（跨进程短暂争锁时等待而非立即报错）。
+    fn configure(conn: &Connection) -> Result<(), rusqlite::Error> {
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        conn.pragma_update(None, "busy_timeout", 5_000)?;
+        Ok(())
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -119,7 +126,7 @@ impl StorePort for Storage {
         }
     }
 
-    /// IF-004：版本化迁移（幂等）。
+    /// IF-004：版本化迁移（幂等；单个迁移失败自动回滚，不留悬挂事务）。
     fn storage_migrate(
         &self,
         _input: &MigrationDir,
@@ -130,34 +137,49 @@ impl StorePort for Storage {
     ) -> bool {
         evolution.succeed();
         let conn = self.lock();
-        if let Err(e) = conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at INTEGER NOT NULL);",
-        ) {
+        if let Err(e) = apply_migrations(&conn, MIGRATIONS, &mut output.applied) {
             return fail_migrate(evolution, e);
-        }
-        for (name, sql) in MIGRATIONS {
-            let done: i64 = match conn.query_row(
-                "SELECT COUNT(*) FROM schema_migrations WHERE version=?1",
-                [name],
-                |r| r.get(0),
-            ) {
-                Ok(n) => n,
-                Err(e) => return fail_migrate(evolution, e),
-            };
-            if done > 0 {
-                continue;
-            }
-            let batch = format!(
-                "BEGIN; {sql}\nINSERT INTO schema_migrations(version, applied_at) VALUES('{name}', strftime('%s','now'));\nCOMMIT;"
-            );
-            if let Err(e) = conn.execute_batch(&batch) {
-                return fail_migrate(evolution, e);
-            }
-            output.applied.push(name.to_string());
         }
         metrics.counter("storage.migrated", output.applied.len() as u64);
         true
     }
+}
+
+/// 逐版本应用迁移（幂等）。每个迁移在独立事务中执行：任一语句失败即整体回滚，
+/// 连接上不残留打开的事务（此前 BEGIN/COMMIT 拼接 batch 失败会悬挂事务）。
+fn apply_migrations(
+    conn: &Connection,
+    migrations: &[(&str, &str)],
+    applied: &mut Vec<String>,
+) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at INTEGER NOT NULL);",
+    )?;
+    for (name, sql) in migrations {
+        let done: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version=?1",
+            [name],
+            |r| r.get(0),
+        )?;
+        if done > 0 {
+            continue;
+        }
+        let tx = conn.unchecked_transaction()?;
+        let result = tx.execute_batch(sql).and_then(|_| {
+            tx.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES(?1, strftime('%s','now'))",
+                [name],
+            )
+            .map(|_| ())
+        });
+        if let Err(e) = result {
+            drop(tx); // 析构即回滚
+            return Err(e);
+        }
+        tx.commit()?;
+        applied.push(name.to_string());
+    }
+    Ok(())
 }
 
 /// 行集收集（storage_query 子步骤）。
@@ -173,7 +195,10 @@ fn collect_rows(
             Ok(Some(row)) => {
                 let mut vals = Vec::with_capacity(names.len());
                 for i in 0..names.len() {
-                    vals.push(from_sqlite(row.get_ref_unwrap(i)));
+                    match row.get_ref(i) {
+                        Ok(v) => vals.push(from_sqlite(v)),
+                        Err(e) => return fail_storage(evolution, e),
+                    }
                 }
                 out.push(vals);
             }
@@ -195,4 +220,45 @@ fn fail_storage(evolution: &mut Evolution, e: rusqlite::Error) -> bool {
 fn fail_migrate(evolution: &mut Evolution, e: rusqlite::Error) -> bool {
     evolution.fail(codes::STORAGE_MIGRATE, format!("迁移失败: {e}"));
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 迁移中途失败：整体回滚、不留悬挂事务、连接仍可用（此前 BEGIN/COMMIT batch 会悬挂）。
+    #[test]
+    fn failed_migration_rolls_back_and_connection_stays_usable() {
+        let conn = Connection::open_in_memory().unwrap();
+        let bad = [
+            ("0001_good", "CREATE TABLE t1(a INTEGER);"),
+            (
+                "0002_bad",
+                "CREATE TABLE t2(a INTEGER); INSERT INTO 不存在的表 VALUES(1);",
+            ),
+        ];
+        let mut applied = Vec::new();
+        assert!(apply_migrations(&conn, &bad, &mut applied).is_err());
+        assert_eq!(applied, vec!["0001_good"], "失败的 0002 不记账");
+        // 0002 整体回滚：t2 不存在
+        let t2: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='t2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(t2, 0);
+        // 0001 已提交且记账；重跑幂等
+        let mut applied2 = Vec::new();
+        assert!(apply_migrations(&conn, &bad[..1], &mut applied2).is_ok());
+        assert!(applied2.is_empty(), "0001 已记账不重复应用");
+        // 连接无残留事务：常规读写正常
+        conn.execute_batch("CREATE TABLE t3(a); INSERT INTO t3 VALUES(7);")
+            .unwrap();
+        let v: i64 = conn
+            .query_row("SELECT a FROM t3", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 7);
+    }
 }

@@ -135,3 +135,43 @@ fn env_declaration_updates_session() {
     ));
     assert_eq!(back.env, vec![("FOO".into(), "baz".into())]);
 }
+
+#[test]
+fn session_env_helper_feeds_process_injection() {
+    let env = env_with_db();
+    let mut m = Metrics::default();
+    let mut e = Evolution::default();
+    let sess = new_session(&env, "/tmp/env-inject", &mut m, &mut e);
+    // 声明两个 env（第二个 upsert 覆盖）
+    assert!(record_env(
+        &sess.id,
+        "FOO",
+        "first",
+        &env.context(),
+        &mut m,
+        &mut e
+    ));
+    assert!(record_env(
+        &sess.id,
+        "FOO",
+        "baz",
+        &env.context(),
+        &mut m,
+        &mut e
+    ));
+    assert!(record_env(
+        &sess.id,
+        "IAC_TEST",
+        "1",
+        &env.context(),
+        &mut m,
+        &mut e
+    ));
+    // session_env=执行注入数据源（Q46：声明对后续 iac_execute/脚本可见）
+    let mut m2 = Metrics::default();
+    let mut e2 = Evolution::default();
+    let injected =
+        iac_core::session::store::session_env(&sess.id, &env.context(), &mut m2, &mut e2);
+    assert!(injected.contains(&("FOO".into(), "baz".into())));
+    assert!(injected.contains(&("IAC_TEST".into(), "1".into())));
+}

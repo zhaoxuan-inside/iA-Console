@@ -477,6 +477,31 @@ fn parse_env(raw: &str) -> Vec<(String, String)> {
     serde_json::from_str::<Vec<(String, String)>>(raw).unwrap_or_default()
 }
 
+/// 会话已声明环境变量（Q46）：注入后续执行的 ProcessSpec.env；会话不可用返回空（尽力而为）。
+pub fn session_env(
+    session_id: &str,
+    context: &Context,
+    metrics: &mut Metrics,
+    evolution: &mut Evolution,
+) -> Vec<(String, String)> {
+    if session_id.is_empty() {
+        return Vec::new();
+    }
+    let mut rows = crate::ports::QueryRows::default();
+    let q = SqlQuery {
+        sql: "SELECT env_json FROM sessions WHERE id = ?1".into(),
+        params: vec![session_id.into()],
+    };
+    if !context
+        .deps
+        .store
+        .storage_query(&q, &mut rows, context, metrics, evolution)
+    {
+        return Vec::new();
+    }
+    parse_env(rows.text(0, "env_json").unwrap_or("[]"))
+}
+
 /// 触碰会话更新时间。
 fn touch_session(
     session_id: &str,
